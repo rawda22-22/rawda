@@ -395,6 +395,15 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
       <h4>🎁 الخصومات</h4>
       <div class="f"><label>خصم المجموعات التلقائي (%)</label><input id="sBulkPct" type="number" min="0" max="100"></div>
       <div class="f"><label>يُطبّق من عدد أفراد</label><input id="sBulkMin" type="number" min="0"><span class="hint">0 = إيقاف الخصم التلقائي</span></div>
+
+      <h4>🔔 إشعارات تليجرم</h4>
+      <label class="chk"><input type="checkbox" id="tgOn"> ابعتلي إشعار على تليجرم مع كل حجز جديد</label>
+      <div class="f full"><label>Bot Token</label><input id="tgToken" dir="ltr" autocomplete="off" placeholder="123456789:AAH..."></div>
+      <div class="f"><label>Chat ID</label><input id="tgChat" dir="ltr" autocomplete="off" placeholder="123456789"></div>
+      <div class="f" style="justify-content:flex-end"><div class="qchips">
+        <button type="button" class="btn sec sm" onclick="tgDetect()">🔍 جيب Chat ID</button>
+        <button type="button" class="btn sec sm" onclick="tgTest()">📨 رسالة تجربة</button></div></div>
+      <div class="f full"><span class="hint">اعمل بوت من <b dir="ltr">@BotFather</b> وانسخ الـ Token، ابعت للبوت أي رسالة، وبعدين دوس «جيب Chat ID». للجروب: ضيف البوت للجروب وابعت فيه رسالة. التوكن بيتحفظ في قاعدة البيانات (مش في الكود) ومحدش يشوفه غير المستخدمين المسجلين.</span></div>
     </div>
     <div class="mfoot">
       <button class="btn pri" onclick="saveSettings()">💾 حفظ</button>
@@ -579,6 +588,7 @@ function subscribe(){
     if(fixEgpPrice()) cloudSave();
     fillCurSelects(); renderAll();
   }, cloudErr));
+  unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
     const arr=[]; synced.bookings={};
     snap.forEach(d=>{ const b=migrate({...d.data(), id:d.id}); arr.push(b); synced.bookings[d.id]=JSON.stringify(b); });
@@ -1156,7 +1166,7 @@ function submitForm(sendAfter){
     b=S.bookings.find(x=>x.id===id);
     if(!b){ toast('⚠️ هذا الحجز حُذف من جهاز آخر'); closeOv('formOv'); return; }
     Object.assign(b, data); toast('✓ تم تحديث الحجز');
-  } else { b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data}; S.bookings.push(b); toast('✓ تمت إضافة الحجز'); }
+  } else { b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data}; S.bookings.push(b); toast('✓ تمت إضافة الحجز'); tgNotify(b); }
   save(); closeOv('formOv'); renderAll();
   if(sendAfter) window.open(waUrl(b),'_blank');
 }
@@ -1204,6 +1214,57 @@ function confirmPay(send){
 $('#payOk').addEventListener('click',()=>confirmPay(false));
 $('#payOkSend').addEventListener('click',()=>confirmPay(true));
 
+/* ========= 🔔 إشعارات تليجرم ========= */
+let TG = { on:false, token:'', chatId:'' };
+const TG_KEY = 'rawdah_tg';
+function loadTGLocal(){ try{ const v=localStore()?.getItem(TG_KEY); if(v) TG={...TG, ...JSON.parse(v)}; }catch(e){} }
+async function saveTG(){
+  if(mode==='cloud'){ if(user && db) try{ await fb.setDoc(fb.doc(db,'meta','telegram'), clean(TG)); }catch(e){ cloudErr(e); } }
+  else { const ls=localStore(); if(ls) ls.setItem(TG_KEY, JSON.stringify(TG)); }
+}
+const tgEsc = s => String(s ?? '').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+async function tgSend(text, token=TG.token, chatId=TG.chatId){
+  if(!token || !chatId) throw new Error('missing');
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method:'POST', body:new URLSearchParams({chat_id:chatId, text, parse_mode:'HTML', disable_web_page_preview:'true'}) });
+  const j = await r.json().catch(()=>({}));
+  if(!j.ok) throw new Error(j.description || ('HTTP '+r.status));
+  return j;
+}
+function tgMsg(b){
+  const c=calc(b), M=v=>money(v,c.cur), L=['🆕 <b>حجز جديد</b>', '',
+    `👤 ${tgEsc(b.name)}`, `📞 <code>${tgEsc(b.phone)}</code>`];
+  if(+b.men) L.push(`🧔 رجال ${b.men} — ${fmtDate(gDate(b,'m'),true)} • ${fmt12(b.menSlot)}`);
+  if(+b.women) L.push(`🧕 نساء ${b.women} — ${fmtDate(gDate(b,'w'),true)} • ${fmt12(b.womenSlot)}`);
+  L.push('', `💰 الصافي: ${M(c.total)}${c.disc>0?` (خصم ${M(c.disc)})`:''}`, `💵 المدفوع: ${M(c.paid)} — ${PAY[c.st][0]}`);
+  if(c.rem>0) L.push(`⏳ المتبقي: ${M(c.rem)}`);
+  if(b.notes) L.push(`📝 ${tgEsc(b.notes)}`);
+  if(user?.email) L.push('', `أضافه: ${tgEsc(user.email.split('@')[0])}`);
+  return L.join('\n');
+}
+function tgNotify(b){
+  if(!TG.on || !TG.token || !TG.chatId) return;
+  tgSend(tgMsg(b)).catch(e=>{ console.error(e); toast('⚠️ تعذر إرسال إشعار تليجرم: '+e.message); });
+}
+async function tgTest(){
+  const token=$('#tgToken').value.trim(), chat=$('#tgChat').value.trim();
+  if(!token || !chat){ toast('اكتب الـ Token والـ Chat ID الأول'); return; }
+  try{ await tgSend('✅ تم ربط حجوزات الروضة الشريفة بتليجرم بنجاح', token, chat); toast('📨 اتبعتت رسالة التجربة — شوف تليجرم'); }
+  catch(e){ toast('⚠️ فشل الإرسال: '+e.message); }
+}
+async function tgDetect(){
+  const token=$('#tgToken').value.trim(); if(!token){ toast('اكتب الـ Bot Token الأول'); return; }
+  try{
+    const j = await (await fetch(`https://api.telegram.org/bot${token}/getUpdates`)).json();
+    if(!j.ok) throw new Error(j.description||'Token غلط');
+    const msgs = (j.result||[]).map(u=>u.message||u.channel_post||u.my_chat_member).filter(Boolean);
+    const chat = msgs.length && msgs[msgs.length-1].chat;
+    if(!chat){ toast('ابعت للبوت أي رسالة الأول وبعدين جرّب تاني'); return; }
+    $('#tgChat').value = chat.id;
+    toast(`✓ لقيت: ${chat.title || chat.first_name || chat.username || chat.id}`);
+  }catch(e){ toast('⚠️ '+e.message); }
+}
+
 /* ========= الإعدادات ========= */
 const parseSlots = s => [...new Set((s.match(/\d{1,2}:\d{2}/g)||[]).map(t=>{const[h,m]=t.split(':');return pad(+h%24)+':'+m;}))].sort((a,b)=>toMin(a)-toMin(b));
 function updateRateInfo(){
@@ -1227,6 +1288,7 @@ function openSettings(){
   $('#sPriceSAR').value=s.prices.SAR; $('#sPriceEGP').value=s.prices.EGP; $('#sPriceUSD').value=s.prices.USD;
   $('#sEgpPerSar').value=s.egpPerSar; $('#sSarPerUsd').value=s.sarPerUsd;
   $('#sBulkPct').value=s.bulkPct; $('#sBulkMin').value=s.bulkMin;
+  $('#tgOn').checked=!!TG.on; $('#tgToken').value=TG.token||''; $('#tgChat').value=TG.chatId||'';
   $('#backupHint').textContent = mode==='cloud' ? '☁️ بياناتك محفوظة على السحابة، ومع ذلك يُنصح بتصدير نسخة أسبوعياً.' : '💻 البيانات محفوظة على هذا الجهاز فقط — صدّر نسخة بانتظام.';
   updateRateInfo();
   $('#setOv').classList.add('on');
@@ -1247,6 +1309,8 @@ function saveSettings(silent){
   s.bulkPct=Math.min(100,Math.max(0,+$('#sBulkPct').value||0));
   s.bulkMin=Math.max(0,+$('#sBulkMin').value||0);
   s.egp150=true;
+  const tg={on:$('#tgOn').checked, token:$('#tgToken').value.trim(), chatId:$('#tgChat').value.trim()};
+  if(JSON.stringify(tg)!==JSON.stringify(TG)){ TG=tg; saveTG(); }
   $('#finBase').value=s.baseCur;
   save(); renderAll();
   if(!silent){ closeOv('setOv'); toast('✓ تم حفظ الإعدادات (الأسعار الجديدة تُطبّق على الحجوزات الجديدة)'); }
@@ -1321,7 +1385,7 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySel
     try{ await initCloud(); }
     catch(e){ console.error(e); setSync('error'); $('#loginErr').textContent='تعذر تحميل Firebase — تحقق من الإنترنت ومن بيانات الإعداد'; showLogin(false); }
   } else {
-    await loadLocal(); fillCurSelects(); renderAll();
+    await loadLocal(); loadTGLocal(); fillCurSelects(); renderAll();
   }
   setInterval(renderAll, 30000);
 })();
