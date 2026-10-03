@@ -27,7 +27,7 @@ nav.tabs button{border:0;background:transparent;padding:9px 14px;border-radius:1
 nav.tabs button.on{background:#e4f1ea;color:var(--g);font-weight:700}
 nav.tabs .dot{position:absolute;top:2px;left:2px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;display:grid;place-items:center;padding:0 4px}
 main{max-width:1250px;margin:auto;padding:16px}
-.sec{display:none}.sec.on{display:block;animation:fade .25s}
+section.sec{display:none}section.sec.on{display:block;animation:fade .25s}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
 .stat{background:var(--card);border-radius:var(--r);padding:14px;border:1px solid var(--bd);position:relative;overflow:hidden}
@@ -157,6 +157,14 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .lcard p{margin:0;text-align:center}
 .lcard .btn{width:100%;padding:13px}
 .linkbtn{background:none;border:0;color:var(--g);cursor:pointer;font-size:13px;text-decoration:underline}
+/* الصلاحيات */
+body.staff .admin-only{display:none!important}
+body:not(.cloud) .cloud-only{display:none!important}
+.userbtn{border:0;color:#fff;cursor:pointer;font-family:inherit}
+.b-admin{background:#f3ecd8;color:#7a5a12}.b-off{background:#fde3e3;color:#a32020}.b-me{background:#e4f1ea;color:var(--g)}
+.credbox{background:#f4faf7;border:1px dashed #9fcdb6;border-radius:12px;padding:12px;margin-top:12px;font-size:14px}
+.credbox pre{white-space:pre-wrap;font-family:inherit;margin:0 0 10px}
+.appt.off{opacity:.55}
 </style>
 </head>
 <body>
@@ -168,8 +176,8 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
     <div class="clock" id="clock"></div>
   </div>
   <span class="storage" id="storageBadge"></span>
-  <span class="storage" id="userBadge" style="display:none"></span>
-  <button class="hbtn hide-m" onclick="openSettings()">⚙️ الإعدادات</button>
+  <button class="storage userbtn" id="userBadge" style="display:none" onclick="openPw()" title="حسابي — تغيير كلمة المرور"></button>
+  <button class="hbtn hide-m admin-only" onclick="openSettings()">⚙️ الإعدادات</button>
   <button class="hbtn" id="logoutBtn" style="display:none" onclick="logout()" title="تسجيل الخروج">🚪</button>
   <button class="hbtn pri" onclick="openForm()">＋ حجز جديد</button>
 </header>
@@ -178,8 +186,9 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
   <button data-t="dash" class="on">📊 لوحة التحكم <span class="dot" id="urgDot" style="display:none"></span></button>
   <button data-t="groups">🧩 الدفعات</button>
   <button data-t="list">📋 الحجوزات</button>
-  <button data-t="fin">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span></button>
-  <button data-t="settings">⚙️ الإعدادات</button>
+  <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span></button>
+  <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
+  <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
 </nav>
 
 <main>
@@ -243,6 +252,20 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
   <!-- الحسابات -->
   <section class="sec" id="sec-fin">
     <div class="card">
+      <h2>📑 التقرير الشهري للمبيعات <span class="sp"></span></h2>
+      <div class="toolbar">
+        <select id="repMonth"></select>
+        <select id="repBasis">
+          <option value="visit">حسب تاريخ الزيارة</option>
+          <option value="created">حسب تاريخ التسجيل (يوم البيع)</option>
+        </select>
+        <button class="btn pri sm" onclick="downloadReport()">⬇️ تحميل Excel</button>
+        <button class="btn sec sm" onclick="printReport()">🖨 طباعة / PDF</button>
+      </div>
+      <div class="stats" id="repStats" style="margin-bottom:10px"></div>
+      <div style="overflow-x:auto"><table class="curTable" id="repEmp"></table></div>
+    </div>
+    <div class="card">
       <h2>💰 ملخص الحسابات <span class="sp"></span>
         <span class="hint">عرض الإجماليات بـ</span><select id="finBase" class="ibtn"></select>
       </h2>
@@ -265,6 +288,27 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
     <div class="card">
       <h2>⏳ مبالغ لم تُحصّل بعد <span class="sp"></span><span class="hint" id="dueCount"></span></h2>
       <div id="dueList"></div>
+    </div>
+  </section>
+
+  <!-- الموظفين -->
+  <section class="sec" id="sec-staff">
+    <div class="card">
+      <h2>➕ إضافة حساب موظف</h2>
+      <form id="staffForm" class="fg" autocomplete="off">
+        <div class="f"><label>اسم الموظف *</label><input id="stName" required placeholder="مثال: أحمد محمد"></div>
+        <div class="f"><label>اسم المستخدم أو الإيميل *</label><input id="stLogin" dir="ltr" required autocapitalize="none" spellcheck="false" placeholder="ahmed"></div>
+        <div class="f"><label>كلمة المرور * (6 حروف/أرقام على الأقل)</label><input id="stPass" dir="ltr" required minlength="6" autocomplete="new-password"></div>
+        <div class="f"><label>الصلاحية</label>
+          <select id="stRole"><option value="staff">👤 موظف — يضيف ويعدّل الحجوزات ويسجّل الدفع</option><option value="admin">⭐ مدير — كل الصلاحيات</option></select></div>
+        <div class="f full"><span class="hint">لو كتبت <b>اسم مستخدم</b> (من غير @) الموظف هيدخل بيه على طول. لو كتبت <b>إيميل حقيقي</b> يقدر يستخدم «نسيت كلمة المرور». الموظف <b>مش</b> بيشوف: الحسابات والتقارير، الإعدادات، الموظفين، ومايقدرش يحذف حجز.</span></div>
+        <div class="mfoot" style="margin-top:0;grid-column:1/-1"><button class="btn pri" id="stBtn" type="submit">➕ إنشاء الحساب</button></div>
+      </form>
+      <div id="stDone"></div>
+    </div>
+    <div class="card">
+      <h2>👥 الحسابات <span class="sp"></span><span class="hint" id="staffCount"></span></h2>
+      <div id="staffList"></div>
     </div>
   </section>
 </main>
@@ -332,7 +376,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
         <button type="submit" class="btn pri">💾 حفظ الحجز</button>
         <button type="button" class="btn gold" id="saveSendBtn">💾 حفظ وإرسال واتساب</button>
         <button type="button" class="btn sec" onclick="closeOv('formOv')">إلغاء</button>
-        <button type="button" class="btn danger" id="delBtn" style="margin-right:auto;display:none">🗑 حذف</button>
+        <button type="button" class="btn danger admin-only" id="delBtn" style="margin-right:auto;display:none">🗑 حذف</button>
       </div>
     </form>
   </div>
@@ -421,13 +465,27 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
   </div>
 </div>
 
+<!-- حسابي: تغيير كلمة المرور -->
+<div class="overlay" id="pwOv">
+  <div class="modal" style="max-width:400px">
+    <h3>👤 حسابي<button class="x" onclick="closeOv('pwOv')">×</button></h3>
+    <div class="bill" id="pwInfo" style="margin-bottom:12px"></div>
+    <form id="pwForm" class="fg" style="grid-template-columns:1fr">
+      <div class="f"><label>كلمة المرور الحالية</label><input id="pwCur" type="password" dir="ltr" required autocomplete="current-password"></div>
+      <div class="f"><label>كلمة المرور الجديدة</label><input id="pwNew" type="password" dir="ltr" required minlength="6" autocomplete="new-password"></div>
+      <div class="f"><label>تأكيد كلمة المرور الجديدة</label><input id="pwNew2" type="password" dir="ltr" required minlength="6" autocomplete="new-password"></div>
+      <div class="mfoot" style="margin-top:4px"><button class="btn pri" type="submit">💾 تغيير كلمة المرور</button><button class="btn sec" type="button" onclick="logout()">🚪 تسجيل الخروج</button></div>
+    </form>
+  </div>
+</div>
+
 <!-- شاشة تسجيل الدخول (تظهر فقط في الوضع السحابي) -->
 <div class="login" id="loginOv">
   <form class="lcard" id="loginForm">
     <div class="logo">🕌</div>
     <h2>حجوزات الروضة الشريفة</h2>
     <p class="hint">سجّل الدخول للمتابعة</p>
-    <div class="f"><label>البريد الإلكتروني</label><input id="lEmail" type="email" dir="ltr" required autocomplete="username"></div>
+    <div class="f"><label>اسم المستخدم أو الإيميل</label><input id="lEmail" type="text" dir="ltr" required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
     <div class="f"><label>كلمة المرور</label><input id="lPass" type="password" dir="ltr" required autocomplete="current-password"></div>
     <div class="warn" id="loginErr" style="text-align:center"></div>
     <button class="btn pri" id="loginBtn" type="submit">دخول</button>
@@ -562,22 +620,59 @@ async function save(){
 window.addEventListener('storage', e=>{ if(e.key===KEY && mode==='local'){ applyData(e.newValue); renderAll(); } });
 
 /* ========= ☁️ Firebase: المزامنة السحابية ========= */
-let fb=null, db=null, auth=null, user=null, unsubs=[];
+let fb=null, db=null, auth=null, user=null, unsubs=[], fbMods=null;
+/* ========= 👥 الصلاحيات ========= */
+let ROLE='admin', ME=null, USERS={};
+const STAFF_DOMAIN = (FIREBASE_CONFIG.projectId||'rawdah') + '.firebaseapp.com';   // للحسابات باسم مستخدم بدون إيميل
+const isAdmin = () => mode!=='cloud' || ROLE==='admin';
+const myEmail = () => (user?.email||'').toLowerCase();
+const toEmail = v => { v=String(v||'').trim().toLowerCase(); return v.includes('@') ? v : (v ? v+'@'+STAFF_DOMAIN : ''); };
+const loginName = e => String(e||'').endsWith('@'+STAFF_DOMAIN) ? e.split('@')[0] : e;
+const empName = e => { e=String(e||'').toLowerCase(); return (USERS[e]&&USERS[e].name) || (ME&&ME.email===e&&ME.name) || e.split('@')[0] || 'غير معروف'; };
+function applyRole(){
+  document.body.classList.toggle('cloud', mode==='cloud');
+  document.body.classList.toggle('staff', !isAdmin());
+  const on=document.querySelector('nav.tabs button.on');
+  if(!isAdmin() && on && on.classList.contains('admin-only')) switchTab('dash');
+  if(user && ME){ $('#userBadge').textContent = `👤 ${ME.name||loginName(ME.email)}${isAdmin()?' ⭐':''}`; }
+  if(!isAdmin()) document.querySelectorAll('#setOv.on').forEach(o=>o.classList.remove('on'));
+}
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout'}), ms))]);
+async function loadProfile(u){
+  const em=u.email.toLowerCase(), ref=fb.doc(db,'users',em);
+  let snap=null;
+  try{ snap=await withTimeout(fb.getDoc(ref), 12000); }
+  catch(e){ if(e.code!=='permission-denied') throw e; }
+  if(snap && snap.exists()){ const d=snap.data(); return d.active===false ? null : {...d, email:em}; }
+  /* أول دخول لصاحب الحساب (المكتوب في قواعد Firestore) — بيسجّل نفسه كمدير */
+  const p={email:em, name:em.split('@')[0], role:'admin', active:true, createdAt:Date.now(), createdBy:em};
+  try{ await withTimeout(fb.setDoc(ref, p), 12000); return p; }catch(e){}
+  /* القواعد القديمة لسه شغالة (قبل نشر firestore.rules الجديد): لو الحساب ده كان مسموحله قبل كده يكمل كمدير */
+  try{ await withTimeout(fb.getDoc(fb.doc(db,'meta','settings')), 12000);
+    setTimeout(()=>toast('⚠️ انشر قواعد Firestore الجديدة عشان حسابات الموظفين تشتغل'), 1500);
+    return {email:em, name:em.split('@')[0], role:'admin', active:true, legacy:true};
+  }catch(e){ return null; }
+}
 const synced = { bookings:{}, settings:'' };   // آخر نسخة معروفة من السيرفر لحساب الفروقات
 
 async function initCloud(){
   const base = `https://www.gstatic.com/firebasejs/${FB_VERSION}/`;
-  const [appM, authM, fsM] = await Promise.all([
+  const [appM, authM, fsM] = fbMods = await Promise.all([
     import(base+'firebase-app.js'), import(base+'firebase-auth.js'), import(base+'firebase-firestore.js')]);
   const app = appM.initializeApp(FIREBASE_CONFIG);
   auth = authM.getAuth(app);
   try{ db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache({ tabManager: fsM.persistentMultipleTabManager() }) }); }
   catch(e){ db = fsM.getFirestore(app); }
   fb = {...authM, ...fsM};
-  authM.onAuthStateChanged(auth, u=>{
+  authM.onAuthStateChanged(auth, async u=>{
     user = u;
-    if(u){ hideLogin(); subscribe(); }
-    else { unsubscribe(); S.bookings=[]; synced.bookings={}; renderAll(); showLogin(false); }
+    if(!u){ unsubscribe(); ME=null; USERS={}; S.bookings=[]; synced.bookings={}; renderAll(); showLogin(false); return; }
+    showLogin(true); $('#loginBtn').textContent='جارٍ التحقق من الصلاحية...';
+    try{ ME = await loadProfile(u); }
+    catch(e){ console.error(e); ME=null; $('#loginErr').textContent = e.code==='timeout'||!navigator.onLine ? 'لا يوجد اتصال بالإنترنت — حاول تاني' : 'تعذر التحقق من الحساب ('+(e.code||e.message)+')'; await fb.signOut(auth); return; }
+    if(!ME){ $('#loginErr').textContent='⛔ الحساب ده مش مفعّل — كلّم المدير يضيفك من شاشة الموظفين'; await fb.signOut(auth); return; }
+    ROLE = ME.role==='admin' ? 'admin' : 'staff';
+    applyRole(); hideLogin(); subscribe();
   });
 }
 function subscribe(){
@@ -588,6 +683,17 @@ function subscribe(){
     if(fixEgpPrice()) cloudSave();
     fillCurSelects(); renderAll();
   }, cloudErr));
+  unsubs.push(fb.onSnapshot(fb.doc(db,'users',myEmail()), d=>{
+    const p=d.exists()?d.data():null;
+    if(!p && ME?.legacy) return;
+    if(!p || p.active===false){ $('#loginErr').textContent='⛔ تم إيقاف الحساب ده'; fb.signOut(auth); return; }
+    ME={...p, email:myEmail()}; const r=p.role==='admin'?'admin':'staff';
+    if(r!==ROLE){ ROLE=r; toast(r==='admin'?'⭐ بقيت مدير':'👤 صلاحيتك اتغيرت لموظف'); applyRole(); setTimeout(subscribe); return; }
+    applyRole(); renderAll();
+  }, e=>console.warn('profile:', e)));
+  if(isAdmin()) unsubs.push(fb.onSnapshot(fb.collection(db,'users'), snap=>{
+    USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderStaff(); renderReport();
+  }, e=>console.warn('users:', e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
     const arr=[]; synced.bookings={};
@@ -605,18 +711,18 @@ async function cloudSave(){
   for(const b of S.bookings){
     ids.add(b.id);
     if(synced.bookings[b.id] !== JSON.stringify(b)){
-      if(!b.createdBy){ b.createdBy=user.email; }
-      b.updatedBy=user.email; b.updatedAt=Date.now();
+      if(!b.createdBy){ b.createdBy=myEmail(); }
+      b.updatedBy=myEmail(); b.updatedAt=Date.now();
       const {id, ...data} = b;
       ops.push(batch=>batch.set(fb.doc(db,'bookings',id), clean(data)));
       synced.bookings[b.id]=JSON.stringify(b);
     }
   }
   for(const id of Object.keys(synced.bookings)){
-    if(!ids.has(id)){ ops.push(batch=>batch.delete(fb.doc(db,'bookings',id))); delete synced.bookings[id]; }
+    if(!ids.has(id) && isAdmin()){ ops.push(batch=>batch.delete(fb.doc(db,'bookings',id))); delete synced.bookings[id]; }
   }
   const sj=JSON.stringify(S.settings);
-  if(sj!==synced.settings){ ops.push(batch=>batch.set(fb.doc(db,'meta','settings'), clean(S.settings))); synced.settings=sj; }
+  if(sj!==synced.settings && isAdmin()){ ops.push(batch=>batch.set(fb.doc(db,'meta','settings'), clean(S.settings))); synced.settings=sj; }
   if(!ops.length) return;
   setSync(navigator.onLine ? 'pending' : 'offline');
   try{
@@ -628,7 +734,7 @@ async function cloudSave(){
 }
 function cloudErr(e){
   console.error(e); setSync('error');
-  if(e && e.code==='permission-denied') toast('⛔ ليس لديك صلاحية — تأكد أن بريدك مضاف في قواعد Firestore');
+  if(e && e.code==='permission-denied') toast('⛔ مالكش صلاحية للعملية دي — لو المشكلة مستمرة اتأكد من قواعد Firestore');
   else toast('⚠️ خطأ في المزامنة: '+(e.code||e.message||''));
 }
 
@@ -637,7 +743,11 @@ const AUTH_MSG = {
   'auth/invalid-credential':'البريد أو كلمة المرور غير صحيحة','auth/wrong-password':'كلمة المرور غير صحيحة',
   'auth/user-not-found':'هذا البريد غير مسجل','auth/invalid-email':'صيغة البريد غير صحيحة',
   'auth/too-many-requests':'محاولات كثيرة — انتظر قليلاً ثم حاول','auth/network-request-failed':'لا يوجد اتصال بالإنترنت',
-  'auth/unauthorized-domain':'هذا الرابط غير مُصرّح به في إعدادات Firebase (Authorized domains)','auth/user-disabled':'هذا الحساب موقوف'};
+  'auth/unauthorized-domain':'هذا الرابط غير مُصرّح به في إعدادات Firebase (Authorized domains)','auth/user-disabled':'هذا الحساب موقوف',
+  'auth/email-already-in-use':'الإيميل/اسم المستخدم ده مستخدم بالفعل','auth/weak-password':'كلمة المرور ضعيفة — 6 حروف على الأقل',
+  'auth/operation-not-allowed':'فعّل Email/Password من Firebase → Authentication → Sign-in method',
+  'auth/admin-restricted-operation':'إنشاء الحسابات مقفول في Firebase → Authentication → Settings → User actions',
+  'auth/requires-recent-login':'سجّل خروج وادخل تاني وبعدين جرّب','auth/missing-password':'اكتب كلمة المرور'};
 const authMsg = c => AUTH_MSG[c] || ('تعذر تسجيل الدخول ('+c+')');
 function showLogin(loading){
   $('#loginOv').classList.add('on');
@@ -646,19 +756,20 @@ function showLogin(loading){
 }
 function hideLogin(){
   $('#loginOv').classList.remove('on');
-  $('#userBadge').textContent='👤 '+user.email.split('@')[0]; $('#userBadge').style.display='';
+  $('#userBadge').textContent='👤 '+(ME?.name||loginName(myEmail())); $('#userBadge').style.display='';
   $('#logoutBtn').style.display='';
 }
 $('#loginForm').addEventListener('submit', async e=>{
   e.preventDefault(); if(!auth) return;
   const btn=$('#loginBtn'); $('#loginErr').textContent=''; btn.disabled=true; btn.textContent='جارٍ الدخول...';
-  try{ await fb.signInWithEmailAndPassword(auth, $('#lEmail').value.trim(), $('#lPass').value); $('#lPass').value=''; }
+  try{ await fb.signInWithEmailAndPassword(auth, toEmail($('#lEmail').value), $('#lPass').value); $('#lPass').value=''; }
   catch(err){ $('#loginErr').textContent = authMsg(err.code); }
   finally{ btn.disabled=false; btn.textContent='دخول'; }
 });
 async function resetPass(){
   const em=$('#lEmail').value.trim();
   if(!em){ $('#loginErr').textContent='اكتب بريدك الإلكتروني أولاً'; return; }
+  if(!em.includes('@')){ $('#loginErr').textContent='الحسابات باسم مستخدم مالهاش إيميل — اطلب من المدير يعملك كلمة مرور جديدة'; return; }
   try{ await fb.sendPasswordResetEmail(auth, em); toast('📧 أُرسل رابط تغيير كلمة المرور إلى بريدك'); }
   catch(err){ $('#loginErr').textContent = authMsg(err.code); }
 }
@@ -771,7 +882,7 @@ function sendWA(id){ const b=S.bookings.find(x=>x.id===id); if(b) window.open(wa
 const gLabel = g => g==='m' ? '<span class="badge b-men">🧔 رجال</span>' : '<span class="badge b-women">🧕 نساء</span>';
 const gColor = g => g==='m' ? 'var(--blue)' : 'var(--pink)';
 const hm = d => fmt12(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
-const who = e => e ? esc(String(e).split('@')[0]) : '';
+const who = e => e ? esc(empName(e)) : '';
 function badgeFor(ms){
   const l=level(ms);
   if(l==='urgent') return `<span class="badge b-red">🔔 ${remText(ms)}</span>`;
@@ -879,7 +990,7 @@ function renderTable(){
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
       <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
       <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
-      <button class="ibtn del" onclick="delBooking('${b.id}')" title="حذف">🗑</button></div></td>
+      <button class="ibtn del admin-only" onclick="delBooking('${b.id}')" title="حذف">🗑</button></div></td>
   </tr>`; }).join('') : `<tr><td colspan="9" class="empty" style="display:table-cell">لا توجد نتائج</td></tr>`;
 }
 
@@ -950,13 +1061,14 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); renderFinance(); }
+function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReport(); renderStaff(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
+  if(!isAdmin() && ['fin','staff'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
-  document.querySelectorAll('.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
+  document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
   window.scrollTo({top:0,behavior:'smooth'});
 }
 $('#tabs').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) switchTab(b.dataset.t); });
@@ -1175,6 +1287,7 @@ $('#saveSendBtn').addEventListener('click', ()=>submitForm(true));
 
 function delBooking(id){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  if(!isAdmin()){ toast('⛔ الحذف للمدير بس — ممكن تخلي حالة الحجز «ملغي»'); return; }
   if(b.frozen){ toast('❄️ الحجز مجمّد — فك التجميد أولاً'); return; }
   if(!confirm(`حذف حجز "${b.name}"؟`)) return;
   S.bookings=S.bookings.filter(x=>x.id!==id); save(); renderAll(); toast('تم الحذف');
@@ -1206,7 +1319,7 @@ function confirmPay(send){
   const b=S.bookings.find(x=>x.id===payId); if(!b) return;
   const amt=+$('#payAmt').value||0; if(amt<=0){ toast('أدخل مبلغاً صحيحاً'); return; }
   b.paid=round2((+b.paid||0)+amt); b.payMethod=$('#payMeth').value;
-  (b.payments=b.payments||[]).push({amt, currency:b.currency, method:b.payMethod, at:Date.now(), by:user?.email||''});
+  (b.payments=b.payments||[]).push({amt, currency:b.currency, method:b.payMethod, at:Date.now(), by:myEmail()});
   if(b.status==='new' && calc(b).rem===0) b.status='confirmed';
   save(); closeOv('payOv'); renderAll(); toast(`✓ تم تسجيل ${money(amt,b.currency)}`);
   if(send) window.open(waUrl(b),'_blank');
@@ -1239,7 +1352,7 @@ function tgMsg(b){
   L.push('', `💰 الصافي: ${M(c.total)}${c.disc>0?` (خصم ${M(c.disc)})`:''}`, `💵 المدفوع: ${M(c.paid)} — ${PAY[c.st][0]}`);
   if(c.rem>0) L.push(`⏳ المتبقي: ${M(c.rem)}`);
   if(b.notes) L.push(`📝 ${tgEsc(b.notes)}`);
-  if(user?.email) L.push('', `أضافه: ${tgEsc(user.email.split('@')[0])}`);
+  if(user?.email) L.push('', `أضافه: ${tgEsc(ME?.name || loginName(myEmail()))}`);
   return L.join('\n');
 }
 function tgNotify(b){
@@ -1265,6 +1378,237 @@ async function tgDetect(){
   }catch(e){ toast('⚠️ '+e.message); }
 }
 
+/* ========= 👥 إدارة الموظفين ========= */
+let secAuth=null;
+function getSecAuth(){   // نسخة Firebase تانية عشان إنشاء حساب الموظف مايطلّعش المدير من حسابه
+  if(!secAuth){ const app2=fbMods[0].initializeApp(FIREBASE_CONFIG,'staff-admin'); secAuth=fb.initializeAuth(app2,{persistence:fb.inMemoryPersistence}); }
+  return secAuth;
+}
+const curMonth = () => todayStr().slice(0,7);
+const bkMonth = b => b.createdAt ? dstr(new Date(b.createdAt)).slice(0,7) : (b.date||'').slice(0,7);
+function renderStaff(){
+  if(mode!=='cloud' || !isAdmin()) return;
+  const ym=curMonth(), list=Object.values(USERS).sort((a,b)=> (b.active!==false)-(a.active!==false) || (b.role==='admin')-(a.role==='admin') || String(a.name||'').localeCompare(String(b.name||''),'ar'));
+  const act=list.filter(u=>u.active!==false).length;
+  $('#staffCount').textContent = `${act} حساب نشط${list.length>act?` • ${list.length-act} موقوف`:''}`;
+  $('#staffList').innerHTML = list.length ? list.map(u=>{
+    const e=u.email, k=encodeURIComponent(e), me=e===myEmail(), off=u.active===false;
+    const mine=S.bookings.filter(b=>(b.createdBy||'').toLowerCase()===e && b.status!=='cancelled' && bkMonth(b)===ym);
+    const net=sumB(mine,c=>c.total);
+    return `<div class="appt ${off?'off':''}" style="--gc:${u.role==='admin'?'var(--gold)':'var(--g)'}">
+      <div class="time" style="font-size:24px">${u.role==='admin'?'⭐':'👤'}</div>
+      <div class="info">
+        <div class="nm">${esc(u.name||loginName(e))} ${u.role==='admin'?'<span class="badge b-admin">مدير</span>':'<span class="badge b-green">موظف</span>'}${off?'<span class="badge b-off">موقوف</span>':''}${me?'<span class="badge b-me">أنت</span>':''}</div>
+        <div class="sub"><span dir="ltr">${esc(loginName(e))}</span> • حجوزات الشهر: <b>${mine.length}</b> • صافي: <b>${moneyB(net)}</b></div>
+      </div>
+      <div class="acts">
+        <button class="ibtn" onclick="staffAct('name','${k}')" title="تغيير الاسم">✏️</button>
+        ${me?'':`<button class="ibtn" onclick="staffAct('role','${k}')">${u.role==='admin'?'👤 خليه موظف':'⭐ خليه مدير'}</button>
+        <button class="ibtn ${off?'ok':'del'}" onclick="staffAct('active','${k}')">${off?'✅ تفعيل':'⛔ إيقاف'}</button>`}
+        ${!me && !e.endsWith('@'+STAFF_DOMAIN)?`<button class="ibtn" onclick="staffAct('reset','${k}')" title="إرسال رابط تغيير كلمة المرور على إيميله">📧</button>`:''}
+      </div></div>`;
+  }).join('') : '<div class="empty">لسه مفيش حسابات</div>';
+}
+async function staffAct(act, k){
+  const e=decodeURIComponent(k), u=USERS[e]; if(!u) return;
+  const ref=fb.doc(db,'users',e), nm=u.name||loginName(e);
+  try{
+    if(act==='name'){ const v=prompt('اسم الموظف:', u.name||''); if(!v||!v.trim()) return; await fb.updateDoc(ref,{name:v.trim()}); toast('✓ تم تغيير الاسم'); }
+    if(act==='role'){ const r=u.role==='admin'?'staff':'admin';
+      if(!confirm(r==='admin'?`تخلي ${nm} مدير؟ هيقدر يشوف الحسابات والإعدادات ويحذف ويضيف موظفين.`:`تخلي ${nm} موظف عادي؟`)) return;
+      await fb.updateDoc(ref,{role:r}); toast('✓ تم تغيير الصلاحية'); }
+    if(act==='active'){ const on=u.active===false;
+      if(!on && !confirm(`إيقاف حساب ${nm}؟ هيخرج فوراً ومش هيقدر يدخل تاني لحد ما تفعّله.`)) return;
+      await fb.updateDoc(ref,{active:on}); toast(on?'✅ تم تفعيل الحساب':'⛔ تم إيقاف الحساب'); }
+    if(act==='reset'){ if(!confirm(`إرسال رابط تغيير كلمة المرور على ${e}؟`)) return; await fb.sendPasswordResetEmail(auth, e); toast('📧 اتبعت الرابط على إيميله'); }
+  }catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); }
+}
+$('#staffForm').addEventListener('submit', async ev=>{
+  ev.preventDefault(); if(mode!=='cloud' || !isAdmin()) return;
+  const name=$('#stName').value.trim(), login=$('#stLogin').value.trim().toLowerCase(), pass=$('#stPass').value, role=$('#stRole').value;
+  if(!login.includes('@') && !/^[a-z0-9._-]{3,}$/.test(login)){ toast('اسم المستخدم: حروف إنجليزي وأرقام بس (3 على الأقل) من غير مسافات'); return; }
+  const email=toEmail(login);
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('صيغة الإيميل مش صحيحة'); return; }
+  if(USERS[email]){ toast(USERS[email].active===false?'الحساب ده موجود وموقوف — فعّله من القائمة':'الحساب ده موجود بالفعل'); return; }
+  if(pass.length<6){ toast('كلمة المرور 6 حروف/أرقام على الأقل'); return; }
+  const btn=$('#stBtn'); btn.disabled=true; btn.textContent='جارٍ الإنشاء...';
+  let existed=false;
+  try{
+    try{ const sa=getSecAuth(); await fb.createUserWithEmailAndPassword(sa, email, pass); await fb.signOut(sa); }
+    catch(err){
+      if(err.code!=='auth/email-already-in-use') throw err;
+      if(!confirm('الإيميل ده عنده حساب في Firebase بالفعل (غالباً متعمل قبل كده).\nتديله صلاحية الدخول؟ هيدخل بكلمة المرور القديمة بتاعته، مش اللي كتبتها.')) return;
+      existed=true;
+    }
+    await fb.setDoc(fb.doc(db,'users',email), {email, name, role, active:true, createdAt:Date.now(), createdBy:myEmail()});
+    const txt=`السلام عليكم ${name} 🌿\nده حسابك على نظام حجوزات الروضة:\n🔗 ${location.origin+location.pathname}\n👤 اسم الدخول: ${loginName(email)}\n🔑 كلمة المرور: ${existed?'(كلمة المرور القديمة بتاعتك)':pass}\nتقدر تغير كلمة المرور من زرار اسمك فوق بعد ما تدخل.`;
+    $('#stDone').innerHTML = `<div class="credbox"><b>✅ تم إنشاء حساب ${esc(name)}</b> — ابعتله البيانات دي:<pre id="stTxt">${esc(txt)}</pre>
+      <div class="qchips"><button class="btn sec sm" type="button" onclick="copyCred()">📋 نسخ</button><a class="btn gold sm" style="text-decoration:none" target="_blank" href="https://wa.me/?text=${encodeURIComponent(txt)}">💬 إرسال واتساب</a><button class="btn sec sm" type="button" onclick="$('#stDone').innerHTML=''">إخفاء</button></div></div>`;
+    $('#staffForm').reset(); toast('✅ تم إنشاء الحساب');
+  }catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); }
+  finally{ btn.disabled=false; btn.textContent='➕ إنشاء الحساب'; }
+});
+function copyCred(){ const t=$('#stTxt').textContent; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('📋 اتنسخ')).catch(()=>toast('انسخ النص يدوي')); }
+
+/* ========= 👤 حسابي: تغيير كلمة المرور ========= */
+function openPw(){
+  if(!user) return;
+  $('#pwInfo').innerHTML = `<div><span>الاسم</span><b>${esc(ME?.name||'')}</b></div><div><span>اسم الدخول</span><b dir="ltr">${esc(loginName(myEmail()))}</b></div><div><span>الصلاحية</span><b>${isAdmin()?'⭐ مدير':'👤 موظف'}</b></div>`;
+  $('#pwForm').reset(); $('#pwOv').classList.add('on');
+}
+$('#pwForm').addEventListener('submit', async ev=>{
+  ev.preventDefault();
+  const cur=$('#pwCur').value, n1=$('#pwNew').value, n2=$('#pwNew2').value;
+  if(n1!==n2){ toast('كلمة المرور الجديدة مش متطابقة'); return; }
+  if(n1.length<6){ toast('كلمة المرور 6 حروف/أرقام على الأقل'); return; }
+  try{
+    await fb.reauthenticateWithCredential(user, fb.EmailAuthProvider.credential(user.email, cur));
+    await fb.updatePassword(user, n1);
+    closeOv('pwOv'); toast('✅ تم تغيير كلمة المرور');
+  }catch(err){ toast('⚠️ '+(err.code==='auth/invalid-credential'||err.code==='auth/wrong-password'?'كلمة المرور الحالية غلط':authMsg(err.code))); }
+});
+
+/* ========= 📑 التقرير الشهري ========= */
+const monthName = ym => { const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString('ar-u-nu-latn',{month:'long',year:'numeric'}); };
+function fillRepMonths(){
+  const sel=$('#repMonth'), v=sel.value, now=new Date(), set=new Set();
+  for(let i=0;i<12;i++){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); set.add(`${d.getFullYear()}-${pad(d.getMonth()+1)}`); }
+  S.bookings.forEach(b=>{ if(b.date) set.add(b.date.slice(0,7)); if(b.createdAt) set.add(bkMonth(b)); });
+  const arr=[...set].filter(Boolean).sort().reverse();
+  const html=arr.map(m=>`<option value="${m}">${monthName(m)}</option>`).join('');
+  if(sel.innerHTML!==html) sel.innerHTML=html;
+  sel.value = arr.includes(v) ? v : curMonth();
+}
+function reportData(ym, basis){
+  const [y,m]=ym.split('-').map(Number), from=`${ym}-01`, to=dstr(new Date(y,m,0)), B=base();
+  const keyDate = b => basis==='created' && b.createdAt ? dstr(new Date(b.createdAt)) : b.date;
+  const all=S.bookings.filter(b=>{ const d=keyDate(b); return d>=from && d<=to; });
+  const list=all.filter(b=>b.status!=='cancelled').sort((a,b)=>keyDate(a).localeCompare(keyDate(b)) || (a.createdAt||0)-(b.createdAt||0));
+  const cv=(b,v)=>conv(v,b.currency,B);
+  const T={n:0,persons:0,men:0,women:0,sub:0,disc:0,total:0,paid:0,rem:0}, E={}, D={}, C={}, M={};
+  const rows=list.map(b=>{
+    const c=calc(b), pd=Math.min(c.paid,c.total), d=keyDate(b), e=(b.createdBy||'').toLowerCase()||'—';
+    T.n++; T.persons+=c.n; T.men+=+b.men||0; T.women+=+b.women||0;
+    T.sub+=cv(b,c.sub); T.disc+=cv(b,c.disc); T.total+=cv(b,c.total); T.paid+=cv(b,pd); T.rem+=cv(b,c.rem);
+    const x=E[e]||(E[e]={email:e,n:0,persons:0,total:0,paid:0,rem:0}); x.n++; x.persons+=c.n; x.total+=cv(b,c.total); x.paid+=cv(b,pd); x.rem+=cv(b,c.rem);
+    const dd=D[d]||(D[d]={d,n:0,persons:0,total:0,paid:0}); dd.n++; dd.persons+=c.n; dd.total+=cv(b,c.total); dd.paid+=cv(b,pd);
+    const cc=C[c.cur]||(C[c.cur]={c:c.cur,n:0,total:0,paid:0,rem:0}); cc.n++; cc.total+=c.total; cc.paid+=pd; cc.rem+=c.rem;
+    if(pd>0){ const k=b.payMethod||'cash'; M[k]=(M[k]||0)+cv(b,pd); }
+    return {b,c,d,e,pd};
+  });
+  const r2=o=>{ for(const k in o) if(typeof o[k]==='number') o[k]=round2(o[k]); return o; };
+  r2(T);
+  return { ym, basis, from, to, B, T, rows, cancelled:all.length-list.length,
+    emps:Object.values(E).map(r2).sort((a,b)=>b.total-a.total), days:Object.values(D).map(r2).sort((a,b)=>a.d.localeCompare(b.d)),
+    curs:CODES.filter(k=>C[k]).map(k=>r2(C[k])), methods:Object.entries(M).map(([k,v])=>[k,round2(v)]),
+    pct:T.total?Math.round(T.paid/T.total*100):0 };
+}
+const curR = () => reportData($('#repMonth').value||curMonth(), $('#repBasis').value);
+const plain = s => String(s||'').replace(/^\S+\s/,'');
+function renderReport(){
+  if(!isAdmin()) return;
+  fillRepMonths();
+  const R=curR();
+  $('#repStats').innerHTML=[
+    ['الحجوزات', R.T.n, 'var(--g)'], ['الأفراد', `${R.T.persons} <small>(${R.T.men} ر / ${R.T.women} ن)</small>`, 'var(--blue)'],
+    ['صافي المبيعات', bigMoney(R.T.total), 'var(--g)'], ['المحصّل', bigMoney(R.T.paid), '#3fa37e'], ['المتبقي', bigMoney(R.T.rem), 'var(--red)'],
+  ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+  $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th></tr></thead>
+    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td></tr>`).join('')}</tbody>`
+    : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الشهر ده</td></tr></tbody>';
+}
+['repMonth','repBasis'].forEach(k=>$('#'+k).addEventListener('change', renderReport));
+
+function loadXLSX(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload=()=>res(window.XLSX); sc.onerror=rej; document.head.appendChild(sc); });
+}
+const basisLbl = b => b==='created' ? 'حسب تاريخ التسجيل (يوم البيع)' : 'حسب تاريخ الزيارة';
+function reportSheets(R){
+  const BN=CUR[R.B].name, nowS=new Date().toLocaleString('ar-u-nu-latn');
+  const summary=[[`تقرير مبيعات ${monthName(R.ym)}`],[basisLbl(R.basis), `${R.from} إلى ${R.to}`],['تاريخ الإصدار', nowS],['أصدره', ME?.name||loginName(myEmail())||'—'],[],
+    ['البند', `القيمة (${BN})`],
+    ['عدد الحجوزات', R.T.n],['حجوزات ملغية (غير محسوبة)', R.cancelled],['عدد الأفراد', R.T.persons],['رجال', R.T.men],['نساء', R.T.women],
+    ['الإجمالي قبل الخصم', R.T.sub],['الخصومات', R.T.disc],['صافي المبيعات', R.T.total],['المحصّل', R.T.paid],['المتبقي', R.T.rem],['نسبة التحصيل', R.pct/100],[],
+    ['حسب العملة (بالعملة الأصلية)'],['العملة','حجوزات','الصافي','المحصّل','المتبقي'],
+    ...R.curs.map(x=>[CUR[x.c].name, x.n, x.total, x.paid, x.rem]),[],
+    [`المحصّل حسب طريقة الدفع (${BN})`], ...R.methods.map(([k,v])=>[plain(METHODS[k]||k), v]),[],
+    [`أسعار الصرف: 1 ريال = ${S.settings.egpPerSar} جنيه • 1 دولار = ${S.settings.sarPerUsd} ريال`]];
+  const emps=[[`المبيعات حسب الموظف — ${monthName(R.ym)} (${BN})`],[],['الموظف','اسم الدخول','حجوزات','أفراد','الصافي','المحصّل','المتبقي','% من المبيعات'],
+    ...R.emps.map(x=>[x.email==='—'?'غير معروف':empName(x.email), x.email==='—'?'':loginName(x.email), x.n, x.persons, x.total, x.paid, x.rem, R.T.total?round2(x.total/R.T.total):0]),
+    ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid,R.T.rem,R.T.total?1:0]];
+  const days=[[`المبيعات اليومية — ${monthName(R.ym)} (${BN})`],[],['التاريخ','اليوم','حجوزات','أفراد','الصافي','المحصّل'],
+    ...R.days.map(x=>[x.d, new Date(x.d+'T00:00').toLocaleDateString('ar-u-nu-latn',{weekday:'long'}), x.n, x.persons, x.total, x.paid]),
+    ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid]];
+  const det=[['التاريخ','الاسم','الهاتف','رجال','نساء','أفراد','العملة','سعر الفرد','الخصم','الصافي','المدفوع','المتبقي',`الصافي (${BN})`,`المحصّل (${BN})`,'حالة السداد','طريقة الدفع','حالة الحجز','الموظف','ملاحظات'],
+    ...R.rows.map(({b,c,d,e,pd})=>[d,b.name,b.phone,+b.men||0,+b.women||0,c.n,CUR[c.cur].name,c.price,c.disc,c.total,c.paid,c.rem,round2(conv(c.total,c.cur,R.B)),round2(conv(pd,c.cur,R.B)),plain(PAY[c.st][0]),plain(METHODS[b.payMethod]),STATUS[b.status][0],e==='—'?'':empName(e),b.notes||''])];
+  return {summary, emps, days, det};
+}
+async function downloadReport(){
+  const R=curR();
+  if(!R.T.n && !confirm('مفيش حجوزات في الشهر ده. تحميل تقرير فاضي؟')) return;
+  const sh=reportSheets(R), fname=`rawdah-report-${R.ym}`;
+  let X; try{ toast('⏳ جارٍ تجهيز ملف Excel...'); X=await loadXLSX(); }
+  catch(e){ toast('تعذر تحميل مكتبة Excel — اتحمل CSV بدلها');
+    const csv='﻿'+sh.det.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    return download(fname+'.csv', csv, 'text/csv;charset=utf-8'); }
+  const wb=X.utils.book_new(); wb.Workbook={Views:[{RTL:true}]};
+  const add=(name, aoa, widths, pctCols=[])=>{
+    const ws=X.utils.aoa_to_sheet(aoa); ws['!cols']=widths.map(w=>({wch:w}));
+    const rg=X.utils.decode_range(ws['!ref']);
+    for(let r=rg.s.r;r<=rg.e.r;r++) for(let c=rg.s.c;c<=rg.e.c;c++){ const cell=ws[X.utils.encode_cell({r,c})]; if(cell && cell.t==='n') cell.z = pctCols.includes(c) && r>0 ? '0%' : (Number.isInteger(cell.v)?'0':'#,##0.00'); }
+    X.utils.book_append_sheet(wb, ws, name);
+  };
+  add('الملخص', sh.summary, [34,22,14,14,14]);
+  const pr=sh.summary.findIndex(r=>r[0]==='نسبة التحصيل'); if(pr>=0){ const ws=wb.Sheets['الملخص'], cell=ws[X.utils.encode_cell({r:pr,c:1})]; if(cell) cell.z='0%'; }
+  add('حسب الموظف', sh.emps, [22,20,10,10,14,14,14,14], [7]);
+  add('يومي', sh.days, [14,12,10,10,14,14]);
+  add('الحجوزات', sh.det, [12,22,16,6,6,6,12,10,10,12,12,12,14,14,12,12,12,16,24]);
+  X.writeFile(wb, fname+'.xlsx');
+  toast('✅ اتحمل التقرير');
+}
+function printReport(){
+  const R=curR(), BN=CUR[R.B].sym, M=v=>moneyB(v);
+  const w=window.open('','_blank'); if(!w){ toast('اسمح بالنوافذ المنبثقة (Pop-ups) للموقع ده'); return; }
+  const tbl=(head, rows, foot)=>`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${head.length}" style="text-align:center">لا يوجد</td></tr>`}</tbody>${foot?`<tfoot><tr>${foot.map(f=>`<td>${f}</td>`).join('')}</tr></tfoot>`:''}</table>`;
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير مبيعات ${monthName(R.ym)}</title><style>
+    @page{size:A4;margin:12mm} *{box-sizing:border-box} body{font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;color:#1c2822;margin:0;padding:16px;font-size:12px}
+    header{display:flex;align-items:center;gap:12px;border-bottom:3px solid #c9a24a;padding-bottom:10px;margin-bottom:14px}
+    header .lg{font-size:34px} header h1{margin:0;font-size:20px;color:#093f2e} header p{margin:2px 0 0;color:#6b7a72}
+    .kp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px} .kp div{border:1px solid #e2e7e3;border-radius:10px;padding:8px 10px;border-top:3px solid #0e6b4f}
+    .kp span{color:#6b7a72;font-size:11px} .kp b{display:block;font-size:16px;margin-top:2px}
+    h2{font-size:14px;color:#0e6b4f;margin:16px 0 6px} table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    th,td{border:1px solid #e2e7e3;padding:5px 6px;text-align:right} th{background:#f3f5f2;font-size:11px} tfoot td{font-weight:700;background:#f6faf8}
+    tr{page-break-inside:avoid} .mu{color:#6b7a72;font-size:11px} .r{color:#d63c3c} .g{color:#0e6b4f}
+    .noprint{margin-bottom:12px} @media print{.noprint{display:none}}
+    .noprint button{font:inherit;padding:8px 16px;border-radius:8px;border:0;background:#0e6b4f;color:#fff;cursor:pointer}
+  </style></head><body>
+  <div class="noprint"><button onclick="print()">🖨 طباعة / حفظ PDF</button></div>
+  <header><div class="lg">🕌</div><div><h1>تقرير مبيعات ${monthName(R.ym)}</h1><p>حجوزات الروضة الشريفة • ${basisLbl(R.basis)} • ${R.from} إلى ${R.to}</p><p class="mu">أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}${ME?.name?' بواسطة '+esc(ME.name):''} • المبالغ بـ ${CUR[R.B].name}</p></div></header>
+  <div class="kp">
+    <div><span>عدد الحجوزات</span><b>${R.T.n}</b></div><div><span>عدد الأفراد</span><b>${R.T.persons} <small class="mu">(${R.T.men} ر / ${R.T.women} ن)</small></b></div>
+    <div><span>قبل الخصم</span><b>${M(R.T.sub)}</b></div><div><span>الخصومات</span><b>${M(R.T.disc)}</b></div>
+    <div style="border-top-color:#c9a24a"><span>صافي المبيعات</span><b>${M(R.T.total)}</b></div><div style="border-top-color:#3fa37e"><span>المحصّل</span><b class="g">${M(R.T.paid)}</b></div>
+    <div style="border-top-color:#d63c3c"><span>المتبقي</span><b class="r">${M(R.T.rem)}</b></div><div><span>نسبة التحصيل</span><b>${R.pct}%</b></div>
+  </div>
+  ${R.cancelled?`<p class="mu">* ${R.cancelled} حجز ملغي غير محسوب في التقرير.</p>`:''}
+  <h2>👥 المبيعات حسب الموظف</h2>
+  ${tbl(['الموظف','حجوزات','أفراد','الصافي','المحصّل','المتبقي','%'], R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${M(x.total)}</td><td class="g">${M(x.paid)}</td><td class="r">${M(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td></tr>`),
+    ['الإجمالي',R.T.n,R.T.persons,M(R.T.total),M(R.T.paid),M(R.T.rem),'100%'])}
+  ${R.curs.length>1||R.methods.length?`<h2>💱 حسب العملة وطريقة الدفع</h2>
+  ${tbl(['العملة','حجوزات','الصافي','المحصّل','المتبقي'], R.curs.map(x=>`<tr><td>${CUR[x.c].flag} ${CUR[x.c].name}</td><td>${x.n}</td><td>${money(x.total,x.c)}</td><td>${money(x.paid,x.c)}</td><td>${money(x.rem,x.c)}</td></tr>`))}
+  <p>${R.methods.map(([k,v])=>`${METHODS[k]||k}: <b>${M(v)}</b>`).join(' &nbsp;•&nbsp; ')}</p>`:''}
+  <h2>📅 المبيعات اليومية</h2>
+  ${tbl(['التاريخ','حجوزات','أفراد','الصافي','المحصّل'], R.days.map(x=>`<tr><td>${new Date(x.d+'T00:00').toLocaleDateString('ar-u-nu-latn',{weekday:'short',day:'numeric',month:'short'})}</td><td>${x.n}</td><td>${x.persons}</td><td>${M(x.total)}</td><td>${M(x.paid)}</td></tr>`),
+    ['الإجمالي',R.T.n,R.T.persons,M(R.T.total),M(R.T.paid)])}
+  <h2>📋 تفاصيل الحجوزات</h2>
+  ${tbl(['التاريخ','العميل','ر','ن','الصافي','المدفوع','المتبقي','السداد','الموظف'], R.rows.map(({b,c,d,e})=>`<tr><td>${d.slice(5)}</td><td>${esc(b.name)}<div class="mu" dir="ltr" style="text-align:right">${esc(b.phone)}</div></td><td>${+b.men||''}</td><td>${+b.women||''}</td><td>${money(c.total,c.cur)}</td><td>${money(c.paid,c.cur)}</td><td class="${c.rem>0?'r':''}">${c.rem>0?money(c.rem,c.cur):'—'}</td><td>${plain(PAY[c.st][0])}</td><td>${e==='—'?'':esc(empName(e))}</td></tr>`))}
+  <p class="mu">أسعار الصرف المستخدمة: 1 ريال = ${num(S.settings.egpPerSar)} جنيه • 1 دولار = ${num(S.settings.sarPerUsd)} ريال</p>
+  <script>setTimeout(()=>print(),400)<\/script></body></html>`;
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
 /* ========= الإعدادات ========= */
 const parseSlots = s => [...new Set((s.match(/\d{1,2}:\d{2}/g)||[]).map(t=>{const[h,m]=t.split(':');return pad(+h%24)+':'+m;}))].sort((a,b)=>toMin(a)-toMin(b));
 function updateRateInfo(){
@@ -1279,6 +1623,7 @@ function pricesFromSAR(){
   toast('✓ تم الحساب — راجع الأرقام ثم احفظ');
 }
 function openSettings(){
+  if(!isAdmin()){ toast('⛔ الإعدادات للمدير بس'); return; }
   const s=S.settings;
   $('#sMen').value=s.menSlots.join(', ');
   $('#sWomen').value=s.womenSlots.join(', ');
@@ -1381,11 +1726,11 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySel
   fillCurSelects();
   const cloudReady = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId;
   if(cloudReady){
-    mode='cloud'; setSync('connecting'); showLogin(true); renderAll();
+    mode='cloud'; applyRole(); setSync('connecting'); showLogin(true); renderAll();
     try{ await initCloud(); }
     catch(e){ console.error(e); setSync('error'); $('#loginErr').textContent='تعذر تحميل Firebase — تحقق من الإنترنت ومن بيانات الإعداد'; showLogin(false); }
   } else {
-    await loadLocal(); loadTGLocal(); fillCurSelects(); renderAll();
+    await loadLocal(); loadTGLocal(); applyRole(); fillCurSelects(); renderAll();
   }
   setInterval(renderAll, 30000);
 })();
