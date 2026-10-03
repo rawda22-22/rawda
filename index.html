@@ -99,6 +99,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;grid-column:1/-1}
 @media(max-width:520px){.fg{grid-template-columns:1fr}.fg3{grid-template-columns:1fr}}
+.hbtn.arch{text-decoration:none;display:inline-flex;align-items:center;gap:5px}
 .f{display:flex;flex-direction:column;gap:5px}
 .f.full{grid-column:1/-1}
 .f label{font-size:13px;color:var(--mu);font-weight:600}
@@ -178,6 +179,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <span class="storage" id="storageBadge"></span>
   <button class="storage userbtn" id="userBadge" style="display:none" onclick="openPw()" title="حسابي — تغيير كلمة المرور"></button>
   <button class="hbtn hide-m admin-only" onclick="openSettings()">⚙️ الإعدادات</button>
+  <a class="hbtn arch" href="archive.html" target="_blank" title="أرشيف الاسكرينات — ارفع اسكرين التحويل وخد رقم الإيصال">🗂 الأرشيف</a>
   <button class="hbtn" id="logoutBtn" style="display:none" onclick="logout()" title="تسجيل الخروج">🚪</button>
   <button class="hbtn pri" onclick="openForm()">＋ حجز جديد</button>
 </header>
