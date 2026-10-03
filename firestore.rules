@@ -49,6 +49,12 @@ service cloud.firestore {
       allow create: if isActive();
       allow delete: if isAdmin();
     }
+    // استخدام الإيصال في دفعة حجز: مرة واحدة بس (مفيش تعديل)، ولازم يكون موجود في الأرشيف
+    match /archiveUse/{ref} {
+      allow read: if isActive();
+      allow create: if isActive() && exists(/databases/$(database)/documents/archive/$(ref));
+      allow delete: if isAdmin();
+    }
     // العدّاد: بيزيد واحد واحد بس
     match /archiveMeta/{d} {
       allow read: if isActive();

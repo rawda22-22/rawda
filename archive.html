@@ -195,6 +195,8 @@ authM.onAuthStateChanged(auth, async u => {
   $('#who').textContent = '👤 ' + me.name;
   $('#login').style.display='none'; $('#app').style.display='block';
   loadList(true);
+  const h = decodeURIComponent(location.hash.slice(1)), n = parseRef(h);   // archive.html#R-00012 بيفتح الصورة علطول
+  if(n) openRef(refOf(n));
 });
 
 /* ===== تصغير الصورة على الجهاز ===== */

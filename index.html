@@ -393,6 +393,9 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="f"><label>طريقة الدفع</label>
         <select id="payMeth"><option value="cash">💵 نقداً</option><option value="transfer">🏦 تحويل بنكي</option><option value="card">💳 بطاقة / مدى</option><option value="wallet">📱 محفظة إلكترونية</option></select>
       </div>
+      <div class="f full"><label>🧾 رقم الإيصال من الأرشيف <span id="payRefReq" style="color:var(--red)"></span></label>
+        <input id="payRef" dir="ltr" autocomplete="off" placeholder="R-00012">
+        <span class="hint">ارفع الاسكرين في <a href="archive.html" target="_blank" style="color:var(--g)">🗂 أرشيف الاسكرينات</a> وحط الرقم هنا</span></div>
     </div>
     <div class="mfoot">
       <button class="btn pri" id="payOk">✓ تسجيل</button>
@@ -1394,19 +1397,49 @@ function openPay(id){
   const b=S.bookings.find(x=>x.id===id); if(!b) return; payId=id; const c=calc(b), M=v=>money(v,c.cur);
   $('#payInfo').innerHTML = `<div><b>${esc(b.name)}</b><span>${fmtDate(b.date)} ${curTag(c.cur)}</span></div>
     <div><span>الصافي</span><span>${M(c.total)}</span></div><div><span>المدفوع</span><span>${M(c.paid)}</span></div>
-    <div class="tot rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>`;
+    <div class="tot rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>${payHistory(b)}`;
   $('#payAmtLbl').textContent = `المبلغ المستلم (${CUR[c.cur].name})`;
-  $('#payAmt').value=c.rem; $('#payMeth').value=b.payMethod||'cash';
+  $('#payAmt').value=c.rem; $('#payMeth').value=b.payMethod||'cash'; $('#payRef').value=''; refReqMark();
   $('#payOv').classList.add('on'); setTimeout(()=>$('#payAmt').select(),50);
 }
-function confirmPay(send){
+/* 🧾 ربط الدفعة بإيصال من أرشيف الاسكرينات: التحويل/المحفظة/البطاقة لازم رقم إيصال، والنقدي اختياري.
+   الرقم لازم يكون موجود في الأرشيف، ومايتستخدمش غير مرة واحدة (archiveUse/{رقم}). */
+const refReqMark = () => { $('#payRefReq').textContent = $('#payMeth').value==='cash' ? '(اختياري)' : '*'; };
+$('#payMeth').addEventListener('change', refReqMark);
+const normRef = v => { const m=String(v||'').replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660).trim().match(/^(?:r|ر)?\s*-?\s*0*(\d{1,7})$/i); return m ? 'R-'+m[1].padStart(5,'0') : null; };
+function payHistory(b){
+  const P=(b.payments||[]).filter(p=>p && +p.amt>0); if(!P.length) return '';
+  return P.slice(-5).map(p=>`<div style="font-size:12.5px"><span>${new Date(p.at).toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'short'})} • ${METHODS[p.method]||''}</span>
+    <span>${money(p.amt,p.currency||b.currency)}${p.ref?` • <a href="archive.html#${esc(p.ref)}" target="_blank" dir="ltr" style="color:var(--g)">🧾 ${esc(p.ref)}</a>`:''}</span></div>`).join('');
+}
+let paying=false;
+async function confirmPay(send){
+  if(paying) return;
   const b=S.bookings.find(x=>x.id===payId); if(!b) return;
   const amt=+$('#payAmt').value||0; if(amt<=0){ toast('أدخل مبلغاً صحيحاً'); return; }
-  b.paid=round2((+b.paid||0)+amt); b.payMethod=$('#payMeth').value;
-  (b.payments=b.payments||[]).push({amt, currency:b.currency, method:b.payMethod, at:Date.now(), by:myEmail()});
+  const method=$('#payMeth').value, raw=$('#payRef').value.trim(), ref=normRef(raw);
+  if(raw && !ref){ toast('⚠️ رقم الإيصال مكتوب غلط — زي R-00012'); return; }
+  if(!ref && method!=='cash'){ toast('🧾 اكتب رقم الإيصال من أرشيف الاسكرينات'); $('#payRef').focus(); return; }
+  const win = send ? window.open('','_blank') : null;   // نفتح الواتساب قبل الانتظار عشان المتصفح مايمنعهوش
+  if(ref && mode==='cloud'){
+    paying=true; $('#payOk').disabled=$('#payOkSend').disabled=true;
+    try{
+      const a=await fb.getDoc(fb.doc(db,'archive',ref));
+      if(!a.exists()) throw {msg:`❌ مفيش إيصال بالرقم ${ref} في الأرشيف`};
+      const u=await fb.getDoc(fb.doc(db,'archiveUse',ref));
+      if(u.exists()){ const o=S.bookings.find(x=>x.id===u.data().bookingId); throw {msg:`🚫 الإيصال ${ref} مستخدم قبل كده${o?' في حجز '+o.name:''}`}; }
+      await fb.setDoc(fb.doc(db,'archiveUse',ref), {bookingId:b.id, amt, currency:b.currency, at:Date.now(), by:myEmail()});
+    }catch(e){
+      paying=false; $('#payOk').disabled=$('#payOkSend').disabled=false; if(win) win.close();
+      toast(e.msg || (e.code==='permission-denied' ? '🚫 الإيصال ده مستخدم قبل كده' : '⚠️ تعذر التحقق من الإيصال — اتأكد من النت')); return;
+    }
+    paying=false; $('#payOk').disabled=$('#payOkSend').disabled=false;
+  }
+  b.paid=round2((+b.paid||0)+amt); b.payMethod=method;
+  (b.payments=b.payments||[]).push({amt, currency:b.currency, method, at:Date.now(), by:myEmail(), ...(ref?{ref}:{})});
   if(b.status==='new' && calc(b).rem===0) b.status='confirmed';
-  save(); closeOv('payOv'); renderAll(); toast(`✓ تم تسجيل ${money(amt,b.currency)}`);
-  if(send) window.open(waUrl(b),'_blank');
+  save(); closeOv('payOv'); renderAll(); toast(`✓ تم تسجيل ${money(amt,b.currency)}${ref?' • 🧾 '+ref:''}`);
+  if(win) win.location.href=waUrl(b);
 }
 $('#payOk').addEventListener('click',()=>confirmPay(false));
 $('#payOkSend').addEventListener('click',()=>confirmPay(true));
