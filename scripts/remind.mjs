@@ -105,7 +105,7 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
   const rs = await db.doc('meta/reminders').get();
   const sent = { ...((rs.exists && rs.data().sent) || {}) };
   const due = dueReminders([...found.values()], now, tz).filter((r) => !sent[r.key]);
-  log(`حجوزات متقرية: ${found.size} • تنبيهات مستحقة: ${due.length}`);
+  log(`حجوزات متقرية: ${found.size} • تنبيهات مستحقة: ${due.length} • الآن بتوقيت ${tz}: ${new Date(now).toLocaleString('en-GB', { timeZone: tz })}`);
 
   const names = {};
   const nameOf = async (email) => {
@@ -138,8 +138,8 @@ async function main() {
   initializeApp({ credential: cert(JSON.parse(raw)) });
   const [owner, repo] = (process.env.GITHUB_REPOSITORY || '/').split('/');
   const siteUrl = process.env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : '');
-  const res = await run({ db: getFirestore(), tz: process.env.APP_TZ || 'Africa/Cairo', siteUrl });
-  console.log(`اتبعت ${res.sent} تنبيه${res.failed ? ` • فشل ${res.failed}` : ''}`);
+  const res = await run({ db: getFirestore(), tz: process.env.APP_TZ || 'Africa/Cairo', siteUrl, log: (m) => console.log('::notice::' + m) });
+  console.log(`::notice::اتبعت ${res.sent} تنبيه${res.failed ? ` • فشل ${res.failed}` : ''}`);
   if (res.failed) process.exitCode = 1;
 }
 
