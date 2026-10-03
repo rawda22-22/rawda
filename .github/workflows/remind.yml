@@ -1,6 +1,6 @@
 name: Appointment reminders
 
-# تنبيه تليجرام قبل كل موعد بساعتين و10 دقايق (اطبع الحجز وسلّمه للعميل)
+# تنبيه تليجرام قبل كل موعد بساعتين و10 دقايق على الأقل (بنبدأ من ساعتين ونص كهامش أمان) (اطبع الحجز وسلّمه للعميل)
 # محتاج Secret واحد: FIREBASE_SERVICE_ACCOUNT  (Settings → Secrets and variables → Actions)
 # اختياري (Variables): APP_TZ (الافتراضي Africa/Cairo) و SITE_URL (لو الموقع على دومين خاص)
 
