@@ -7,7 +7,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // صاحب الحساب — مدير دايماً حتى لو اتمسح من قائمة الموظفين
-    function OWNERS() { return ['YOUR_EMAIL@gmail.com']; }
+    function OWNERS() { return ['khaledalhadedy001@gmail.com']; }
 
     function signedIn() { return request.auth != null && request.auth.token.email != null; }
     function myEmail()  { return request.auth.token.email.lower(); }
