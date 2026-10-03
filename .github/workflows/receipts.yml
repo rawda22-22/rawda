@@ -1,8 +1,7 @@
-name: Payments bot
+name: Screenshots archive bot
 
-# 🧾 بوت أرشيف المدفوعات: بيقرا اسكرينات التحويل اللي الموظفين بعتوها للبوت ويسجلها في الموقع.
-# بيشتغل كل 5 دقايق (GitHub ساعات بيأخّر الجدولة شوية — عادي).
-# بيستخدم نفس Secret التنبيهات: FIREBASE_SERVICE_ACCOUNT، ونفس البوت اللي في إعدادات الموقع.
+# 🗂 بوت أرشيف الاسكرينات (منفصل عن الموقع): صورة ← رقم مرجعي، ورقم ← الصورة.
+# بيشتغل كل 5 دقايق. اختياري: Secret اسمه RECEIPTS_BOT_TOKEN لبوت مستقل (غير كده بيستخدم بوت الإشعارات).
 
 on:
   schedule:
@@ -13,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: payments-bot
+  group: receipts-bot
   cancel-in-progress: false
 
 jobs:
@@ -32,7 +31,8 @@ jobs:
       - name: Install dependencies
         run: npm install --prefix scripts --no-audit --no-fund
 
-      - name: Process screenshots
-        run: node scripts/payments.mjs
+      - name: Archive screenshots
+        run: node scripts/receipts.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          RECEIPTS_BOT_TOKEN: ${{ secrets.RECEIPTS_BOT_TOKEN }}

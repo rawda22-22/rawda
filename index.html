@@ -448,8 +448,6 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="f" style="justify-content:flex-end"><div class="qchips">
         <button type="button" class="btn sec sm" onclick="tgDetect()">🔍 جيب Chat ID</button>
         <button type="button" class="btn sec sm" onclick="tgTest()">📨 رسالة تجربة</button></div></div>
-      <div class="f"><label>📸 قناة أرشيف الاسكرينات (Chat ID)</label><input id="tgArchive" dir="ltr" autocomplete="off" placeholder="-100..."><span class="hint">قناة/جروب خاص البوت أدمن فيه. لو فاضي بتتحفظ في نفس شات الإشعارات.</span></div>
-      <label class="chk"><input type="checkbox" id="sProof"> التحويل والمحفظة والبطاقة يتسجلوا باسكرين من البوت بس (النقدي عادي)</label>
       <div class="f full"><span class="hint">اعمل بوت من <b dir="ltr">@BotFather</b> وانسخ الـ Token، ابعت للبوت أي رسالة، وبعدين دوس «جيب Chat ID». للجروب: ضيف البوت للجروب وابعت فيه رسالة. التوكن بيتحفظ في قاعدة البيانات (مش في الكود) ومحدش يشوفه غير المستخدمين المسجلين.</span></div>
     </div>
     <div class="mfoot">
@@ -516,10 +514,6 @@ const FB_VERSION = '10.12.2';
 /* ========= أدوات ========= */
 const $ = s => document.querySelector(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-/* كود الحجز القصير (آخر 5 حروف) — الموظف بيكتبه مع اسكرين التحويل لبوت تليجرام */
-const bkCode = id => String(id||'').slice(-5).toUpperCase();
-const codeTag = b => `<span class="badge b-gray" dir="ltr" title="كود الحجز — اكتبه مع اسكرين التحويل للبوت" style="cursor:copy" onclick="event.stopPropagation();copyCode('${b.id}')">🔖 ${bkCode(b.id)}</span>`;
-function copyCode(id){ const c=bkCode(id); try{ navigator.clipboard.writeText(c); toast('📋 اتنسخ كود الحجز: '+c); }catch(e){ toast('كود الحجز: '+c); } }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad = n => String(n).padStart(2, '0');
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -1067,7 +1061,7 @@ function renderTable(){
   }).sort(bookingOrder);
   $('#tblCount').textContent = `${rows.length} من ${S.bookings.filter(canSee).length}`;
   $('#tbody').innerHTML = rows.length ? rows.map(b=>{ const c=calc(b), nx=(b.status!=='cancelled'&&b.status!=='done')?nextDt(b):null; return `<tr>
-    <td data-l="العميل"><span><b>${esc(b.name)}</b> ${codeTag(b)}${b.frozen?' <span class="badge b-frz">❄️</span>':''}${isSplit(b)?' <span class="badge b-amb">📆 يومين</span>':''}${nx!==null?`<span class="slot">${badgeFor(nx-Date.now())}</span>`:''}${b.notes?`<span class="slot">${esc(b.notes)}</span>`:''}${mode==='cloud'&&b.updatedBy?`<span class="slot">👤 ${who(b.updatedBy)}</span>`:''}</span></td>
+    <td data-l="العميل"><span><b>${esc(b.name)}</b>${b.frozen?' <span class="badge b-frz">❄️</span>':''}${isSplit(b)?' <span class="badge b-amb">📆 يومين</span>':''}${nx!==null?`<span class="slot">${badgeFor(nx-Date.now())}</span>`:''}${b.notes?`<span class="slot">${esc(b.notes)}</span>`:''}${mode==='cloud'&&b.updatedBy?`<span class="slot">👤 ${who(b.updatedBy)}</span>`:''}</span></td>
     <td data-l="الهاتف"><a href="${waUrl(b)}" target="_blank" dir="ltr" style="color:var(--g)">${esc(b.phone)}</a></td>
     <td data-l="التاريخ"><span>${fmtDate(b.date)}<span class="slot">${b.date}</span></span></td>
     <td data-l="الرجال">${+b.men?`<span><b>${b.men}</b><span class="slot">${fmt12(b.menSlot)}${otherDay(b,'m')}</span></span>`:'—'}</td>
@@ -1127,7 +1121,7 @@ function renderFinance(){
   $('#dueCount').textContent = due.length ? `${due.length} حجز • ≈ ${moneyB(sumB(due,c=>c.rem))}` : '';
   $('#dueList').innerHTML = due.length ? due.map(b=>{ const c=calc(b), M=v=>money(v,c.cur); return `<div class="appt ${b.date<todayStr()?'urgent':''}" style="--gc:var(--amb)">
     <div class="time" style="font-size:14px">${fmtDate(b.date)}<small>${b.date}</small></div>
-    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} ${curTag(c.cur)} ${codeTag(b)}</div>
+    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} ${curTag(c.cur)}</div>
       <div class="sub">👥 ${c.n} • الصافي ${M(c.total)} • مدفوع ${M(c.paid)} • <b style="color:var(--red)">متبقي ${M(c.rem)}</b>${b.date<todayStr()?' • <b style="color:var(--red)">موعده فات!</b>':''}</div></div>
     <div class="acts">
       <button class="ibtn money" onclick="openPay('${b.id}')">💵 تحصيل</button>
@@ -1364,8 +1358,6 @@ function submitForm(sendAfter){
     if(!confirm('الفرق بين يوم الرجال ويوم النساء أكثر من يوم. هل أنت متأكد؟')) return;
   }
   const id=$('#bid').value; let b;
-  const prevPaid = id ? (+(S.bookings.find(x=>x.id===id)||{}).paid||0) : 0;
-  if(data.paid > prevPaid && !proofOk(data.payMethod, id?{id}:null)) return;
   if(id){
     b=S.bookings.find(x=>x.id===id);
     if(!b){ toast('⚠️ هذا الحجز حُذف من جهاز آخر'); closeOv('formOv'); return; }
@@ -1402,9 +1394,7 @@ function openPay(id){
   const b=S.bookings.find(x=>x.id===id); if(!b) return; payId=id; const c=calc(b), M=v=>money(v,c.cur);
   $('#payInfo').innerHTML = `<div><b>${esc(b.name)}</b><span>${fmtDate(b.date)} ${curTag(c.cur)}</span></div>
     <div><span>الصافي</span><span>${M(c.total)}</span></div><div><span>المدفوع</span><span>${M(c.paid)}</span></div>
-    <div class="tot rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>
-    <div><span>🔖 كود الحجز</span><span dir="ltr"><b>${bkCode(b.id)}</b></span></div>${payHistory(b)}
-    ${proofRequired()?`<div class="hint" style="margin-top:6px">📸 التحويل/المحفظة/البطاقة بيتسجلوا من بوت تليجرام بس: ابعت الاسكرين للبوت واكتب في الوصف <b dir="ltr">${bkCode(b.id)}</b> والمبلغ.</div>`:''}`;
+    <div class="tot rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>`;
   $('#payAmtLbl').textContent = `المبلغ المستلم (${CUR[c.cur].name})`;
   $('#payAmt').value=c.rem; $('#payMeth').value=b.payMethod||'cash';
   $('#payOv').classList.add('on'); setTimeout(()=>$('#payAmt').select(),50);
@@ -1412,27 +1402,11 @@ function openPay(id){
 function confirmPay(send){
   const b=S.bookings.find(x=>x.id===payId); if(!b) return;
   const amt=+$('#payAmt').value||0; if(amt<=0){ toast('أدخل مبلغاً صحيحاً'); return; }
-  if(!proofOk($('#payMeth').value, b)) return;
   b.paid=round2((+b.paid||0)+amt); b.payMethod=$('#payMeth').value;
   (b.payments=b.payments||[]).push({amt, currency:b.currency, method:b.payMethod, at:Date.now(), by:myEmail()});
   if(b.status==='new' && calc(b).rem===0) b.status='confirmed';
   save(); closeOv('payOv'); renderAll(); toast(`✓ تم تسجيل ${money(amt,b.currency)}`);
   if(send) window.open(waUrl(b),'_blank');
-}
-/* 📸 إثبات الدفع: لو مفعّل من الإعدادات، الدفع غير النقدي بيتسجل من بوت تليجرام بس (باسكرين ورقم دفعة) */
-const proofRequired = () => mode==='cloud' && !!S.settings.requireProof;
-function proofOk(method, b){
-  if(!proofRequired() || method==='cash') return true;
-  const code = b ? bkCode(b.id) : '';
-  if(isAdmin()) return confirm(`الدفع ده (${METHODS[method]||method}) المفروض يتسجل باسكرين من بوت تليجرام.\nتسجّله يدوي من غير اسكرين (مدير)؟`);
-  alert(`📸 الدفع بـ${METHODS[method]||method} بيتسجل من بوت تليجرام بس.\n\n${code?`ابعت اسكرين التحويل للبوت واكتب في وصف الصورة:\n${code} والمبلغ`:'احفظ الحجز الأول من غير المبلغ المدفوع، وبعدين ابعت الاسكرين للبوت ومعاه كود الحجز (🔖 جنب اسم العميل).'}\n\nوالمبلغ هيتسجل هنا لوحده خلال دقايق.`);
-  return false;
-}
-function payHistory(b){
-  const P=(b.payments||[]).filter(p=>p && +p.amt>0); if(!P.length) return '';
-  return `<div style="display:block;margin-top:8px;font-size:12.5px">${P.slice(-6).reverse().map(p=>`<div>
-    <span>${new Date(p.at).toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'short'})} • ${METHODS[p.method]||''}${p.pid?` • <b dir="ltr">${esc(p.pid)}</b>`:''}</span>
-    <span>${money(p.amt,p.currency||b.currency)} ${p.proof?`<a href="${esc(p.proof)}" target="_blank" title="فتح الاسكرين في قناة الأرشيف">📎</a>`:p.pid?'📎':''}</span></div>`).join('')}</div>`;
 }
 $('#payOk').addEventListener('click',()=>confirmPay(false));
 $('#payOkSend').addEventListener('click',()=>confirmPay(true));
@@ -1513,7 +1487,6 @@ function renderStaff(){
       </div>
       <div class="acts">
         ${mode==='cloud'?`<select class="ibtn" onchange="setComm('${k}',this.value)" title="طريقة حساب العمولة في التقرير الشهري">${Object.entries(COMM_MODES).map(([v,l])=>`<option value="${v}" ${(u.comm||'')===v?'selected':''}>💵 ${l}</option>`).join('')}</select>`:''}
-        ${mode==='cloud'?`<button class="ibtn ${u.tgId?'ok':''}" onclick="staffAct('tg','${k}')" title="${u.tgId?'مربوط ببوت تليجرام'+(u.tgName?' ('+esc(u.tgName)+')':''):'ربط بوت تليجرام (اسكرينات التحويل)'}">🤖${u.tgId?' ✓':''}</button>`:''}
         <button class="ibtn" onclick="staffAct('name','${k}')" title="تغيير الاسم">✏️</button>
         ${me?'':`<button class="ibtn" onclick="staffAct('role','${k}')">${u.role==='admin'?'👤 خليه موظف':'⭐ خليه مدير'}</button>
         <button class="ibtn ${off?'ok':'del'}" onclick="staffAct('active','${k}')">${off?'✅ تفعيل':'⛔ إيقاف'}</button>`}
@@ -1537,11 +1510,6 @@ async function staffAct(act, k){
     if(act==='active'){ const on=u.active===false;
       if(!on && !confirm(`إيقاف حساب ${nm}؟ هيخرج فوراً ومش هيقدر يدخل تاني لحد ما تفعّله.`)) return;
       await fb.updateDoc(ref,{active:on}); toast(on?'✅ تم تفعيل الحساب':'⛔ تم إيقاف الحساب'); }
-    if(act==='tg'){
-      if(u.tgId && !confirm(`${nm} مربوط ببوت تليجرام${u.tgName?' ('+u.tgName+')':''}.\nتفك الربط وتطلع كود جديد؟`)) return;
-      const code=String(100000+Math.floor(Math.random()*900000));
-      await fb.updateDoc(ref,{tgCode:code, tgCodeAt:Date.now(), tgId:null, tgName:null});
-      prompt(`كود ربط ${nm} (صالح يومين).\nخليه يفتح البوت في تليجرام ويبعتله الرسالة دي:`, `/link ${code}`); }
     if(act==='reset'){ if(!confirm(`إرسال رابط تغيير كلمة المرور على ${e}؟`)) return; await fb.sendPasswordResetEmail(auth, e); toast('📧 اتبعت الرابط على إيميله'); }
   }catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); }
 }
@@ -1814,7 +1782,7 @@ function openSettings(){
   $('#sPriceSAR').value=s.prices.SAR; $('#sPriceEGP').value=s.prices.EGP; $('#sPriceUSD').value=s.prices.USD;
   $('#sEgpPerSar').value=s.egpPerSar; $('#sSarPerUsd').value=s.sarPerUsd;
   $('#sBulkPct').value=s.bulkPct; $('#sBulkMin').value=s.bulkMin;
-  $('#tgOn').checked=!!TG.on; $('#tgToken').value=TG.token||''; $('#tgChat').value=TG.chatId||''; $('#tgArchive').value=TG.archiveChatId||''; $('#sProof').checked=!!s.requireProof;
+  $('#tgOn').checked=!!TG.on; $('#tgToken').value=TG.token||''; $('#tgChat').value=TG.chatId||'';
   $('#backupHint').textContent = mode==='cloud' ? '☁️ بياناتك محفوظة على السحابة، ومع ذلك يُنصح بتصدير نسخة أسبوعياً.' : '💻 البيانات محفوظة على هذا الجهاز فقط — صدّر نسخة بانتظام.';
   updateRateInfo();
   $('#setOv').classList.add('on');
@@ -1835,8 +1803,7 @@ function saveSettings(silent){
   s.bulkPct=Math.min(100,Math.max(0,+$('#sBulkPct').value||0));
   s.bulkMin=Math.max(0,+$('#sBulkMin').value||0);
   s.egp150=true;
-  s.requireProof=$('#sProof').checked;
-  const tg={...TG, on:$('#tgOn').checked, token:$('#tgToken').value.trim(), chatId:$('#tgChat').value.trim(), archiveChatId:$('#tgArchive').value.trim()};
+  const tg={on:$('#tgOn').checked, token:$('#tgToken').value.trim(), chatId:$('#tgChat').value.trim()};
   if(JSON.stringify(tg)!==JSON.stringify(TG)){ TG=tg; saveTG(); }
   $('#finBase').value=s.baseCur;
   save(); renderAll();
