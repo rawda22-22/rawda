@@ -39,6 +39,10 @@ service cloud.firestore {
     match /expenses/{id} {
       allow read, write: if isAdmin();
     }
+    // 💳 مسحوبات وسلف الموظفين: للمدير بس
+    match /advances/{id} {
+      allow read, write: if isAdmin();
+    }
 
     // 🗂 أرشيف الاسكرينات (archive.html) — منفصل عن الحجوزات
     // أي حساب نشط يرفع ويشوف، ومحدش يعدّل صورة بعد ما اتحفظت، والمدير بس يحذف
