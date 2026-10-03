@@ -1,0 +1,148 @@
+// تنبيه تليجرام قبل كل موعد بساعتين و10 دقايق: "اطبع الحجز وسلّمه للعميل"
+// بيشتغل من GitHub Actions كل 5 دقايق (.github/workflows/remind.yml) ومش محتاج الموقع يكون مفتوح.
+// إعدادات تليجرام (Token / Chat ID) بتتقرا من نفس إعدادات الموقع (Firestore: meta/telegram).
+import { pathToFileURL } from 'node:url';
+
+export const LEAD_MIN = 130;                       // ساعتين و10 دقايق
+const CUR_SYM = { SAR: 'ر.س', EGP: 'ج.م', USD: '$' };
+
+/* تحويل "تاريخ + ساعة" بتوقيت منطقة معيّنة إلى لحظة زمنية (ms) — من غير مكتبات */
+export function zonedEpoch(date, time, tz) {
+  const [y, mo, d] = date.split('-').map(Number), [h, mi] = time.split(':').map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  const offset = (t) => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric',
+    }).formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(t / 1000) * 1000;
+  };
+  let t = guess - offset(guess);
+  t = guess - offset(t);
+  return t;
+}
+
+/* تاريخ اليوم (وبكرة لو قرّبنا من نص الليل) بتوقيت المنطقة — عشان نقرا حجوزات يومين بس ونوفّر قراءات Firestore */
+export function datesToQuery(now, tz) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: 'numeric',
+  }).formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  const today = `${p.year}-${p.month}-${p.day}`, minutes = +p.hour * 60 + +p.minute;
+  if (minutes < 24 * 60 - LEAD_MIN - 10) return [today];
+  const t = new Date(Date.UTC(+p.year, +p.month - 1, +p.day + 1));
+  return [today, t.toISOString().slice(0, 10)];
+}
+
+/* مواعيد الحجز (رجال / نساء) — نفس منطق الموقع */
+export function appointments(b) {
+  const out = [];
+  if (+b.men && b.menSlot) out.push({ g: 'm', n: +b.men, date: b.menDate || b.date, slot: b.menSlot });
+  if (+b.women && b.womenSlot) out.push({ g: 'w', n: +b.women, date: b.womenDate || b.date, slot: b.womenSlot });
+  return out;
+}
+
+/* المواعيد اللي فاضل عليها أقل من/يساوي ساعتين و10 دقايق (ولسه ما بدأتش) */
+export function dueReminders(bookings, now, tz, leadMin = LEAD_MIN) {
+  const out = [];
+  for (const b of bookings) {
+    if (b.status === 'cancelled' || b.status === 'done') continue;
+    for (const a of appointments(b)) {
+      if (!a.date || !a.slot) continue;
+      const dt = zonedEpoch(a.date, a.slot, tz), ms = dt - now;
+      if (ms > 0 && ms <= leadMin * 60000) out.push({ b, ...a, dt, ms, key: `${b.id}|${a.g}|${a.date}T${a.slot}` });
+    }
+  }
+  return out.sort((x, y) => x.dt - y.dt);
+}
+
+const h = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const fmt12 = (t) => { let [hh, mm] = t.split(':').map(Number); const ap = hh < 12 ? 'ص' : 'م'; hh = hh % 12 || 12; return `${hh}:${String(mm).padStart(2, '0')} ${ap}`; };
+const minWord = (m) => (m === 1 ? 'دقيقة' : m === 2 ? 'دقيقتين' : m <= 10 ? `${m} دقائق` : `${m} دقيقة`);
+export function leftText(ms) {
+  const m = Math.round(ms / 60000), hh = Math.floor(m / 60), mm = m % 60;
+  if (hh === 0) return minWord(mm);
+  return `${hh === 1 ? 'ساعة' : hh === 2 ? 'ساعتين' : hh + ' ساعات'}${mm ? ` و${minWord(mm)}` : ''}`;
+}
+
+export function reminderMessage(r, empName, siteUrl) {
+  const b = r.b, n = (+b.men || 0) + (+b.women || 0), sub = n * (+b.price || 0);
+  const manual = b.discType === 'percent' ? sub * Math.min(+b.disc || 0, 100) / 100 : Math.min(+b.disc || 0, sub);
+  const total = Math.max(0, Math.round((sub - manual - (sub - manual) * (+b.bulkPct || 0) / 100) * 100) / 100);
+  const rem = Math.max(0, Math.round((total - Math.max(0, +b.paid || 0)) * 100) / 100), sym = CUR_SYM[b.currency] || 'ر.س';
+  const day = new Date(r.date + 'T12:00:00Z').toLocaleDateString('ar-u-nu-latn', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+  const L = ['🖨 <b>اطبع الحجز وسلّمه للعميل</b>', '', `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`,
+    `${r.g === 'm' ? '🧔 رجال' : '🧕 نساء'} (${r.n}) — ${day} • ${fmt12(r.slot)}`, '',
+    `👤 ${h(b.name)}`, `📞 <code>${h(b.phone)}</code>`];
+  if (rem > 0) L.push(`⏳ المتبقي للتحصيل: <b>${rem} ${sym}</b>`);
+  if (b.notes) L.push(`📝 ${h(b.notes)}`);
+  L.push('', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`);
+  if (siteUrl) L.push(`🔗 <a href="${siteUrl}?print=${encodeURIComponent(b.id)}">افتح الحجز للطباعة</a>`);
+  return L.join('\n');
+}
+
+export async function tgSend(token, chatId, text) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    body: new URLSearchParams({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: 'true' }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.description || 'HTTP ' + r.status);
+}
+
+export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Cairo', siteUrl = '', log = console.log }) {
+  const tgSnap = await db.doc('meta/telegram').get();
+  const tg = tgSnap.exists ? tgSnap.data() : null;
+  if (!tg || !tg.on || !tg.token || !tg.chatId) { log('تليجرام مش مفعّل في إعدادات الموقع — مفيش إرسال'); return { sent: 0, failed: 0 }; }
+
+  const found = new Map();
+  for (const d of datesToQuery(now, tz)) {
+    for (const field of ['date', 'menDate', 'womenDate']) {
+      const snap = await db.collection('bookings').where(field, '==', d).get();
+      snap.forEach((doc) => found.set(doc.id, { ...doc.data(), id: doc.id }));
+    }
+  }
+
+  const rs = await db.doc('meta/reminders').get();
+  const sent = { ...((rs.exists && rs.data().sent) || {}) };
+  const due = dueReminders([...found.values()], now, tz).filter((r) => !sent[r.key]);
+  log(`حجوزات متقرية: ${found.size} • تنبيهات مستحقة: ${due.length}`);
+
+  const names = {};
+  const nameOf = async (email) => {
+    email = String(email || '').toLowerCase();
+    if (!email) return '';
+    if (!(email in names)) {
+      const u = await db.doc('users/' + email).get();
+      names[email] = (u.exists && u.data().name) || email.split('@')[0];
+    }
+    return names[email];
+  };
+
+  let ok = 0, failed = 0;
+  for (const r of due) {
+    try {
+      await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl));
+      sent[r.key] = now; ok++;
+      for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
+      await db.doc('meta/reminders').set({ sent, updatedAt: now });
+    } catch (e) { failed++; console.error('تعذر إرسال تنبيه', r.key, '-', e.message); }
+  }
+  return { sent: ok, failed };
+}
+
+async function main() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) { console.log('::notice::مفتاح FIREBASE_SERVICE_ACCOUNT مش مضاف في GitHub Secrets — التنبيهات متوقفة لحد ما تضيفه'); return; }
+  const { initializeApp, cert } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+  initializeApp({ credential: cert(JSON.parse(raw)) });
+  const [owner, repo] = (process.env.GITHUB_REPOSITORY || '/').split('/');
+  const siteUrl = process.env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : '');
+  const res = await run({ db: getFirestore(), tz: process.env.APP_TZ || 'Africa/Cairo', siteUrl });
+  console.log(`اتبعت ${res.sent} تنبيه${res.failed ? ` • فشل ${res.failed}` : ''}`);
+  if (res.failed) process.exitCode = 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

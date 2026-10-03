@@ -701,7 +701,7 @@ function subscribe(){
     snap.forEach(d=>{ const b=migrate({...d.data(), id:d.id}); arr.push(b); synced.bookings[d.id]=JSON.stringify(b); });
     S.bookings = arr;
     setSync(!navigator.onLine ? 'offline' : snap.metadata.hasPendingWrites ? 'pending' : 'ok');
-    renderAll();
+    renderAll(); printFromUrl();
   }, cloudErr));
 }
 function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; }
@@ -827,10 +827,12 @@ function autoSlot(g, date, pref, count, exId){
 }
 
 /* ========= المواعيد والدفعات ========= */
+/* الموظف يشوف الحجوزات اللي هو سجّلها بس — المدير (ووضع الجهاز الواحد) يشوف الكل */
+const canSee = b => isAdmin() || (b.createdBy||'').toLowerCase()===myEmail();
 function appts(){
   const out=[];
   for(const b of S.bookings){
-    if(b.status==='cancelled' || b.status==='done') continue;
+    if(b.status==='cancelled' || b.status==='done' || !canSee(b)) continue;
     if(+b.men && b.menSlot){ const d=gDate(b,'m'); out.push({b, g:'m', slot:b.menSlot, n:+b.men, date:d, dt:new Date(d+'T'+b.menSlot)}); }
     if(+b.women && b.womenSlot){ const d=gDate(b,'w'); out.push({b, g:'w', slot:b.womenSlot, n:+b.women, date:d, dt:new Date(d+'T'+b.womenSlot)}); }
   }
@@ -879,6 +881,46 @@ function waMsg(b){
 const waUrl = (b, text) => `https://wa.me/${phoneDigits(b.phone)}?text=${encodeURIComponent(text ?? waMsg(b))}`;
 function sendWA(id){ const b=S.bookings.find(x=>x.id===id); if(b) window.open(waUrl(b),'_blank'); }
 
+/* ========= 🖨 طباعة وصل الحجز للعميل ========= */
+function printHtml(html){
+  const f=document.createElement('iframe'); f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  const d=f.contentDocument; d.open(); d.write(html); d.close();
+  setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ console.error(e); toast('تعذرت الطباعة'); } setTimeout(()=>f.remove(), 60000); }, 400);
+}
+function printBooking(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b){ toast('الحجز ده مش موجود'); return; }
+  const c=calc(b), M=v=>money(v,c.cur), split=isSplit(b), no=String(b.id).slice(-6).toUpperCase();
+  const row=(g,lbl,n,slot)=>`<tr><td>${lbl}</td><td>${n}</td><td>${fmtDate(gDate(b,g),true)}</td><td><b>${fmt12(slot)}</b></td></tr>`;
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>حجز ${esc(b.name)}</title><style>
+    @page{size:A5;margin:10mm} *{box-sizing:border-box} body{font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;color:#1c2822;margin:0;padding:10px;font-size:14px}
+    header{text-align:center;border-bottom:3px solid #c9a24a;padding-bottom:10px;margin-bottom:14px} header .lg{font-size:36px} header h1{margin:2px 0;font-size:20px;color:#093f2e} header p{margin:0;color:#6b7a72;font-size:12px}
+    .cl{border:1px solid #e2e7e3;border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.9} .cl b{font-size:17px}
+    table{width:100%;border-collapse:collapse;margin-bottom:12px} th,td{border:1px solid #e2e7e3;padding:8px;text-align:center} th{background:#f3f5f2;font-size:12px}
+    .pay{display:flex;justify-content:space-between;gap:8px;border:1px solid #e2e7e3;border-radius:10px;padding:10px 12px;margin-bottom:12px} .pay div{text-align:center} .pay span{display:block;color:#6b7a72;font-size:11px}
+    .warn{background:#fff7e8;border:1px solid #f0d9a8;border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:13px}
+    .ft{text-align:center;color:#6b7a72;font-size:12px;margin-top:14px} .noprint{margin-bottom:10px} @media print{.noprint{display:none}}
+  </style></head><body>
+  <header><div class="lg">🕌</div><h1>تأكيد حجز زيارة الروضة الشريفة</h1><p>رقم الحجز: ${esc(no)}</p></header>
+  <div class="cl"><div>👤 <b>${esc(b.name)}</b></div><div dir="ltr" style="text-align:right">📞 ${esc(b.phone)}</div></div>
+  <table><thead><tr><th>الفئة</th><th>العدد</th><th>اليوم</th><th>الساعة</th></tr></thead><tbody>
+    ${+b.men?row('m','🧔 رجال',b.men,b.menSlot):''}${+b.women?row('w','🧕 نساء',b.women,b.womenSlot):''}</tbody></table>
+  ${split?'<div class="warn">⚠️ يرجى الانتباه: موعد الرجال والنساء في يومين مختلفين</div>':''}
+  <div class="pay"><div><span>الإجمالي</span><b>${M(c.total)}</b></div><div><span>المدفوع</span><b>${M(Math.min(c.paid,c.total))}</b></div><div><span>المتبقي</span><b style="color:${c.rem>0?'#d63c3c':'#0e6b4f'}">${c.rem>0?M(c.rem):'مسدد ✔'}</b></div></div>
+  ${b.notes?`<div class="cl" style="font-size:13px">📝 ${esc(b.notes)}</div>`:''}
+  <div class="ft">نرجو الحضور قبل الموعد بوقت كافٍ. تقبّل الله منكم 🤍</div>
+  </body></html>`;
+  printHtml(html);
+}
+/* فتح وصل حجز مباشرة من رابط تنبيه تليجرام: ?print=ID (بعد تسجيل الدخول) */
+let PRINT_ID = new URLSearchParams(location.search).get('print');
+function printFromUrl(){
+  if(!PRINT_ID || !S.bookings.some(x=>x.id===PRINT_ID)) return;
+  const id=PRINT_ID; PRINT_ID=null;
+  try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  printBooking(id);
+}
+
 /* ========= العرض ========= */
 const gLabel = g => g==='m' ? '<span class="badge b-men">🧔 رجال</span>' : '<span class="badge b-women">🧕 نساء</span>';
 const gColor = g => g==='m' ? 'var(--blue)' : 'var(--pink)';
@@ -893,7 +935,7 @@ function badgeFor(ms){
 const bigMoney = v => { const c=base(); return c==='USD' ? `$${num(v)}` : `${num(v)} <small>${CUR[c].sym}</small>`; };
 
 function renderStats(){
-  const t=todayStr(), act=S.bookings.filter(b=>b.status!=='cancelled');
+  const t=todayStr(), act=S.bookings.filter(b=>b.status!=='cancelled' && canSee(b));
   const today=act.filter(b=>b.date===t);
   const up=appts().filter(a=>a.dt>Date.now());
   const urg=up.filter(a=>level(a.dt-Date.now())==='urgent');
@@ -929,6 +971,7 @@ function apptRow(a){
     </div>
     <div class="acts">
       <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
+      <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
       <button class="ibtn ok" onclick="setStatus('${b.id}','done')" title="تم الدخول">✓</button>
       <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
@@ -967,19 +1010,35 @@ function renderGroups(){
 
 function clearFilters(){ ['q','fDate','fStatus','fPay','fCur'].forEach(k=>$('#'+k).value=''); renderTable(); }
 const otherDay = (b,g) => gDate(b,g)!==b.date ? ` • 📅 ${fmtDate(gDate(b,g))}` : '';
+/* أقرب موعد لسه ما فاتش عليه أكتر من ساعة (للترتيب) — null لو مفيش */
+function nextDt(b){
+  const cut=Date.now()-36e5, t=[];
+  if(+b.men && b.menSlot) t.push(+new Date(gDate(b,'m')+'T'+b.menSlot));
+  if(+b.women && b.womenSlot) t.push(+new Date(gDate(b,'w')+'T'+b.womenSlot));
+  const up=t.filter(x=>x>cut).sort((x,y)=>x-y);
+  return up.length ? up[0] : null;
+}
+/* الترتيب: اللي وقته جه أو قرّب الأول، ثم الأبعد، وفي الآخر المنتهي/الملغي (الأحدث الأول) */
+function bookingOrder(a, b){
+  const live=x=>x.status!=='cancelled' && x.status!=='done', na=live(a)?nextDt(a):null, nb=live(b)?nextDt(b):null;
+  if(na!==null && nb!==null) return na-nb;
+  if(na!==null) return -1; if(nb!==null) return 1;
+  return (b.date+(b.menSlot||b.womenSlot||'')).localeCompare(a.date+(a.menSlot||a.womenSlot||''));
+}
 function renderTable(){
   const q=$('#q').value.trim().toLowerCase(), fd=$('#fDate').value, fs=$('#fStatus').value, fp=$('#fPay').value, fc=$('#fCur').value;
   const rows = S.bookings.filter(b=>{
+    if(!canSee(b)) return false;
     if(q && !(b.name.toLowerCase().includes(q) || String(b.phone).replace(/\s/g,'').includes(q.replace(/\s/g,'')))) return false;
     if(fd && b.date!==fd && gDate(b,'m')!==fd && gDate(b,'w')!==fd) return false;
     if(fs && b.status!==fs) return false;
     if(fp && calc(b).st!==fp) return false;
     if(fc && b.currency!==fc) return false;
     return true;
-  }).sort((a,b)=> (a.date+(a.menSlot||a.womenSlot||'')).localeCompare(b.date+(b.menSlot||b.womenSlot||'')));
-  $('#tblCount').textContent = `${rows.length} من ${S.bookings.length}`;
-  $('#tbody').innerHTML = rows.length ? rows.map(b=>{ const c=calc(b); return `<tr>
-    <td data-l="العميل"><span><b>${esc(b.name)}</b>${b.frozen?' <span class="badge b-frz">❄️</span>':''}${isSplit(b)?' <span class="badge b-amb">📆 يومين</span>':''}${b.notes?`<span class="slot">${esc(b.notes)}</span>`:''}${mode==='cloud'&&b.updatedBy?`<span class="slot">👤 ${who(b.updatedBy)}</span>`:''}</span></td>
+  }).sort(bookingOrder);
+  $('#tblCount').textContent = `${rows.length} من ${S.bookings.filter(canSee).length}`;
+  $('#tbody').innerHTML = rows.length ? rows.map(b=>{ const c=calc(b), nx=(b.status!=='cancelled'&&b.status!=='done')?nextDt(b):null; return `<tr>
+    <td data-l="العميل"><span><b>${esc(b.name)}</b>${b.frozen?' <span class="badge b-frz">❄️</span>':''}${isSplit(b)?' <span class="badge b-amb">📆 يومين</span>':''}${nx!==null?`<span class="slot">${badgeFor(nx-Date.now())}</span>`:''}${b.notes?`<span class="slot">${esc(b.notes)}</span>`:''}${mode==='cloud'&&b.updatedBy?`<span class="slot">👤 ${who(b.updatedBy)}</span>`:''}</span></td>
     <td data-l="الهاتف"><a href="${waUrl(b)}" target="_blank" dir="ltr" style="color:var(--g)">${esc(b.phone)}</a></td>
     <td data-l="التاريخ"><span>${fmtDate(b.date)}<span class="slot">${b.date}</span></span></td>
     <td data-l="الرجال">${+b.men?`<span><b>${b.men}</b><span class="slot">${fmt12(b.menSlot)}${otherDay(b,'m')}</span></span>`:'—'}</td>
@@ -990,6 +1049,7 @@ function renderTable(){
     <td data-l="إجراءات"><div class="acts">
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
       <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
+      <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
       <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
       <button class="ibtn del admin-only" onclick="delBooking('${b.id}')" title="حذف">🗑</button></div></td>
   </tr>`; }).join('') : `<tr><td colspan="9" class="empty" style="display:table-cell">لا توجد نتائج</td></tr>`;

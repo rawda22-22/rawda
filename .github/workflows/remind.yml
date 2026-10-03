@@ -1,0 +1,40 @@
+name: Appointment reminders
+
+# تنبيه تليجرام قبل كل موعد بساعتين و10 دقايق (اطبع الحجز وسلّمه للعميل)
+# محتاج Secret واحد: FIREBASE_SERVICE_ACCOUNT  (Settings → Secrets and variables → Actions)
+# اختياري (Variables): APP_TZ (الافتراضي Africa/Cairo) و SITE_URL (لو الموقع على دومين خاص)
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remind
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --prefix scripts --no-audit --no-fund
+
+      - name: Send reminders
+        run: node scripts/remind.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_TZ: ${{ vars.APP_TZ }}
+          SITE_URL: ${{ vars.SITE_URL }}
