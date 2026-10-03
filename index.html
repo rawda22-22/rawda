@@ -99,6 +99,8 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;grid-column:1/-1}
 @media(max-width:520px){.fg{grid-template-columns:1fr}.fg3{grid-template-columns:1fr}}
+.fgc{grid-template-columns:1fr 1fr 1fr auto;align-items:end}.fge{grid-template-columns:1fr 1.3fr 1fr 1fr}.fge .fen{grid-column:1/-2}
+@media(max-width:700px){.fgc,.fge{grid-template-columns:1fr 1fr}.fge .fen{grid-column:1/-1}}
 .hbtn.arch{text-decoration:none;display:inline-flex;align-items:center;gap:5px}
 .f{display:flex;flex-direction:column;gap:5px}
 .f.full{grid-column:1/-1}
@@ -267,7 +269,32 @@ body:not(.cloud) .cloud-only{display:none!important}
         <button class="btn gold sm" onclick="printStatement('*')" title="كشف حساب لكل موظف في صفحة منفصلة">🧾 كشوف الموظفين</button>
       </div>
       <div class="stats" id="repStats" style="margin-bottom:10px"></div>
+      <div id="repProfit"></div>
       <div style="overflow-x:auto"><table class="curTable" id="repEmp"></table></div>
+    </div>
+    <div class="card">
+      <h2>🧮 تكلفة الحجز للفرد <span class="sp"></span><span class="hint">للمدير بس — الموظفين مش بيشوفوها</span></h2>
+      <div class="fg3 fgc">
+        <div class="f"><label>التكلفة للفرد</label><input id="costAmt" type="number" min="0" step="0.01" placeholder="مثلاً 100"></div>
+        <div class="f"><label>العملة</label><select id="costCur"></select></div>
+        <div class="f"><label>تسري على الزيارات من يوم</label><input id="costFrom" type="date"></div>
+        <button class="btn pri" onclick="addCost()">💾 حفظ</button>
+      </div>
+      <div class="hint" style="margin-top:8px">لو التكلفة اتغيرت، سجّل التكلفة الجديدة من يوم التغيير — الحجوزات القديمة بتفضل محسوبة بالتكلفة القديمة.</div>
+      <div id="costList" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>💸 المصروفات <span class="sp"></span><span class="hint" id="expHead"></span></h2>
+      <div class="fg3 fge">
+        <div class="f"><label>التاريخ</label><input id="expDate" type="date"></div>
+        <div class="f"><label>نوع المصروف</label><input id="expType" list="expTypes" placeholder="اختار أو اكتب نوع جديد" autocomplete="off"><datalist id="expTypes"></datalist></div>
+        <div class="f"><label>المبلغ</label><input id="expAmt" type="number" min="0" step="0.01"></div>
+        <div class="f"><label>العملة</label><select id="expCur"></select></div>
+        <div class="f fen"><label>تفاصيل (اختياري)</label><input id="expNote" placeholder="مثلاً: إعلان فيسبوك أسبوع 2"></div>
+        <div class="f" style="justify-content:flex-end"><button class="btn pri" onclick="addExpense()">＋ إضافة مصروف</button></div>
+      </div>
+      <div class="methods" id="expTypesSum"></div>
+      <div id="expList" style="margin-top:10px"></div>
     </div>
     <div class="card">
       <h2>💰 ملخص الحسابات <span class="sp"></span>
@@ -603,7 +630,8 @@ const gDate = (b, g) => (g==='m' ? b.menDate : b.womenDate) || b.date;
 const isSplit = b => +b.men && +b.women && gDate(b,'m')!==gDate(b,'w');
 function applyData(raw){
   if(!raw) return;
-  try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate); }catch(e){ console.error(e); }
+  try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate);
+    if(d.fin && mode!=='cloud'){ FIN={costs:d.fin.costs||[], expenses:d.fin.expenses||[]}; S.fin=FIN; } }catch(e){ console.error(e); }
 }
 
 /* ========= حالة المزامنة ========= */
@@ -694,6 +722,11 @@ async function initCloud(){
 }
 function subscribe(){
   unsubscribe(); setSync('connecting'); startPresence();
+  FIN={costs:[], expenses:[]};
+  if(isAdmin()){
+    unsubs.push(fb.onSnapshot(fb.doc(db,'finance','main'), d=>{ FIN.costs=(d.exists()&&Array.isArray(d.data().costs))?d.data().costs:[]; renderAll(); }, e=>console.warn('finance:', e.code||e)));
+    unsubs.push(fb.onSnapshot(fb.collection(db,'expenses'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.expenses=a; renderAll(); }, e=>console.warn('expenses:', e.code||e)));
+  }
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','settings'), d=>{
     if(d.exists()) S.settings = migrateSettings(d.data());
     synced.settings = JSON.stringify(S.settings);
@@ -1156,6 +1189,12 @@ function setRange(r){
   if(r==='month'){ f=dstr(new Date(now.getFullYear(),now.getMonth(),1)); t=dstr(new Date(now.getFullYear(),now.getMonth()+1,0)); }
   $('#finFrom').value=f; $('#finTo').value=t; renderFinance();
 }
+function finRange(list, f, t){
+  const B=base(), cost=list.reduce((s,b)=>s+bookingCost(b,B),0), comm=conv(list.reduce((s,b)=>s+commOf(b),0),'EGP',B);
+  const exp=expIn(f,t).reduce((s,x)=>s+conv(x.amt,x.cur,B),0), total=sumB(list,c=>c.total), profit=total-cost-comm-exp;
+  return [['🧮 تكلفة الأفراد', bigMoney(cost), 'var(--mu)'], ['💸 المصروفات'+(comm?' والعمولات':''), bigMoney(exp+comm), 'var(--amb)'],
+    [profit<0?'🔻 صافي الخسارة':'📈 صافي الربح', bigMoney(profit), profit<0?'var(--red)':'var(--g)']];
+}
 function renderFinance(){
   const f=$('#finFrom').value, t=$('#finTo').value, B=base();
   const list=S.bookings.filter(b=>b.status!=='cancelled' && (!f||b.date>=f) && (!t||b.date<=t));
@@ -1171,6 +1210,7 @@ function renderFinance(){
     ['الصافي المستحق', mixed+bigMoney(total), 'var(--g)'],
     ['✅ المحصّل', mixed+bigMoney(paid), '#3fa37e'],
     ['⏳ المتبقي', mixed+bigMoney(rem), 'var(--red)'],
+    ...finRange(list, f, t),
   ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
   const pct = total ? Math.round(paid/total*100) : 0;
   $('#finBar').innerHTML = `<div class="hint">نسبة التحصيل: <b style="color:var(--g)">${pct}%</b>${mixed?' • الإجماليات محوّلة بأسعار الصرف في الإعدادات':''}</div><div class="bar"><i style="width:${pct}%"></i></div>`;
@@ -1675,30 +1715,136 @@ const COMM_MODES = { '':'بدون عمولة', a:'طريقة 1', b:'طريقة 2
 const COMM_RATES = { a:{lo:10, mid:10, hi:20}, b:{lo:20, mid:30, hi:40} };
 const commBand = pe => pe>=150 ? 'hi' : pe>=100 ? 'mid' : 'lo';
 const commMode = e => { const m=(USERS[e]&&USERS[e].comm)||''; return COMM_RATES[m] ? m : ''; };
+/* ========= 🧮 التكاليف والمصروفات (للمدير بس) =========
+   السحابة: finance/main {costs:[{id,amt,cur,from}]} + collection expenses — قواعد Firestore بتمنع الموظفين يقروهم.
+   الوضع المحلي: بيتحفظوا مع البيانات في S.fin. */
+let FIN = { costs:[], expenses:[] };
+const EXP_TYPES = ['إيجار','رواتب','إعلانات وتسويق','مواصلات','اتصالات وإنترنت','رسوم تحويل وعمولات بنكية','مطبوعات وأدوات','ضيافة','أخرى'];
+/* تكلفة الفرد السارية على يوم معيّن (لو الحجز أقدم من أول تكلفة متسجلة بناخد أول تكلفة) */
+function costAt(d){
+  if(!FIN.costs.length) return null;
+  const L=[...FIN.costs].sort((a,b)=>a.from.localeCompare(b.from));
+  let c=L[0]; for(const x of L) if(x.from<=d) c=x;
+  return c;
+}
+/* تكلفة الحجز بعملة معيّنة = عدد الأفراد × تكلفة الفرد يوم الزيارة */
+const bookingCost = (b, to) => { const c=costAt(b.date||''); return c ? calc(b).n * conv(+c.amt||0, c.cur, to) : 0; };
+/* عمولة الموظف على الحجز (بالجنيه) */
+const commOf = b => { const e=(b.createdBy||'').toLowerCase(), m=commMode(e); if(!m) return 0; const c=calc(b); return COMM_RATES[m][commBand(round2(conv(+b.price||0,c.cur,'EGP')))]*c.n; };
+const expIn = (f, t) => FIN.expenses.filter(x=>(!f||x.date>=f) && (!t||x.date<=t));
+function finSave(){ if(mode!=='cloud'){ S.fin=FIN; save(); } }
+async function addCost(){
+  if(!isAdmin()) return;
+  const amt=+$('#costAmt').value, cur=$('#costCur').value, from=$('#costFrom').value||todayStr();
+  if(!(amt>=0) || $('#costAmt').value===''){ toast('اكتب تكلفة الفرد'); return; }
+  const costs=[...FIN.costs.filter(x=>x.from!==from), {id:uid(), amt:round2(amt), cur, from}].sort((a,b)=>a.from.localeCompare(b.from));
+  try{
+    if(mode==='cloud') await fb.setDoc(fb.doc(db,'finance','main'), {costs, updatedAt:Date.now(), updatedBy:myEmail()}, {merge:true});
+    else { FIN.costs=costs; finSave(); }
+    $('#costAmt').value=''; toast('✓ اتحفظت تكلفة الفرد'); renderAll();
+  }catch(e){ cloudErr(e); toast('⚠️ الحفظ فشل — اتأكد إن قواعد Firestore اتنشرت'); }
+}
+async function delCost(id){
+  if(!isAdmin() || !confirm('حذف التكلفة دي؟')) return;
+  const costs=FIN.costs.filter(x=>x.id!==id);
+  try{
+    if(mode==='cloud') await fb.setDoc(fb.doc(db,'finance','main'), {costs, updatedAt:Date.now(), updatedBy:myEmail()}, {merge:true});
+    else { FIN.costs=costs; finSave(); }
+    renderAll();
+  }catch(e){ cloudErr(e); }
+}
+async function addExpense(){
+  if(!isAdmin()) return;
+  const date=$('#expDate').value||todayStr(), type=$('#expType').value.trim(), amt=+$('#expAmt').value, cur=$('#expCur').value, note=$('#expNote').value.trim();
+  if(!type){ toast('اختار نوع المصروف'); $('#expType').focus(); return; }
+  if(!(amt>0)){ toast('اكتب مبلغ المصروف'); $('#expAmt').focus(); return; }
+  const x={id:uid(), date, type, amt:round2(amt), cur, note, by:myEmail(), at:Date.now()};
+  try{
+    if(mode==='cloud'){ const {id,...d}=x; await fb.setDoc(fb.doc(db,'expenses',id), d); }
+    else { FIN.expenses.push(x); finSave(); }
+    $('#expAmt').value=''; $('#expNote').value=''; toast(`✓ اتسجل مصروف ${money(x.amt,cur)}`); renderAll();
+  }catch(e){ cloudErr(e); toast('⚠️ الحفظ فشل — اتأكد إن قواعد Firestore اتنشرت'); }
+}
+async function delExpense(id){
+  const x=FIN.expenses.find(e=>e.id===id); if(!x || !isAdmin() || !confirm(`حذف مصروف ${x.type} (${money(x.amt,x.cur)})؟`)) return;
+  try{
+    if(mode==='cloud') await fb.deleteDoc(fb.doc(db,'expenses',id));
+    else { FIN.expenses=FIN.expenses.filter(e=>e.id!==id); finSave(); }
+    renderAll();
+  }catch(e){ cloudErr(e); }
+}
+function renderCosts(R){
+  const curOpts=CODES.map(c=>`<option value="${c}">${CUR[c].flag} ${CUR[c].name}</option>`).join('');
+  ['costCur','expCur'].forEach(k=>{ const el=$('#'+k); if(el.options.length!==CODES.length){ el.innerHTML=curOpts; el.value=base(); } });
+  if(!$('#costFrom').value) $('#costFrom').value=todayStr();
+  if(!$('#expDate').value) $('#expDate').value=todayStr();
+  const today=costAt(todayStr()), L=[...FIN.costs].sort((a,b)=>b.from.localeCompare(a.from));
+  $('#costList').innerHTML = L.length ? L.map(c=>`<div class="appt" style="--gc:${c===today?'var(--g)':'var(--bd)'};margin-bottom:6px">
+      <div class="info"><div class="nm">${money(c.amt,c.cur)} للفرد ${c===today?'<span class="badge b-green">الحالية</span>':''}</div>
+        <div class="sub">من زيارات يوم ${fmtDate(c.from)} <span dir="ltr">${c.from}</span>${c.cur!==base()?` • ≈ ${moneyB(conv(c.amt,c.cur,base()))}`:''}</div></div>
+      <div class="acts"><button class="ibtn del" onclick="delCost('${c.id}')">🗑</button></div></div>`).join('')
+    : '<div class="empty">⚠️ لسه مفيش تكلفة متسجلة — الأرباح هتطلع من غير خصم التكلفة</div>';
+  // المصروفات: نفس شهر التقرير
+  const types=[...new Set([...EXP_TYPES, ...FIN.expenses.map(x=>x.type)])];
+  const dl=types.map(t=>`<option value="${esc(t)}">`).join(''); if($('#expTypes').innerHTML!==dl) $('#expTypes').innerHTML=dl;
+  const list=expIn(R.from, R.to).sort((a,b)=>b.date.localeCompare(a.date) || b.at-a.at);
+  $('#expHead').textContent = `${monthName(R.ym)} • ${list.length} مصروف • ${moneyB(R.T.exp)}`;
+  $('#expTypesSum').innerHTML = R.expTypes.map(([t,v])=>`<span class="chip">${esc(t)}: <b>${moneyB(v)}</b></span>`).join('');
+  $('#expList').innerHTML = list.length ? list.map(x=>`<div class="appt" style="--gc:var(--red);margin-bottom:6px">
+      <div class="time" style="font-size:13px">${fmtDate(x.date)}<small>${x.date}</small></div>
+      <div class="info"><div class="nm">${esc(x.type)} <b style="color:var(--red)">${money(x.amt,x.cur)}</b>${x.cur!==base()?` <span class="hint">≈ ${moneyB(conv(x.amt,x.cur,base()))}</span>`:''}</div>
+        ${x.note?`<div class="sub">${esc(x.note)}</div>`:''}</div>
+      <div class="acts"><button class="ibtn del" onclick="delExpense('${x.id}')">🗑</button></div></div>`).join('')
+    : '<div class="empty">مفيش مصروفات في الشهر ده</div>';
+}
+
 function reportData(ym, basis){
   const [y,m]=ym.split('-').map(Number), from=`${ym}-01`, to=dstr(new Date(y,m,0)), B=base();
   const keyDate = b => basis==='created' && b.createdAt ? dstr(new Date(b.createdAt)) : b.date;
   const all=S.bookings.filter(b=>{ const d=keyDate(b); return d>=from && d<=to; });
   const list=all.filter(b=>b.status!=='cancelled').sort((a,b)=>keyDate(a).localeCompare(keyDate(b)) || (a.createdAt||0)-(b.createdAt||0));
   const cv=(b,v)=>conv(v,b.currency,B);
-  const T={n:0,persons:0,men:0,women:0,sub:0,disc:0,total:0,paid:0,rem:0,comm:0}, E={}, D={}, C={}, M={};
+  const T={n:0,persons:0,men:0,women:0,sub:0,disc:0,total:0,paid:0,rem:0,comm:0,cost:0}, E={}, D={}, C={}, M={};
   const rows=list.map(b=>{
     const c=calc(b), pd=Math.min(c.paid,c.total), d=keyDate(b), e=(b.createdBy||'').toLowerCase()||'—';
     const pe=round2(conv(+b.price||0, c.cur, 'EGP')), band=commBand(pe), cmode=commMode(e), cm=cmode ? COMM_RATES[cmode][band]*c.n : 0;
     T.n++; T.persons+=c.n; T.men+=+b.men||0; T.women+=+b.women||0; T.comm+=cm;
     T.sub+=cv(b,c.sub); T.disc+=cv(b,c.disc); T.total+=cv(b,c.total); T.paid+=cv(b,pd); T.rem+=cv(b,c.rem);
+    const cost=bookingCost(b,B); T.cost+=cost;
     const x=E[e]||(E[e]={email:e,cm:cmode,n:0,persons:0,total:0,paid:0,rem:0,lo:0,mid:0,hi:0,comm:0}); x.n++; x.persons+=c.n; x.total+=cv(b,c.total); x.paid+=cv(b,pd); x.rem+=cv(b,c.rem); x[band]+=c.n; x.comm+=cm;
     const dd=D[d]||(D[d]={d,n:0,persons:0,total:0,paid:0}); dd.n++; dd.persons+=c.n; dd.total+=cv(b,c.total); dd.paid+=cv(b,pd);
     const cc=C[c.cur]||(C[c.cur]={c:c.cur,n:0,total:0,paid:0,rem:0}); cc.n++; cc.total+=c.total; cc.paid+=pd; cc.rem+=c.rem;
     if(pd>0){ const k=b.payMethod||'cash'; M[k]=(M[k]||0)+cv(b,pd); }
-    return {b,c,d,e,pd,pe,cmode,cm};
+    return {b,c,d,e,pd,pe,cmode,cm,cost:round2(cost)};
   });
   const r2=o=>{ for(const k in o) if(typeof o[k]==='number') o[k]=round2(o[k]); return o; };
+  const exps=expIn(from,to), ET={};
+  exps.forEach(x=>{ ET[x.type]=(ET[x.type]||0)+conv(x.amt,x.cur,B); });
+  T.exp=exps.reduce((s,x)=>s+conv(x.amt,x.cur,B),0);
+  T.commB=conv(T.comm,'EGP',B);
+  T.gross=T.total-T.cost;                       // مجمل الربح = الصافي − تكلفة الأفراد
+  T.profit=T.gross-T.commB-T.exp;               // صافي الربح = مجمل الربح − العمولات − المصروفات
   r2(T);
   return { ym, basis, from, to, B, T, rows, cancelled:all.length-list.length,
     emps:Object.values(E).map(r2).sort((a,b)=>b.total-a.total), days:Object.values(D).map(r2).sort((a,b)=>a.d.localeCompare(b.d)),
     curs:CODES.filter(k=>C[k]).map(k=>r2(C[k])), methods:Object.entries(M).map(([k,v])=>[k,round2(v)]),
-    pct:T.total?Math.round(T.paid/T.total*100):0 };
+    pct:T.total?Math.round(T.paid/T.total*100):0, hasCost:FIN.costs.length>0,
+    exps:exps.sort((a,b)=>a.date.localeCompare(b.date)), expTypes:Object.entries(ET).map(([k,v])=>[k,round2(v)]).sort((a,b)=>b[1]-a[1]) };
+}
+/* لوحة الأرباح: الصافي − التكلفة = مجمل الربح − العمولات − المصروفات = صافي الربح */
+function profitBox(R){
+  const T=R.T, line=(l,v,c,b)=>`<div style="display:flex;justify-content:space-between;padding:6px 2px;${b?'border-top:2px solid var(--bd);font-weight:800;font-size:17px':''}"><span>${l}</span><b style="color:${c}" dir="ltr">${v}</b></div>`;
+  return `<div class="bill" style="margin:4px 0 14px;padding:10px 14px">
+    <div style="font-weight:700;margin-bottom:4px">📈 الأرباح — ${monthName(R.ym)}</div>
+    ${line('صافي المبيعات', moneyB(T.total), 'var(--tx)')}
+    ${line(`− تكلفة الأفراد (${T.persons} فرد)`, moneyB(T.cost), 'var(--red)')}
+    ${line('= مجمل الربح', moneyB(T.gross), T.gross<0?'var(--red)':'var(--g)')}
+    ${T.commB?line('− عمولات الموظفين', moneyB(T.commB), 'var(--red)'):''}
+    ${line('− المصروفات', moneyB(T.exp), 'var(--red)')}
+    ${line(T.profit<0?'🔻 صافي الخسارة':'✅ صافي الربح', moneyB(T.profit), T.profit<0?'var(--red)':'var(--g)', true)}
+    ${!R.hasCost?'<div class="hint" style="color:var(--red);display:block">⚠️ سجّل تكلفة الفرد تحت عشان الربح يتحسب صح</div>':''}
+    ${T.total?`<div class="hint" style="display:block">هامش الربح: <b>${Math.round(T.profit/T.total*100)}%</b> من صافي المبيعات</div>`:''}
+  </div>`;
 }
 const curR = () => reportData($('#repMonth').value||curMonth(), $('#repBasis').value);
 const plain = s => String(s||'').replace(/^\S+\s/,'');
@@ -1711,6 +1857,8 @@ function renderReport(){
     ['صافي المبيعات', bigMoney(R.T.total), 'var(--g)'], ['المحصّل', bigMoney(R.T.paid), '#3fa37e'], ['المتبقي', bigMoney(R.T.rem), 'var(--red)'],
     ...(R.T.comm ? [['عمولات الموظفين', `${num(R.T.comm)} <small>ج.م</small>`, 'var(--gold)']] : []),
   ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+  $('#repProfit').innerHTML = profitBox(R);
+  renderCosts(R);
   $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة (ج.م)</th><th></th></tr></thead>
     <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${COMM_MODES[x.cm]} • أقل من 100: ${x.lo} • 100–149: ${x.mid} • 150+: ${x.hi}</div>`:'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="printStatement('${encodeURIComponent(x.email)}')" title="طباعة كشف حساب الموظف">🖨 كشف</button>`}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الشهر ده</td></tr></tbody>';
@@ -1729,6 +1877,8 @@ function reportSheets(R){
     ['البند', `القيمة (${BN})`],
     ['عدد الحجوزات', R.T.n],['حجوزات ملغية (غير محسوبة)', R.cancelled],['عدد الأفراد', R.T.persons],['رجال', R.T.men],['نساء', R.T.women],
     ['الإجمالي قبل الخصم', R.T.sub],['الخصومات', R.T.disc],['صافي المبيعات', R.T.total],['المحصّل', R.T.paid],['المتبقي', R.T.rem],['نسبة التحصيل', R.pct/100],['عمولات الموظفين (جنيه)', R.T.comm],[],
+    ['📈 الأرباح', `القيمة (${BN})`],['صافي المبيعات', R.T.total],['تكلفة الأفراد', R.T.cost],['مجمل الربح', R.T.gross],['عمولات الموظفين', R.T.commB],['المصروفات', R.T.exp],['صافي الربح', R.T.profit],[],
+    ['تكلفة الفرد المسجلة'], ...[...FIN.costs].sort((a,b)=>a.from.localeCompare(b.from)).map(c=>[`من ${c.from}`, `${c.amt} ${CUR[c.cur].name}`]),[],
     ['حسب العملة (بالعملة الأصلية)'],['العملة','حجوزات','الصافي','المحصّل','المتبقي'],
     ...R.curs.map(x=>[CUR[x.c].name, x.n, x.total, x.paid, x.rem]),[],
     [`المحصّل حسب طريقة الدفع (${BN})`], ...R.methods.map(([k,v])=>[plain(METHODS[k]||k), v]),[],
@@ -1745,7 +1895,12 @@ function reportSheets(R){
     ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid]];
   const det=[['التاريخ','الاسم','الهاتف','رجال','نساء','أفراد','العملة','سعر الفرد','الخصم','الصافي','المدفوع','المتبقي',`الصافي (${BN})`,`المحصّل (${BN})`,'حالة السداد','طريقة الدفع','حالة الحجز','الموظف','ملاحظات','سعر الفرد (جنيه)','العمولة (جنيه)'],
     ...R.rows.map(({b,c,d,e,pd,pe,cmode,cm})=>[d,b.name,b.phone,+b.men||0,+b.women||0,c.n,CUR[c.cur].name,c.price,c.disc,c.total,c.paid,c.rem,round2(conv(c.total,c.cur,R.B)),round2(conv(pd,c.cur,R.B)),plain(PAY[c.st][0]),plain(METHODS[b.payMethod]),STATUS[b.status][0],e==='—'?'':empName(e),b.notes||'',pe,cmode?cm:''])];
-  return {summary, emps, days, det};
+  const exps=[[`المصروفات — ${monthName(R.ym)}`],[],['التاريخ','النوع','المبلغ','العملة',`المبلغ (${BN})`,'تفاصيل'],
+    ...R.exps.map(x=>[x.date, x.type, x.amt, CUR[x.cur].name, round2(conv(x.amt,x.cur,R.B)), x.note||'']),
+    ['الإجمالي','','','',R.T.exp,''],[],['حسب النوع',`المبلغ (${BN})`], ...R.expTypes];
+  det[0].push(`تكلفة الأفراد (${BN})`, `الربح قبل المصروفات (${BN})`);
+  R.rows.forEach((r,i)=>det[i+1].push(r.cost, round2(conv(r.c.total,r.c.cur,R.B)-r.cost)));
+  return {summary, emps, days, det, exps};
 }
 async function downloadReport(){
   const R=curR();
@@ -1766,7 +1921,8 @@ async function downloadReport(){
   const pr=sh.summary.findIndex(r=>r[0]==='نسبة التحصيل'); if(pr>=0){ const ws=wb.Sheets['الملخص'], cell=ws[X.utils.encode_cell({r:pr,c:1})]; if(cell) cell.z='0%'; }
   add('حسب الموظف', sh.emps, [22,20,10,10,14,14,14,14,14,12,12,12,14], [7]);
   add('يومي', sh.days, [14,12,10,10,14,14]);
-  add('الحجوزات', sh.det, [12,22,16,6,6,6,12,10,10,12,12,12,14,14,12,12,12,16,24,14,14]);
+  add('الحجوزات', sh.det, [12,22,16,6,6,6,12,10,10,12,12,12,14,14,12,12,12,16,24,14,14,14,16]);
+  add('المصروفات', sh.exps, [12,22,12,14,14,30]);
   X.writeFile(wb, fname+'.xlsx');
   toast('✅ اتحمل التقرير');
 }
@@ -1795,6 +1951,12 @@ function printReport(){
     <div style="border-top-color:#d63c3c"><span>المتبقي</span><b class="r">${M(R.T.rem)}</b></div><div><span>نسبة التحصيل</span><b>${R.pct}%</b></div>
   </div>
   ${R.cancelled?`<p class="mu">* ${R.cancelled} حجز ملغي غير محسوب في التقرير.</p>`:''}
+  <h2>📈 الأرباح</h2>
+  ${tbl(['البند','القيمة'], [['صافي المبيعات',R.T.total],[`− تكلفة الأفراد (${R.T.persons} فرد)`,R.T.cost],['= مجمل الربح',R.T.gross],...(R.T.commB?[['− عمولات الموظفين',R.T.commB]]:[]),['− المصروفات',R.T.exp]].map(([l,v])=>`<tr><td>${l}</td><td>${M(v)}</td></tr>`),
+    [R.T.profit<0?'صافي الخسارة':'صافي الربح', `<span class="${R.T.profit<0?'r':'g'}">${M(R.T.profit)}</span>`])}
+  ${R.exps.length?`<h2>💸 المصروفات</h2>
+  ${tbl(['التاريخ','النوع','المبلغ','تفاصيل'], R.exps.map(x=>`<tr><td>${x.date.slice(5)}</td><td>${esc(x.type)}</td><td>${money(x.amt,x.cur)}</td><td>${esc(x.note||'')}</td></tr>`), ['الإجمالي','',M(R.T.exp),''])}
+  <p>${R.expTypes.map(([k,v])=>`${esc(k)}: <b>${M(v)}</b>`).join(' &nbsp;•&nbsp; ')}</p>`:''}
   <h2>👥 المبيعات حسب الموظف</h2>
   ${tbl(['الموظف','حجوزات','أفراد','الصافي','المحصّل','المتبقي','%','العمولة (ج.م)'], R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${M(x.total)}</td><td class="g">${M(x.paid)}</td><td class="r">${M(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="mu">${COMM_MODES[x.cm]} • &lt;100: ${x.lo} • 100–149: ${x.mid} • 150+: ${x.hi}</div>`:'—'}</td></tr>`),
     ['الإجمالي',R.T.n,R.T.persons,M(R.T.total),M(R.T.paid),M(R.T.rem),'100%',num(R.T.comm)])}
@@ -1924,7 +2086,7 @@ function redistribute(){
 function download(name, content, type){
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-function exportData(){ download(`rawdah-backup-${todayStr()}.json`, JSON.stringify(S,null,2), 'application/json'); }
+function exportData(){ download(`rawdah-backup-${todayStr()}.json`, JSON.stringify({...S, fin:FIN},null,2), 'application/json'); }
 function exportCSV(){
   const B=base();
   const h=['الاسم','الهاتف','التاريخ','الوقت المفضل','عدد الرجال','يوم الرجال','وقت الرجال','عدد النساء','يوم النساء','وقت النساء','العملة','سعر الفرد','الإجمالي','الخصم','سبب الخصم','الصافي','المدفوع','المتبقي',`الصافي بـ ${CUR[B].name}`,'حالة السداد','طريقة الدفع','حالة الحجز','ملاحظات','أضافه','آخر تعديل'];

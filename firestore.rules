@@ -32,6 +32,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 🧮 تكلفة الفرد والمصروفات: للمدير بس (قراءة وكتابة)
+    match /finance/{d} {
+      allow read, write: if isAdmin();
+    }
+    match /expenses/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // 🗂 أرشيف الاسكرينات (archive.html) — منفصل عن الحجوزات
     // أي حساب نشط يرفع ويشوف، ومحدش يعدّل صورة بعد ما اتحفظت، والمدير بس يحذف
     match /archive/{ref} {
