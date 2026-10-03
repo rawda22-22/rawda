@@ -677,7 +677,7 @@ async function initCloud(){
   });
 }
 function subscribe(){
-  unsubscribe(); setSync('connecting');
+  unsubscribe(); setSync('connecting'); startPresence();
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','settings'), d=>{
     if(d.exists()) S.settings = migrateSettings(d.data());
     synced.settings = JSON.stringify(S.settings);
@@ -704,7 +704,30 @@ function subscribe(){
     renderAll(); printFromUrl();
   }, cloudErr));
 }
-function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; }
+function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; stopPresence(); }
+
+/* ========= 🟢 حالة الموظف (نشط الآن / مفتوح / غير متصل) =========
+   كل حساب فاتح الموقع بيسجّل نبضة (lastSeen) كل دقيقة في مستند حسابه، والمدير بيشوفها في قائمة الموظفين. */
+let presenceTimer=null;
+async function beat(off){
+  if(mode!=='cloud' || !user || !db || ME?.legacy) return;
+  try{ await fb.updateDoc(fb.doc(db,'users',myEmail()), {lastSeen:fb.serverTimestamp(), away:!!document.hidden, off:!!off}); }
+  catch(e){ console.warn('presence:', e.code||e.message); }   // لو قواعد Firestore لسه قديمة بنتجاهل
+}
+function startPresence(){ stopPresence(); beat(); presenceTimer=setInterval(beat, 60000); }
+function stopPresence(){ if(presenceTimer){ clearInterval(presenceTimer); presenceTimer=null; } }
+document.addEventListener('visibilitychange', ()=>{ if(presenceTimer) beat(); });
+const tsMs = v => v && v.toMillis ? v.toMillis() : (+v||0);
+const agoText = ms => { const m=Math.max(1,Math.round(ms/60000)); if(m<60) return `${m} د`; const h=Math.floor(m/60); return h<24 ? `${h} س` : `${Math.floor(h/24)} يوم`; };
+/* 'on' = نشط والصفحة قدامه • 'bg' = مفتوح بس في الخلفية • 'off' = غير متصل • 'never' = لسه ما ظهرش */
+function presenceOf(u, me){
+  if(me) return {st:'on', html:'<span class="badge b-paid">🟢 نشط الآن</span>'};
+  const t=tsMs(u.lastSeen), age=Date.now()-t, fresh = t && age<150000 && !u.off;
+  if(fresh && !u.away) return {st:'on', html:'<span class="badge b-paid">🟢 نشط الآن</span>'};
+  if(fresh) return {st:'bg', html:'<span class="badge b-amb">🟡 مفتوح (في الخلفية)</span>'};
+  if(!t) return {st:'never', html:'<span class="badge b-gray">⚪ لم يظهر بعد</span>'};
+  return {st:'off', html:`<span class="badge b-gray">⚪ غير متصل • آخر ظهور منذ ${agoText(age)}</span>`};
+}
 const clean = o => JSON.parse(JSON.stringify(o));   // Firestore لا يقبل undefined
 async function cloudSave(){
   if(!user || !db) return;
@@ -774,7 +797,7 @@ async function resetPass(){
   try{ await fb.sendPasswordResetEmail(auth, em); toast('📧 أُرسل رابط تغيير كلمة المرور إلى بريدك'); }
   catch(err){ $('#loginErr').textContent = authMsg(err.code); }
 }
-async function logout(){ if(confirm('تسجيل الخروج؟')) await fb.signOut(auth); }
+async function logout(){ if(confirm('تسجيل الخروج؟')){ stopPresence(); await beat(true); await fb.signOut(auth); } }
 
 /* ========= التحويل والحسابات ========= */
 function toSAR(v, c){ v=+v||0; if(c==='USD') return v*S.settings.sarPerUsd; if(c==='EGP') return v/(S.settings.egpPerSar||1); return v; }
@@ -1450,8 +1473,8 @@ const bkMonth = b => b.createdAt ? dstr(new Date(b.createdAt)).slice(0,7) : (b.d
 function renderStaff(){
   if(mode!=='cloud' || !isAdmin()) return;
   const ym=curMonth(), list=Object.values(USERS).sort((a,b)=> (b.active!==false)-(a.active!==false) || (b.role==='admin')-(a.role==='admin') || String(a.name||'').localeCompare(String(b.name||''),'ar'));
-  const act=list.filter(u=>u.active!==false).length;
-  $('#staffCount').textContent = `${act} حساب نشط${list.length>act?` • ${list.length-act} موقوف`:''}`;
+  const act=list.filter(u=>u.active!==false).length, onl=list.filter(u=>u.active!==false && presenceOf(u, u.email===myEmail()).st!=='off' && presenceOf(u, u.email===myEmail()).st!=='never').length;
+  $('#staffCount').textContent = `${act} حساب نشط${list.length>act?` • ${list.length-act} موقوف`:''} • 🟢 ${onl} متصل الآن`;
   $('#staffList').innerHTML = list.length ? list.map(u=>{
     const e=u.email, k=encodeURIComponent(e), me=e===myEmail(), off=u.active===false;
     const mine=S.bookings.filter(b=>(b.createdBy||'').toLowerCase()===e && b.status!=='cancelled' && bkMonth(b)===ym);
@@ -1459,7 +1482,7 @@ function renderStaff(){
     return `<div class="appt ${off?'off':''}" style="--gc:${u.role==='admin'?'var(--gold)':'var(--g)'}">
       <div class="time" style="font-size:24px">${u.role==='admin'?'⭐':'👤'}</div>
       <div class="info">
-        <div class="nm">${esc(u.name||loginName(e))} ${u.role==='admin'?'<span class="badge b-admin">مدير</span>':'<span class="badge b-green">موظف</span>'}${off?'<span class="badge b-off">موقوف</span>':''}${me?'<span class="badge b-me">أنت</span>':''}</div>
+        <div class="nm">${esc(u.name||loginName(e))} ${u.role==='admin'?'<span class="badge b-admin">مدير</span>':'<span class="badge b-green">موظف</span>'}${off?'<span class="badge b-off">موقوف</span>':presenceOf(u,me).html}${me?'<span class="badge b-me">أنت</span>':''}</div>
         <div class="sub"><span dir="ltr">${esc(loginName(e))}</span> • حجوزات الشهر: <b>${mine.length}</b> • صافي: <b>${moneyB(net)}</b></div>
       </div>
       <div class="acts">

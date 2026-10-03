@@ -18,9 +18,12 @@ service cloud.firestore {
     function isAdmin()  { return isOwner() || (isActive() && profile().role == 'admin'); }
 
     // حسابات الموظفين: المدير بس يضيف ويعدّل، وكل واحد يقرا حسابه
+    // والموظف يقدر يحدّث حالة حضوره بس (lastSeen / away / off) في حسابه هو — مش الصلاحية ولا الاسم
     match /users/{email} {
       allow read:  if isAdmin() || (signedIn() && email == myEmail());
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isActive() && email == myEmail()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen', 'away', 'off']));
     }
 
     // الحجوزات: أي حساب نشط يضيف ويعدّل، والمدير بس يحذف
