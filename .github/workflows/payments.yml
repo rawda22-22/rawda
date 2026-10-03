@@ -1,0 +1,38 @@
+name: Payments bot
+
+# 🧾 بوت أرشيف المدفوعات: بيقرا اسكرينات التحويل اللي الموظفين بعتوها للبوت ويسجلها في الموقع.
+# بيشتغل كل 5 دقايق (GitHub ساعات بيأخّر الجدولة شوية — عادي).
+# بيستخدم نفس Secret التنبيهات: FIREBASE_SERVICE_ACCOUNT، ونفس البوت اللي في إعدادات الموقع.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payments-bot
+  cancel-in-progress: false
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --prefix scripts --no-audit --no-fund
+
+      - name: Process screenshots
+        run: node scripts/payments.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

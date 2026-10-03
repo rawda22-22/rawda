@@ -32,6 +32,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 🧾 أرشيف المدفوعات (اسكرينات التحويل): بيكتبه بوت تليجرام بس (من GitHub Actions)
+    // محدش يقدر يضيف أو يعدّل أو يمسح دفعة من الموقع — عشان رقم الدفعة (P-00001) مايتزوّرش
+    match /payments/{pid} {
+      allow read:  if isActive();
+      allow write: if false;
+    }
+
     // الإعدادات وإعدادات تليجرم: الكل يقرا، المدير بس يعدّل
     match /meta/{docId} {
       allow read:  if isActive();
