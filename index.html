@@ -261,6 +261,7 @@ body:not(.cloud) .cloud-only{display:none!important}
         </select>
         <button class="btn pri sm" onclick="downloadReport()">⬇️ تحميل Excel</button>
         <button class="btn sec sm" onclick="printReport()">🖨 طباعة / PDF</button>
+        <button class="btn gold sm" onclick="printStatement('*')" title="كشف حساب لكل موظف في صفحة منفصلة">🧾 كشوف الموظفين</button>
       </div>
       <div class="stats" id="repStats" style="margin-bottom:10px"></div>
       <div style="overflow-x:auto"><table class="curTable" id="repEmp"></table></div>
@@ -1527,8 +1528,8 @@ function renderReport(){
     ['صافي المبيعات', bigMoney(R.T.total), 'var(--g)'], ['المحصّل', bigMoney(R.T.paid), '#3fa37e'], ['المتبقي', bigMoney(R.T.rem), 'var(--red)'],
     ...(R.T.comm ? [['عمولات الموظفين', `${num(R.T.comm)} <small>ج.م</small>`, 'var(--gold)']] : []),
   ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
-  $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة (ج.م)</th></tr></thead>
-    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${COMM_MODES[x.cm]} • أقل من 100: ${x.lo} • 100–149: ${x.mid} • 150+: ${x.hi}</div>`:'—'}</td></tr>`).join('')}</tbody>`
+  $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة (ج.م)</th><th></th></tr></thead>
+    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${COMM_MODES[x.cm]} • أقل من 100: ${x.lo} • 100–149: ${x.mid} • 150+: ${x.hi}</div>`:'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="printStatement('${encodeURIComponent(x.email)}')" title="طباعة كشف حساب الموظف">🖨 كشف</button>`}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الشهر ده</td></tr></tbody>';
 }
 ['repMonth','repBasis'].forEach(k=>$('#'+k).addEventListener('change', renderReport));
@@ -1623,6 +1624,53 @@ function printReport(){
   <h2>📋 تفاصيل الحجوزات</h2>
   ${tbl(['التاريخ','العميل','ر','ن','الصافي','المدفوع','المتبقي','السداد','الموظف'], R.rows.map(({b,c,d,e})=>`<tr><td>${d.slice(5)}</td><td>${esc(b.name)}<div class="mu" dir="ltr" style="text-align:right">${esc(b.phone)}</div></td><td>${+b.men||''}</td><td>${+b.women||''}</td><td>${money(c.total,c.cur)}</td><td>${money(c.paid,c.cur)}</td><td class="${c.rem>0?'r':''}">${c.rem>0?money(c.rem,c.cur):'—'}</td><td>${plain(PAY[c.st][0])}</td><td>${e==='—'?'':esc(empName(e))}</td></tr>`))}
   <p class="mu">أسعار الصرف المستخدمة: 1 ريال = ${num(S.settings.egpPerSar)} جنيه • 1 دولار = ${num(S.settings.sarPerUsd)} ريال</p>
+  <script>setTimeout(()=>print(),400)<\/script></body></html>`;
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ========= 🧾 كشف حساب موظف (للمحاسبة والطباعة) ========= */
+const COMM_TIERS = {
+  a:[ {rate:10, bands:['lo','mid'], lbl:'سعر الفرد أقل من 150 جنيه'}, {rate:20, bands:['hi'], lbl:'سعر الفرد 150 جنيه فأكثر'} ],
+  b:[ {rate:20, bands:['lo'], lbl:'سعر الفرد أقل من 100 جنيه'}, {rate:30, bands:['mid'], lbl:'سعر الفرد من 100 لأقل من 150 جنيه'}, {rate:40, bands:['hi'], lbl:'سعر الفرد 150 جنيه فأكثر'} ] };
+function printStatement(k){
+  if(!isAdmin()) return;
+  const R=curR(), emails = k==='*' ? R.emps.filter(x=>x.email!=='—').map(x=>x.email) : [decodeURIComponent(k)];
+  if(!emails.length){ toast('مفيش موظفين عندهم حجوزات في الشهر ده'); return; }
+  const w=window.open('','_blank'); if(!w){ toast('اسمح بالنوافذ المنبثقة (Pop-ups) للموقع ده'); return; }
+  const EG=v=>`${num(v)} ج.م`;
+  const page = e=>{
+    const rows=R.rows.filter(r=>r.e===e), cm=commMode(e), persons=rows.reduce((s,r)=>s+r.c.n,0);
+    const tiers = cm ? COMM_TIERS[cm].map(t=>{ const rs=rows.filter(r=>t.bands.includes(commBand(r.pe))), p=rs.reduce((s,r)=>s+r.c.n,0); return {...t, bk:rs.length, p, amt:p*t.rate}; }) : [];
+    const total = tiers.reduce((s,t)=>s+t.amt,0);
+    return `<section class="pg">
+      <header><div class="lg">🧾</div><div><h1>كشف حساب موظف — ${esc(empName(e))}</h1><p>${monthName(R.ym)} • ${basisLbl(R.basis)} • ${R.from} إلى ${R.to}</p>
+        <p class="mu">${cm?`طريقة الحساب: <b>${COMM_MODES[cm]}</b>`:'<b>لم تُحدَّد طريقة عمولة لهذا الموظف</b> (حدّدها من قائمة الموظفين)'} • أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}</p></div></header>
+      <div class="kp"><div><span>إجمالي الحجوزات</span><b>${rows.length}</b></div><div><span>إجمالي الأفراد</span><b>${persons}</b></div><div style="border-top-color:#c9a24a"><span>إجمالي العمولة</span><b>${cm?EG(total):'—'}</b></div></div>
+      ${cm?`<h2>العمولة حسب الشريحة</h2><table><thead><tr><th>الشريحة</th><th>عمولة الفرد</th><th>عدد الحجوزات</th><th>عدد الأفراد</th><th>المبلغ</th></tr></thead>
+        <tbody>${tiers.map(t=>`<tr><td>${t.lbl}</td><td>${EG(t.rate)}</td><td>${t.bk}</td><td>${t.p}</td><td><b>${EG(t.amt)}</b></td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>الإجمالي</td><td></td><td>${rows.length}</td><td>${persons}</td><td>${EG(total)}</td></tr></tfoot></table>`:''}
+      <h2>تفاصيل الحجوزات</h2>
+      <table><thead><tr><th>التاريخ</th><th>العميل</th><th>أفراد</th><th>سعر الفرد (ج.م)</th><th>عمولة الفرد</th><th>العمولة</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${r.d.slice(5)}</td><td>${esc(r.b.name)}</td><td>${r.c.n}</td><td>${num(r.pe)}</td><td>${r.cmode?num(COMM_RATES[r.cmode][commBand(r.pe)]):'—'}</td><td>${r.cmode?num(r.cm):'—'}</td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center">لا يوجد</td></tr>'}</tbody></table>
+      <p class="mu">الأسعار بالجنيه (الريال والدولار محوّلين بسعر الصرف: 1 ريال = ${num(S.settings.egpPerSar)} جنيه • 1 دولار = ${num(S.settings.sarPerUsd)} ريال) • السعر قبل الخصم • الحجوزات الملغية غير محسوبة.</p>
+      <div class="sig"><span>توقيع المحاسب: ..............................</span><span>توقيع الموظف (استلمت): ..............................</span></div>
+    </section>`;
+  };
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>كشف حساب — ${monthName(R.ym)}</title><style>
+    @page{size:A4;margin:12mm} *{box-sizing:border-box} body{font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;color:#1c2822;margin:0;padding:16px;font-size:12px}
+    .pg{page-break-after:always} .pg:last-of-type{page-break-after:auto}
+    header{display:flex;align-items:center;gap:12px;border-bottom:3px solid #c9a24a;padding-bottom:10px;margin-bottom:14px}
+    header .lg{font-size:34px} header h1{margin:0;font-size:20px;color:#093f2e} header p{margin:2px 0 0;color:#6b7a72}
+    .kp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px} .kp div{border:1px solid #e2e7e3;border-radius:10px;padding:8px 10px;border-top:3px solid #0e6b4f}
+    .kp span{color:#6b7a72;font-size:11px} .kp b{display:block;font-size:18px;margin-top:2px}
+    h2{font-size:14px;color:#0e6b4f;margin:16px 0 6px} table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    th,td{border:1px solid #e2e7e3;padding:5px 6px;text-align:right} th{background:#f3f5f2;font-size:11px} tfoot td{font-weight:700;background:#f6faf8}
+    tr{page-break-inside:avoid} .mu{color:#6b7a72;font-size:11px} .sig{display:flex;justify-content:space-between;gap:20px;margin-top:34px;font-size:12px}
+    .noprint{margin-bottom:12px} @media print{.noprint{display:none}}
+    .noprint button{font:inherit;padding:8px 16px;border-radius:8px;border:0;background:#0e6b4f;color:#fff;cursor:pointer}
+  </style></head><body>
+  <div class="noprint"><button onclick="print()">🖨 طباعة / حفظ PDF</button></div>
+  ${emails.map(page).join('')}
   <script>setTimeout(()=>print(),400)<\/script></body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
 }
