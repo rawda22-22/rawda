@@ -179,6 +179,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <span class="storage" id="storageBadge"></span>
   <button class="storage userbtn" id="userBadge" style="display:none" onclick="openPw()" title="حسابي — تغيير كلمة المرور"></button>
   <button class="hbtn hide-m admin-only" onclick="openSettings()">⚙️ الإعدادات</button>
+  <button class="hbtn" onclick="openSearch()" title="بحث شامل في كل الحجوزات (اختصار: /)">🔍 بحث</button>
   <a class="hbtn arch" href="archive.html" target="_blank" title="أرشيف الاسكرينات — ارفع اسكرين التحويل وخد رقم الإيصال">🗂 الأرشيف</a>
   <button class="hbtn" id="logoutBtn" style="display:none" onclick="logout()" title="تسجيل الخروج">🚪</button>
   <button class="hbtn pri" onclick="openForm()">＋ حجز جديد</button>
@@ -224,7 +225,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="card">
       <h2>📋 جدول الحجوزات <span class="sp"></span><span class="hint" id="tblCount"></span></h2>
       <div class="toolbar">
-        <input type="search" id="q" placeholder="🔍 ابحث بالاسم أو رقم الهاتف...">
+        <input type="search" id="q" placeholder="🔍 ابحث بالاسم، التليفون، التاريخ، الإيصال، الملاحظات...">
         <input type="date" id="fDate">
         <select id="fStatus">
           <option value="">كل الحالات</option>
@@ -407,6 +408,16 @@ body:not(.cloud) .cloud-only{display:none!important}
 </div>
 
 <!-- الإعدادات -->
+<!-- 🔍 البحث الشامل -->
+<div class="overlay" id="srchOv">
+  <div class="modal" style="max-width:640px">
+    <h3>🔍 بحث شامل<button class="x" onclick="closeOv('srchOv')">×</button></h3>
+    <input id="gq" type="search" autocomplete="off" placeholder="اسم، تليفون، تاريخ، ملاحظة، رقم إيصال، موظف، مبلغ..." style="width:100%;padding:12px;border:1px solid var(--bd);border-radius:12px;font-size:16px">
+    <div class="hint" id="gqCount" style="margin:8px 2px"></div>
+    <div id="gqRes"></div>
+  </div>
+</div>
+
 <div class="overlay" id="setOv">
   <div class="modal">
     <h3>⚙️ الإعدادات<button class="x" onclick="closeOv('setOv')">×</button></h3>
@@ -1053,11 +1064,65 @@ function bookingOrder(a, b){
   if(na!==null) return -1; if(nb!==null) return 1;
   return (b.date+(b.menSlot||b.womenSlot||'')).localeCompare(a.date+(a.menSlot||a.womenSlot||''));
 }
+/* ========= 🔍 البحث الشامل =========
+   بيدوّر في كل حاجة في الحجز: الاسم، التليفون، التواريخ، المواعيد، الملاحظات، أرقام الإيصالات، الموظف، المبالغ، الحالة.
+   أكتر من كلمة = لازم كلهم يتلاقوا. الأرقام العربي والإنجليزي واحد، و(أ/ا، ة/ه، ى/ي) واحد. */
+const toLatin = s => String(s ?? '').replace(/[٠-٩]/g, d=>d.charCodeAt(0)-0x660).replace(/[۰-۹]/g, d=>d.charCodeAt(0)-0x6F0);
+const normAr = s => toLatin(s).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/[ً-ْـ]/g,'');
+function searchText(b){
+  const c=calc(b), dates=[...new Set([b.date, gDate(b,'m'), gDate(b,'w')].filter(Boolean))];
+  const parts=[b.name, b.phone, b.notes, b.discNote, STATUS[b.status]?.[0], PAY[c.st]?.[0], CUR[c.cur]?.name, b.id,
+    ...dates, ...dates.map(d=>fmtDate(d,true)), b.menSlot&&fmt12(b.menSlot), b.womenSlot&&fmt12(b.womenSlot),
+    c.total, c.paid, c.rem, b.createdBy, b.createdBy&&empName(b.createdBy),
+    ...(b.payments||[]).flatMap(p=>[p.ref, p.amt, METHODS[p.method]])];
+  return normAr(parts.filter(x=>x!==undefined && x!==null && x!=='').join(' | '));
+}
+function matchB(b, q){
+  const words=normAr(q).split(/\s+/).filter(Boolean); if(!words.length) return true;
+  const t=searchText(b), digits=toLatin(b.phone).replace(/\D/g,'');
+  return words.every(w=>{
+    if(t.includes(w)) return true;
+    const wd=w.replace(/\D/g,'');   // تليفون مكتوب بشكل مختلف (مسافات / 0 في الأول / كود الدولة)
+    return wd.length>=4 && wd.length===w.replace(/[\s+\-()]/g,'').length && (digits.includes(wd) || digits.includes(wd.replace(/^0+/,'')));
+  });
+}
+function openSearch(){ $('#srchOv').classList.add('on'); $('#gq').value=''; renderSearch(); setTimeout(()=>$('#gq').focus(),50); }
+function srchGo(fn, id){ closeOv('srchOv'); window[fn](id); }
+function renderSearch(){
+  const q=$('#gq').value.trim();
+  if(!q){ $('#gqCount').textContent='اكتب أي حاجة: اسم العميل، رقم تليفونه، تاريخ (2026-10-05)، رقم إيصال (R-00012)، اسم موظف، مبلغ...'; $('#gqRes').innerHTML=''; return; }
+  const all=S.bookings.filter(b=>canSee(b) && matchB(b,q)).sort(bookingOrder), list=all.slice(0,60);
+  $('#gqCount').textContent = all.length ? `${all.length} نتيجة${all.length>list.length?` (أول ${list.length})`:''}` : 'مفيش نتايج';
+  $('#gqRes').innerHTML = list.map(b=>{ const c=calc(b), M=v=>money(v,c.cur);
+    const slots=[+b.men?`🧔 ${b.men}${b.menSlot?' • '+fmt12(b.menSlot):''}${gDate(b,'m')!==b.date?' • '+fmtDate(gDate(b,'m')):''}`:'', +b.women?`🧕 ${b.women}${b.womenSlot?' • '+fmt12(b.womenSlot):''}${gDate(b,'w')!==b.date?' • '+fmtDate(gDate(b,'w')):''}`:''].filter(Boolean).join(' &nbsp; ');
+    const refs=(b.payments||[]).filter(p=>p.ref).map(p=>`🧾 ${esc(p.ref)}`).join(' ');
+    return `<div class="appt" style="--gc:${c.rem>0?'var(--amb)':'var(--g)'};margin-bottom:8px">
+      <div class="info">
+        <div class="nm">${esc(b.name)} ${payBadge(b)} <span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span></div>
+        <div class="sub">📞 <span dir="ltr">${esc(b.phone)}</span> • 📅 ${fmtDate(b.date)} <span dir="ltr">${b.date}</span></div>
+        ${slots?`<div class="sub">${slots}</div>`:''}
+        <div class="sub">💰 ${M(c.total)} • مدفوع ${M(c.paid)}${c.rem>0?` • <b style="color:var(--red)">متبقي ${M(c.rem)}</b>`:''}${refs?' • '+refs:''}</div>
+        ${b.notes?`<div class="sub">📝 ${esc(b.notes)}</div>`:''}
+        ${isAdmin()&&b.createdBy?`<div class="sub">👨‍💼 ${esc(empName(b.createdBy))}</div>`:''}
+      </div>
+      <div class="acts">
+        ${c.rem>0?`<button class="ibtn money" onclick="srchGo('openPay','${b.id}')">💵 تحصيل</button>`:''}
+        <button class="ibtn" onclick="srchGo('openForm','${b.id}')">✏️</button>
+        <button class="ibtn" onclick="srchGo('sendWA','${b.id}')" title="واتساب">💬</button>
+        <button class="ibtn" onclick="srchGo('printBooking','${b.id}')" title="طباعة">🖨</button>
+      </div></div>`; }).join('');
+}
+$('#gq').addEventListener('input', renderSearch);
+document.addEventListener('keydown', e=>{
+  const typing=/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'');
+  if(((e.key==='/' && !typing) || ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'))){ e.preventDefault(); openSearch(); }
+});
+
 function renderTable(){
   const q=$('#q').value.trim().toLowerCase(), fd=$('#fDate').value, fs=$('#fStatus').value, fp=$('#fPay').value, fc=$('#fCur').value;
   const rows = S.bookings.filter(b=>{
     if(!canSee(b)) return false;
-    if(q && !(b.name.toLowerCase().includes(q) || String(b.phone).replace(/\s/g,'').includes(q.replace(/\s/g,'')))) return false;
+    if(q && !matchB(b,q)) return false;
     if(fd && b.date!==fd && gDate(b,'m')!==fd && gDate(b,'w')!==fd) return false;
     if(fs && b.status!==fs) return false;
     if(fp && calc(b).st!==fp) return false;
