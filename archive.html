@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>أرشيف الاسكرينات</title>
+<meta name="theme-color" content="#093f2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="أرشيف الاسكرينات">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗂</text></svg>">
+<style>
+:root{--g:#0e6b4f;--g2:#093f2e;--gold:#c9a24a;--bg:#f3f5f2;--card:#fff;--tx:#1c2822;--mu:#6b7a72;--red:#d63c3c;--bd:#e2e7e3;--r:14px}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;background:var(--bg);color:var(--tx);font-size:15px}
+button,input{font:inherit}
+header{background:linear-gradient(135deg,var(--g2),var(--g));color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+header .logo{width:40px;height:40px;border-radius:12px;background:var(--gold);display:grid;place-items:center;font-size:22px;flex:none}
+header h1{font-size:17px;margin:0}
+header small{font-size:12px;opacity:.85}
+header .sp{flex:1}
+.hbtn{background:#ffffff1f;border:1px solid #ffffff40;color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;font-size:13px;text-decoration:none;white-space:nowrap}
+main{max-width:720px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 12px}
+.btn{border:0;border-radius:12px;padding:12px 16px;cursor:pointer;font-weight:700;background:var(--g);color:#fff;width:100%;font-size:16px}
+.btn.sec{background:#e4f1ea;color:var(--g)}
+.btn.gold{background:var(--gold);color:#1a1a1a}
+.btn:disabled{opacity:.6;cursor:wait}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+input[type=text],input[type=password],input[type=search]{width:100%;padding:12px;border:1px solid var(--bd);border-radius:12px;background:#fff}
+input:focus{outline:2px solid #0e6b4f55;border-color:var(--g)}
+.pick{border:2px dashed #b9d3c6;border-radius:var(--r);padding:26px 12px;text-align:center;cursor:pointer;color:var(--g);background:#f6fbf8}
+.pick b{display:block;font-size:17px;margin-top:6px}
+.pick small{color:var(--mu)}
+.prev{display:none;margin-top:12px}
+.prev img{max-width:100%;max-height:340px;display:block;margin:0 auto 10px;border-radius:10px;border:1px solid var(--bd)}
+.result{display:none;margin-top:12px;text-align:center;background:#e4f1ea;border-radius:var(--r);padding:16px}
+.result.dup{background:#fde6c4}
+.result .ref{font-size:34px;font-weight:800;letter-spacing:1px;color:var(--g2);direction:ltr;margin:6px 0}
+.list{display:flex;flex-direction:column;gap:6px}
+.item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--bd);border-radius:12px;cursor:pointer;background:#fff}
+.item:hover{border-color:var(--g)}
+.item .r{font-weight:800;color:var(--g2);direction:ltr;min-width:76px}
+.item .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .d{color:var(--mu);font-size:12px;white-space:nowrap}
+.empty{color:var(--mu);text-align:center;padding:14px}
+.ov{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:12px;z-index:20}
+.ov.on{display:flex}
+.modal{background:#fff;border-radius:var(--r);max-width:560px;width:100%;max-height:94vh;overflow:auto;padding:14px}
+.modal img{width:100%;border-radius:10px;border:1px solid var(--bd);display:block;min-height:120px;background:#f3f5f2}
+.modal .info{margin:10px 0;color:var(--mu);font-size:14px;line-height:1.8}
+.modal .info b{color:var(--tx)}
+.modal .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.modal .top .ref{font-size:22px;font-weight:800;color:var(--g2);direction:ltr}
+.x{background:none;border:0;font-size:26px;cursor:pointer;color:var(--mu)}
+.del{background:none;border:0;color:var(--red);cursor:pointer;font-size:13px;margin-top:10px}
+#login{max-width:380px;margin:12vh auto;padding:0 16px}
+#login .card{padding:22px}
+#login .f{margin-bottom:12px}
+#login label{display:block;font-size:13px;color:var(--mu);margin-bottom:6px;font-weight:700}
+.err{color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1c2822;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:30;max-width:90vw}
+.toast.on{opacity:1}
+.hint{color:var(--mu);font-size:12.5px;margin-top:8px}
+#app{display:none}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="card">
+    <div style="text-align:center;font-size:42px">🗂</div>
+    <h2 style="text-align:center;margin:6px 0 16px">أرشيف الاسكرينات</h2>
+    <div class="f"><label>اسم المستخدم أو الإيميل</label><input type="text" id="lUser" autocomplete="username" dir="ltr"></div>
+    <div class="f"><label>كلمة المرور</label><input type="password" id="lPass" autocomplete="current-password" dir="ltr"></div>
+    <div class="err" id="lErr"></div>
+    <button class="btn" id="lBtn">دخول</button>
+    <div class="hint" style="text-align:center">بنفس حساب موقع الحجوزات</div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="logo">🗂</div>
+    <div><h1>أرشيف الاسكرينات</h1><small id="who"></small></div>
+    <div class="sp"></div>
+    <a class="hbtn" href="./">🕌 الحجوزات</a>
+    <button class="hbtn" id="outBtn">خروج</button>
+  </header>
+  <main>
+    <section class="card">
+      <h2>📥 حفظ اسكرين</h2>
+      <label class="pick" id="pick">
+        <div style="font-size:34px">📷</div>
+        <b>اختار الاسكرين</b>
+        <small>أو الصقه هنا (Ctrl+V) من الكمبيوتر</small>
+        <input type="file" id="file" accept="image/*" hidden>
+      </label>
+      <div class="prev" id="prev">
+        <img id="prevImg" alt="">
+        <input type="text" id="note" placeholder="ملاحظة (اختياري) — اسم العميل مثلاً" style="margin-bottom:10px">
+        <div class="row">
+          <button class="btn sec" id="cancelBtn" style="flex:0 0 32%">إلغاء</button>
+          <button class="btn" id="saveBtn">💾 حفظ وخد رقم</button>
+        </div>
+      </div>
+      <div class="result" id="result">
+        <div id="resTitle">✅ اتحفظ — الرقم المرجعي</div>
+        <div class="ref" id="resRef"></div>
+        <div id="resNote" class="hint"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn gold" id="copyBtn">📋 نسخ الرقم</button>
+          <button class="btn sec" id="againBtn">📷 اسكرين تاني</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>🔎 استرجاع</h2>
+      <div class="row">
+        <input type="search" id="q" placeholder="رقم مرجعي (12) أو ملاحظة">
+        <button class="btn" id="qBtn" style="flex:0 0 90px">بحث</button>
+      </div>
+      <div class="list" id="list" style="margin-top:12px"></div>
+      <button class="btn sec" id="moreBtn" style="margin-top:10px;display:none">عرض أقدم</button>
+    </section>
+  </main>
+</div>
+
+<div class="ov" id="ov">
+  <div class="modal">
+    <div class="top"><span class="ref" id="vRef"></span><button class="x" id="vClose">×</button></div>
+    <img id="vImg" alt="">
+    <div class="info" id="vInfo"></div>
+    <div class="row">
+      <button class="btn gold" id="vCopy">📋 نسخ الرقم</button>
+      <a class="btn sec" id="vDown" download style="text-align:center;text-decoration:none">⬇️ تحميل</a>
+      <button class="btn sec" id="vShare" style="display:none">📤 مشاركة</button>
+    </div>
+    <div style="text-align:center"><button class="del" id="vDel" hidden>🗑 حذف من الأرشيف (مدير)</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+/* 🗂 أرشيف الاسكرينات — منفصل عن الحجوزات، بس بنفس حسابات الدخول.
+   كل صورة بتتصغّر على الجهاز (~150KB) وبتتحفظ في Firestore:
+     archive/{R-00012}     بيانات الصورة (الرقم، الملاحظة، مين رفعها، امتى)
+     archiveImg/{R-00012}  الصورة نفسها
+     archiveHash/{hash}    بصمة الصورة عشان نفس الصورة ماتتسجلش مرتين
+     archiveMeta/counter   العدّاد اللي بيطلع الأرقام */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDHvpR0OMa-V6pik5mxyNYq5eS6GXsf4dw",
+  authDomain: "rawdah-6c181.firebaseapp.com",
+  projectId: "rawdah-6c181",
+  storageBucket: "rawdah-6c181.firebasestorage.app",
+  messagingSenderId: "231719000725",
+  appId: "1:231719000725:web:87c4f78668f7e4130d199c"
+};
+const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const [appM, authM, fs] = await Promise.all([import(FB+'firebase-app.js'), import(FB+'firebase-auth.js'), import(FB+'firebase-firestore.js')]);
+const app = appM.initializeApp(FIREBASE_CONFIG), auth = authM.getAuth(app), db = fs.getFirestore(app);
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STAFF_DOMAIN = FIREBASE_CONFIG.projectId + '.firebaseapp.com';
+const toEmail = v => { v = String(v||'').trim().toLowerCase(); return v.includes('@') ? v : (v ? v+'@'+STAFF_DOMAIN : ''); };
+const latin = s => String(s ?? '').replace(/[٠-٩]/g, d => d.charCodeAt(0)-0x660).replace(/[۰-۹]/g, d => d.charCodeAt(0)-0x6F0);
+const refOf = n => 'R-' + String(n).padStart(5, '0');
+const parseRef = t => { const m = latin(t).trim().match(/^(?:r|ر)?\s*-?\s*0*(\d{1,7})$/i); return m ? +m[1] : null; };
+const fmt = t => new Date(t).toLocaleString('ar-EG-u-nu-latn', {dateStyle:'medium', timeStyle:'short'});
+let toastT; const toast = m => { const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'), 2600); };
+const copy = async v => { try{ await navigator.clipboard.writeText(v); toast('📋 اتنسخ: '+v); }catch(e){ prompt('انسخ الرقم:', v); } };
+
+/* ===== الدخول ===== */
+let me = null;
+$('#lBtn').onclick = async () => {
+  $('#lErr').textContent=''; $('#lBtn').disabled=true;
+  try{ await authM.signInWithEmailAndPassword(auth, toEmail($('#lUser').value), $('#lPass').value); $('#lPass').value=''; }
+  catch(e){ $('#lErr').textContent = /invalid|wrong|not-found|credential/.test(e.code||'') ? 'اسم المستخدم أو كلمة المرور غلط' : 'تعذر الدخول ('+(e.code||e.message)+')'; }
+  $('#lBtn').disabled=false;
+};
+$('#lPass').addEventListener('keydown', e => { if(e.key==='Enter') $('#lBtn').click(); });
+$('#outBtn').onclick = () => authM.signOut(auth);
+authM.onAuthStateChanged(auth, async u => {
+  if(!u){ me=null; $('#app').style.display='none'; $('#login').style.display='block'; return; }
+  const email = u.email.toLowerCase();
+  let prof = {};
+  try{ const s = await fs.getDoc(fs.doc(db,'users',email)); if(s.exists()) prof = s.data(); }catch(e){}
+  if(prof.active === false){ $('#lErr').textContent='⛔ الحساب ده موقوف'; await authM.signOut(auth); return; }
+  me = { email, name: prof.name || email.split('@')[0], admin: prof.role === 'admin' };
+  $('#who').textContent = '👤 ' + me.name;
+  $('#login').style.display='none'; $('#app').style.display='block';
+  loadList(true);
+});
+
+/* ===== تصغير الصورة على الجهاز ===== */
+function loadImage(file){
+  return new Promise((ok, bad) => { const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { ok(img); URL.revokeObjectURL(url); }; img.onerror = () => bad(new Error('الملف ده مش صورة أو نوعه مش مدعوم')); img.src = url; });
+}
+async function compress(file){
+  const img = await loadImage(file);
+  let scale = Math.min(1, 1080 / img.naturalWidth, 2600 / img.naturalHeight), q = 0.8, out = '';
+  for(let i=0; i<10; i++){
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth*scale)); c.height = Math.max(1, Math.round(img.naturalHeight*scale));
+    const x = c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+    out = c.toDataURL('image/jpeg', q);
+    if(out.length < 700000) return out;            // حد المستند في Firestore 1MB — بنسيب هامش
+    if(q > 0.5) q -= 0.1; else scale *= 0.8;
+  }
+  return out;
+}
+async function sha256(file){
+  const buf = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+/* ===== الحفظ ===== */
+let picked = null;   // {file, dataUrl}
+async function pickFile(file){
+  if(!file) return;
+  if(!/^image\//.test(file.type||'') && !/\.(heic|heif|jpe?g|png|webp)$/i.test(file.name||'')){ toast('❌ اختار صورة'); return; }
+  try{
+    $('#result').style.display='none';
+    const dataUrl = await compress(file);
+    picked = { file, dataUrl };
+    $('#prevImg').src = dataUrl; $('#note').value='';
+    $('#pick').style.display='none'; $('#prev').style.display='block';
+    $('#saveBtn').focus();
+  }catch(e){ toast('❌ '+e.message); }
+}
+function resetPick(){ picked=null; $('#file').value=''; $('#prev').style.display='none'; $('#pick').style.display='block'; }
+$('#file').onchange = e => pickFile(e.target.files[0]);
+$('#cancelBtn').onclick = resetPick;
+$('#againBtn').onclick = () => { $('#result').style.display='none'; resetPick(); $('#file').click(); };
+document.addEventListener('paste', e => {
+  if(!me) return;
+  const it = [...(e.clipboardData?.items||[])].find(i => i.type.startsWith('image/'));
+  if(it){ e.preventDefault(); pickFile(it.getAsFile()); }
+});
+$('#copyBtn').onclick = () => copy($('#resRef').textContent);
+
+$('#saveBtn').onclick = async () => {
+  if(!picked || !me) return;
+  const btn = $('#saveBtn'); btn.disabled = true; btn.textContent = '⏳ بيتحفظ...';
+  try{
+    const hash = await sha256(picked.file), note = $('#note').value.trim();
+    const res = await fs.runTransaction(db, async t => {
+      const hRef = fs.doc(db,'archiveHash',hash), cRef = fs.doc(db,'archiveMeta','counter');
+      const hs = await t.get(hRef);
+      if(hs.exists()) return { dup: hs.data().ref };
+      const cs = await t.get(cRef);
+      const seq = (cs.exists() ? +cs.data().seq : 0) + 1, ref = refOf(seq), at = Date.now();
+      t.set(cRef, { seq });
+      t.set(fs.doc(db,'archive',ref), { ref, seq, at, note, by: me.email, byName: me.name, hash });
+      t.set(fs.doc(db,'archiveImg',ref), { img: picked.dataUrl });
+      t.set(hRef, { ref });
+      return { ref, note };
+    });
+    if(res.dup){
+      $('#result').classList.add('dup'); $('#resTitle').textContent = '🚫 الصورة دي متسجلة قبل كده — رقمها';
+      $('#resRef').textContent = res.dup; $('#resNote').textContent = '';
+    } else {
+      $('#result').classList.remove('dup'); $('#resTitle').textContent = '✅ اتحفظ — الرقم المرجعي';
+      $('#resRef').textContent = res.ref; $('#resNote').textContent = res.note ? '📝 '+res.note : '';
+      loadList(true);
+    }
+    $('#prev').style.display='none'; $('#result').style.display='block'; picked=null; $('#file').value='';
+  }catch(e){
+    console.error(e);
+    toast(e.code==='permission-denied' ? '⛔ مفيش صلاحية — كلّم المدير' : '⚠️ الحفظ فشل، اتأكد من النت وجرب تاني');
+  }
+  btn.disabled = false; btn.textContent = '💾 حفظ وخد رقم';
+};
+
+/* ===== القائمة والبحث ===== */
+let items = [], last = null, filterText = '';
+const PAGE = 30;
+async function loadList(reset){
+  if(reset){ items=[]; last=null; }
+  try{
+    const parts = [fs.collection(db,'archive'), fs.orderBy('seq','desc')];
+    if(last) parts.push(fs.startAfter(last));
+    parts.push(fs.limit(PAGE));
+    const snap = await fs.getDocs(fs.query(...parts));
+    snap.forEach(d => items.push(d.data()));
+    last = snap.docs[snap.docs.length-1] || last;
+    $('#moreBtn').style.display = snap.size === PAGE ? 'block' : 'none';
+  }catch(e){ console.error(e); if(e.code==='permission-denied') toast('⛔ مفيش صلاحية للأرشيف'); }
+  render();
+}
+function render(){
+  const f = filterText.toLowerCase();
+  const list = f ? items.filter(x => (x.note||'').toLowerCase().includes(f) || (x.byName||'').toLowerCase().includes(f)) : items;
+  $('#list').innerHTML = list.length ? list.map(x => `<div class="item" data-ref="${esc(x.ref)}">
+    <span class="r">${esc(x.ref)}</span><span class="n">${x.note ? esc(x.note) : '<span style="color:var(--mu)">—</span>'}</span>
+    <span class="d">${fmt(x.at)}<br>${esc(x.byName||'')}</span></div>`).join('')
+    : `<div class="empty">${f ? 'مفيش نتايج في المعروض — دوس «عرض أقدم» تدوّر في القديم' : 'لسه مفيش اسكرينات'}</div>`;
+}
+$('#list').onclick = e => { const it = e.target.closest('.item'); if(it) openRef(it.dataset.ref); };
+$('#moreBtn').onclick = () => loadList(false);
+const doSearch = () => {
+  const v = $('#q').value.trim(), n = parseRef(v);
+  if(n){ filterText=''; render(); openRef(refOf(n)); return; }
+  filterText = v; render();
+};
+$('#qBtn').onclick = doSearch;
+$('#q').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
+$('#q').addEventListener('input', () => { if(!parseRef($('#q').value)) { filterText=$('#q').value.trim(); render(); } });
+
+/* ===== عرض صورة ===== */
+let cur = null;
+async function openRef(ref){
+  try{
+    const [m, i] = await Promise.all([fs.getDoc(fs.doc(db,'archive',ref)), fs.getDoc(fs.doc(db,'archiveImg',ref))]);
+    if(!m.exists()){ toast('❌ مفيش اسكرين بالرقم '+ref); return; }
+    cur = { ...m.data(), img: i.exists() ? i.data().img : '' };
+    $('#vRef').textContent = ref; $('#vImg').src = cur.img;
+    $('#vInfo').innerHTML = `📅 <b>${fmt(cur.at)}</b><br>👤 رفعها: <b>${esc(cur.byName||cur.by)}</b>${cur.note?`<br>📝 <b>${esc(cur.note)}</b>`:''}`;
+    $('#vDown').href = cur.img; $('#vDown').download = ref + '.jpg';
+    $('#vShare').style.display = navigator.canShare ? 'block' : 'none';
+    $('#vDel').hidden = !me.admin;
+    $('#ov').classList.add('on');
+  }catch(e){ console.error(e); toast('⚠️ تعذر فتح الصورة'); }
+}
+const closeV = () => { $('#ov').classList.remove('on'); cur=null; };
+$('#vClose').onclick = closeV;
+$('#ov').onclick = e => { if(e.target.id==='ov') closeV(); };
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeV(); });
+$('#vCopy').onclick = () => cur && copy(cur.ref);
+$('#vShare').onclick = async () => {
+  if(!cur) return;
+  try{
+    const blob = await (await fetch(cur.img)).blob(), file = new File([blob], cur.ref+'.jpg', {type:'image/jpeg'});
+    if(navigator.canShare({files:[file]})) await navigator.share({files:[file], text: cur.ref});
+    else toast('المشاركة مش مدعومة هنا — استخدم «تحميل»');
+  }catch(e){ if(e.name!=='AbortError') toast('تعذرت المشاركة'); }
+};
+$('#vDel').onclick = async () => {
+  if(!cur || !me.admin || !confirm(`حذف ${cur.ref} من الأرشيف نهائياً؟`)) return;
+  try{
+    const b = fs.writeBatch(db);
+    b.delete(fs.doc(db,'archive',cur.ref)); b.delete(fs.doc(db,'archiveImg',cur.ref));
+    if(cur.hash) b.delete(fs.doc(db,'archiveHash',cur.hash));
+    await b.commit(); toast('🗑 اتحذف'); closeV(); loadList(true);
+  }catch(e){ console.error(e); toast('⚠️ الحذف فشل'); }
+};
+</script>
+</body>
+</html>

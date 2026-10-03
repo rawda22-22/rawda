@@ -32,6 +32,30 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 🗂 أرشيف الاسكرينات (archive.html) — منفصل عن الحجوزات
+    // أي حساب نشط يرفع ويشوف، ومحدش يعدّل صورة بعد ما اتحفظت، والمدير بس يحذف
+    match /archive/{ref} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.by == myEmail();
+      allow delete: if isAdmin();
+    }
+    match /archiveImg/{ref} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.img.size() < 1000000;
+      allow delete: if isAdmin();
+    }
+    match /archiveHash/{h} {
+      allow read: if isActive();
+      allow create: if isActive();
+      allow delete: if isAdmin();
+    }
+    // العدّاد: بيزيد واحد واحد بس
+    match /archiveMeta/{d} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.seq == 1;
+      allow update: if isActive() && request.resource.data.seq == resource.data.seq + 1;
+    }
+
     // الإعدادات وإعدادات تليجرم: الكل يقرا، المدير بس يعدّل
     match /meta/{docId} {
       allow read:  if isActive();
