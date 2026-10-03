@@ -1,0 +1,26 @@
+name: Publish Firestore rules
+
+# بينشر firestore.rules على Firebase لوحده أول ما الملف يتعدّل على main
+on:
+  push:
+    branches: [main]
+    paths: [firestore.rules]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --prefix scripts --no-audit --no-fund
+      - name: Publish rules
+        run: node scripts/publish-rules.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

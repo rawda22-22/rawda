@@ -189,7 +189,18 @@ export async function run({ db, tgFactory = telegramApi, now = () => Date.now(),
       return 'linked';
     }
 
-    const staff = await staffOf(m.from.id);
+    let staff = await staffOf(m.from.id);
+    // صاحب شات الإشعارات (اللي في إعدادات الموقع) بيتربط لوحده بحساب المدير من غير كود
+    if (!staff && String(m.from.id) === String(cfg.chatId || '').trim()) {
+      const admins = (await users()).filter((u) => u.role === 'admin' && u.active !== false && !u.tgId)
+        .sort((a, b) => (+a.createdAt || 0) - (+b.createdAt || 0));
+      if (admins.length) {
+        staff = admins[0];
+        const tgName = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') || m.from.username || '';
+        await db.doc('users/' + staff.email).update({ tgId: m.from.id, tgName, tgLinkedAt: now() });
+        Object.assign(staff, { tgId: m.from.id, tgName });
+      }
+    }
     if (!staff) {
       await reply(m, `👋 حسابك على تليجرام مش مربوط بحساب في الموقع.\nاطلب من المدير «كود ربط» من قائمة الموظفين، وابعتهولي كده:\n<code>/link 123456</code>`);
       return 'rejected';

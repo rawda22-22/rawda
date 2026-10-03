@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // قواعد Firestore لحجوزات الروضة الشريفة
-// انسخ الملف ده كله في: Firebase Console → Firestore Database → Rules → Publish
+// بيتنشر لوحده على Firebase مع أي تعديل في الملف ده (.github/workflows/rules.yml)
 // ⚠️ غيّر الإيميل اللي في OWNERS لإيميلك انت (اللي بتدخل بيه على الموقع)
 service cloud.firestore {
   match /databases/{database}/documents {
