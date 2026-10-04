@@ -373,7 +373,7 @@ body:not(.cloud) .cloud-only{display:none!important}
         <button class="ibtn" onclick="logRange('all')">الكل</button>
         <button class="btn sec sm" onclick="printLog()">🖨 طباعة / PDF</button>
       </div>
-      <div class="hint" style="margin-bottom:8px">مرتّب من الأقدم للأحدث حسب وقت إضافة الحجز.</div>
+      <div class="hint" style="margin-bottom:8px">مرتّب من الأحدث للأقدم حسب وقت إضافة الحجز.</div>
       <div class="stats" id="logStats" style="margin-bottom:10px"></div>
       <div style="overflow-x:auto"><table class="curTable" id="logTable"></table></div>
     </div>
@@ -1389,7 +1389,7 @@ async function showReceipt(id, at){
   }catch(e){ console.error(e); $('#rcImg').innerHTML='<div class="empty">⚠️ تعذر تحميل الصورة — اتأكد من النت</div>'; }
 }
 
-/* 📜 سجل الموظف: كل العملاء اللي أضافهم في فترة، من الأقدم للأحدث */
+/* 📜 سجل الموظف: كل العملاء اللي أضافهم في فترة، من الأحدث للأقدم */
 const addedAt = b => +b.createdAt || +new Date((b.date||todayStr())+'T00:00');
 function logRange(r){
   const now=new Date(); let f='', t='';
@@ -1404,7 +1404,7 @@ function logData(){
     if(emp && (b.createdBy||'').toLowerCase()!==emp) return false;
     const d=dstr(new Date(addedAt(b)));
     return (!f||d>=f) && (!t||d<=t);
-  }).sort((a,b)=>addedAt(a)-addedAt(b));
+  }).sort((a,b)=>addedAt(b)-addedAt(a));
   return {emp, f, t, list};
 }
 const tFull = t => new Date(t).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
