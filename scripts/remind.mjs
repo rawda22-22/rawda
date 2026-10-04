@@ -49,7 +49,7 @@ export function dueReminders(bookings, now, tz, leadMin = LEAD_MIN) {
   for (const b of bookings) {
     if (b.status === 'cancelled' || b.status === 'done') continue;
     for (const a of appointments(b)) {
-      if (!a.date || !a.slot) continue;
+      if (!a.date || !a.slot || (b.entered && b.entered[a.g])) continue;   // الفئة دي دخلت خلاص
       const dt = zonedEpoch(a.date, a.slot, tz), ms = dt - now;
       if (ms > 0 && ms <= leadMin * 60000) out.push({ b, ...a, dt, ms, key: `${b.id}|${a.g}|${a.date}T${a.slot}` });
     }

@@ -121,6 +121,9 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .curPick input{display:none}
 .curPick label:has(input:checked){background:#8a5a00;border-color:#8a5a00;color:#fff}
 .qchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.subtabs button{border:1px solid var(--bd);background:#fff;border-radius:999px;padding:6px 13px;cursor:pointer;font-size:13px;color:var(--mu)}
+.subtabs button.on{background:#e4f1ea;border-color:#bfe0cf;color:var(--g);font-weight:700}
 .qchip{border:1px solid #e3c77e;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#7a5a12}
 .qchip:hover{background:#fdf3d8}
 .qchip.g{border-color:#9fcdb6;color:var(--g)}.qchip.g:hover{background:#e4f1ea}
@@ -191,7 +194,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="dash" class="on">📊 لوحة التحكم <span class="dot" id="urgDot" style="display:none"></span></button>
   <button data-t="groups">🧩 الدفعات</button>
   <button data-t="list">📋 الحجوزات</button>
-  <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span></button>
+  <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
 </nav>
@@ -256,6 +259,15 @@ body:not(.cloud) .cloud-only{display:none!important}
 
   <!-- الحسابات -->
   <section class="sec" id="sec-fin">
+    <div class="card">
+      <h2>🔍 مراجعة الدفعات <span class="sp"></span><span class="hint" id="revCount"></span></h2>
+      <div class="subtabs" id="revTabs">
+        <button data-r="pending" class="on">بانتظار المراجعة</button>
+        <button data-r="done">تمت مراجعتها</button>
+      </div>
+      <div class="hint" style="margin-bottom:8px">الدفعات اللي الموظفين سجّلوها برقم إيصال من الأرشيف — بتتسجل للعميل فوراً بعد ما السيستم يتأكد من الإيصال، وبتفضل هنا لحد ما تبص عليها.</div>
+      <div id="revList"></div>
+    </div>
     <div class="card">
       <h2>📑 التقرير الشهري للمبيعات <span class="sp"></span></h2>
       <div class="toolbar">
@@ -338,6 +350,10 @@ body:not(.cloud) .cloud-only{display:none!important}
     </div>
     <div class="card">
       <h2>⏳ مبالغ لم تُحصّل بعد <span class="sp"></span><span class="hint" id="dueCount"></span></h2>
+      <div class="subtabs" id="dueTabs">
+        <button data-d="all" class="on">كل المستحقات <span id="dueAllN"></span></button>
+        <button data-d="late">🚨 متأخرون في السداد <span id="dueLateN"></span></button>
+      </div>
       <div id="dueList"></div>
     </div>
   </section>
@@ -451,6 +467,16 @@ body:not(.cloud) .cloud-only{display:none!important}
       <button class="btn pri" id="payOk">✓ تسجيل</button>
       <button class="btn gold" id="payOkSend">✓ تسجيل وإرسال إيصال</button>
     </div>
+  </div>
+</div>
+
+<!-- 🧾 عرض صورة الإيصال للمراجعة -->
+<div class="overlay" id="rcOv">
+  <div class="modal" style="max-width:520px">
+    <h3>🧾 <span id="rcTitle" dir="ltr" style="margin-right:6px"></span><button class="x" onclick="closeOv('rcOv')">×</button></h3>
+    <div id="rcInfo" class="bill" style="margin-bottom:10px"></div>
+    <div id="rcImg" style="text-align:center"></div>
+    <div class="mfoot" id="rcFoot"></div>
   </div>
 </div>
 
@@ -945,8 +971,8 @@ function appts(){
   const out=[];
   for(const b of S.bookings){
     if(b.status==='cancelled' || b.status==='done' || !canSee(b)) continue;
-    if(+b.men && b.menSlot){ const d=gDate(b,'m'); out.push({b, g:'m', slot:b.menSlot, n:+b.men, date:d, dt:new Date(d+'T'+b.menSlot)}); }
-    if(+b.women && b.womenSlot){ const d=gDate(b,'w'); out.push({b, g:'w', slot:b.womenSlot, n:+b.women, date:d, dt:new Date(d+'T'+b.womenSlot)}); }
+    if(+b.men && b.menSlot && !entered(b,'m')){ const d=gDate(b,'m'); out.push({b, g:'m', slot:b.menSlot, n:+b.men, date:d, dt:new Date(d+'T'+b.menSlot)}); }
+    if(+b.women && b.womenSlot && !entered(b,'w')){ const d=gDate(b,'w'); out.push({b, g:'w', slot:b.womenSlot, n:+b.women, date:d, dt:new Date(d+'T'+b.womenSlot)}); }
   }
   return out.sort((a,c)=>a.dt-c.dt);
 }
@@ -976,20 +1002,25 @@ function groups(){
 
 /* ========= واتساب ========= */
 const phoneDigits = p => String(p).replace(/[^\d]/g,'');
-function waMsg(b){
+/* رسالة العميل الرسمية — نفس الصيغة للواتساب ولتليجرام (تليجرام من غير مبالغ عشان تتبعت للعميل زي ما هي) */
+const QR_LINE = 'سيتم إرسال رمز الدخول (QR) قبل موعد الزيارة بساعتين.';
+function clientMsg(b, withMoney=true, e=(x=>x)){
   const c=calc(b), M=v=>money(v,c.cur), split=isSplit(b);
-  const L=[`السلام عليكم ورحمة الله ${b.name} 🌿`, `تفاصيل حجز زيارة الروضة الشريفة:`];
-  if(!split) L.push(`📅 ${fmtDate(gDate(b, +b.men?'m':'w'),true)}`);
-  if(+b.men) L.push(`🧔 الرجال (${b.men}): ${split?`📅 ${fmtDate(gDate(b,'m'),true)} — `:''}الساعة ${fmt12(b.menSlot)}`);
-  if(+b.women) L.push(`🧕 النساء (${b.women}): ${split?`📅 ${fmtDate(gDate(b,'w'),true)} — `:''}الساعة ${fmt12(b.womenSlot)}`);
-  if(split) L.push('⚠️ يرجى الانتباه: موعد الرجال والنساء في يومين مختلفين');
-  L.push('', `💰 الإجمالي: ${M(c.sub)}`);
-  if(c.disc>0) L.push(`🎁 الخصم: ${M(c.disc)}`, `✅ الصافي: ${M(c.total)}`);
-  if(c.paid>0) L.push(`💵 المدفوع: ${M(c.paid)}`);
-  L.push(c.rem>0 ? `⏳ المتبقي: ${M(c.rem)}` : `✔️ تم السداد بالكامل، جزاكم الله خيراً`);
-  L.push('', 'نرجو الحضور قبل الموعد بوقت كافٍ. تقبّل الله منكم 🤍');
+  const L=['السلام عليكم ورحمة الله وبركاته،', `عميلنا الكريم/ ${e(b.name)}`, '', 'نفيدكم بتأكيد حجز زيارة الروضة الشريفة وفق التفاصيل التالية:', ''];
+  if(!split) L.push(`التاريخ: ${fmtDate(gDate(b, +b.men?'m':'w'),true)}`);
+  if(+b.men) L.push(`الرجال (${b.men}): ${split?`${fmtDate(gDate(b,'m'),true)} — `:''}الساعة ${fmt12(b.menSlot)}`);
+  if(+b.women) L.push(`النساء (${b.women}): ${split?`${fmtDate(gDate(b,'w'),true)} — `:''}الساعة ${fmt12(b.womenSlot)}`);
+  if(split) L.push('', 'تنويه: موعد الرجال وموعد النساء في يومين مختلفين.');
+  if(withMoney){
+    L.push('', `الإجمالي: ${M(c.sub)}`);
+    if(c.disc>0) L.push(`الخصم: ${M(c.disc)}`, `الصافي: ${M(c.total)}`);
+    if(c.paid>0) L.push(`المدفوع: ${M(c.paid)}`);
+    L.push(c.rem>0 ? `المتبقي: ${M(c.rem)}` : 'تم سداد كامل المبلغ، شاكرين لكم.');
+  }
+  L.push('', QR_LINE, 'تقبّل الله زيارتكم.');
   return L.join('\n');
 }
+const waMsg = b => clientMsg(b, true);
 const waUrl = (b, text) => `https://wa.me/${phoneDigits(b.phone)}?text=${encodeURIComponent(text ?? waMsg(b))}`;
 function sendWA(id){ const b=S.bookings.find(x=>x.id===id); if(b) window.open(waUrl(b),'_blank'); }
 
@@ -1020,7 +1051,7 @@ function printBooking(id){
   ${split?'<div class="warn">⚠️ يرجى الانتباه: موعد الرجال والنساء في يومين مختلفين</div>':''}
   <div class="pay"><div><span>الإجمالي</span><b>${M(c.total)}</b></div><div><span>المدفوع</span><b>${M(Math.min(c.paid,c.total))}</b></div><div><span>المتبقي</span><b style="color:${c.rem>0?'#d63c3c':'#0e6b4f'}">${c.rem>0?M(c.rem):'مسدد ✔'}</b></div></div>
   ${b.notes?`<div class="cl" style="font-size:13px">📝 ${esc(b.notes)}</div>`:''}
-  <div class="ft">نرجو الحضور قبل الموعد بوقت كافٍ. تقبّل الله منكم 🤍</div>
+  <div class="ft">${QR_LINE}<br>تقبّل الله زيارتكم.</div>
   </body></html>`;
   printHtml(html);
 }
@@ -1085,7 +1116,7 @@ function apptRow(a){
       <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
       <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
-      <button class="ibtn ok" onclick="setStatus('${b.id}','done')" title="تم الدخول">✓</button>
+      <button class="ibtn ok" onclick="markEntered('${b.id}','${a.g}')" title="تم دخول ${a.g==='m'?'الرجال':'النساء'}">✓</button>
       <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
     </div>
   </div>`;
@@ -1125,8 +1156,8 @@ const otherDay = (b,g) => gDate(b,g)!==b.date ? ` • 📅 ${fmtDate(gDate(b,g))
 /* أقرب موعد لسه ما فاتش عليه أكتر من ساعة (للترتيب) — null لو مفيش */
 function nextDt(b){
   const cut=Date.now()-36e5, t=[];
-  if(+b.men && b.menSlot) t.push(+new Date(gDate(b,'m')+'T'+b.menSlot));
-  if(+b.women && b.womenSlot) t.push(+new Date(gDate(b,'w')+'T'+b.womenSlot));
+  if(+b.men && b.menSlot && !entered(b,'m')) t.push(+new Date(gDate(b,'m')+'T'+b.menSlot));
+  if(+b.women && b.womenSlot && !entered(b,'w')) t.push(+new Date(gDate(b,'w')+'T'+b.womenSlot));
   const up=t.filter(x=>x>cut).sort((x,y)=>x-y);
   return up.length ? up[0] : null;
 }
@@ -1211,7 +1242,7 @@ function renderTable(){
     <td data-l="النساء">${+b.women?`<span><b>${b.women}</b><span class="slot">${fmt12(b.womenSlot)}${otherDay(b,'w')}</span></span>`:'—'}</td>
     <td data-l="المبلغ"><span><b>${money(c.total,c.cur)}</b> ${curTag(c.cur)}${c.disc>0?`<span class="slot"><span class="badge b-disc">🎁 خصم ${money(c.disc,c.cur)}</span></span>`:''}</span></td>
     <td data-l="السداد"><span>${payBadge(b)}${c.rem>0?`<span class="slot">متبقي ${money(c.rem,c.cur)}</span>`:''}</span></td>
-    <td data-l="الحالة"><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span></td>
+    <td data-l="الحالة"><span><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${enteredPart(b)?`<span class="slot"><span class="badge b-amb">✓ دخل ${entered(b,'m')?'الرجال':'النساء'} • ${entered(b,'m')?'النساء':'الرجال'} لسه</span></span>`:''}</span></td>
     <td data-l="إجراءات"><div class="acts">
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
       <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
@@ -1267,16 +1298,74 @@ function renderFinance(){
     ${rows.length>1?`<tfoot><tr><td>الإجمالي (${CUR[B].sym})</td><td>${list.length}</td><td>${moneyB(total)}</td><td style="color:var(--g)">${moneyB(paid)}</td><td style="color:var(--red)">${moneyB(rem)}</td><td>${moneyB(paid)}</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">لا توجد بيانات في هذه الفترة</td></tr></tbody>';
 
-  const due=S.bookings.filter(b=>b.status!=='cancelled' && calc(b).rem>0).sort((a,b)=>a.date.localeCompare(b.date));
+  renderDue();
+}
+
+/* ⏳ المستحقات + 🚨 المتأخرين في السداد: موعدهم بدأ أو فات أو دخلوا (حتى لو خلّصوا الزيارة) ولسه عليهم فلوس */
+let dueTab='all';
+const firstDt = b => Math.min(...groupsOf(b).map(g=>{ const sl=g==='m'?b.menSlot:b.womenSlot; return +new Date(gDate(b,g)+'T'+(sl||'00:00')); }));
+const isLate = b => b.status==='done' || groupsOf(b).some(g=>entered(b,g)) || firstDt(b) < Date.now();
+const lateText = b => { const d=Math.floor((Date.now()-firstDt(b))/864e5);
+  return b.status==='done' ? '✓ أتم الزيارة' : enteredPart(b) ? `✓ دخل ${entered(b,'m')?'الرجال':'النساء'}` : d>=1 ? `موعده فات من ${d} يوم` : 'موعده بدأ'; };
+function renderDue(){
+  const all=S.bookings.filter(b=>b.status!=='cancelled' && calc(b).rem>0), late=all.filter(isLate);
+  $('#dueAllN').textContent = all.length ? `(${all.length})` : '';
+  $('#dueLateN').textContent = late.length ? `(${late.length})` : '';
+  document.querySelectorAll('#dueTabs button').forEach(x=>x.classList.toggle('on', x.dataset.d===dueTab));
+  const due = (dueTab==='late' ? late.sort((a,b)=>firstDt(a)-firstDt(b)) : all.sort((a,b)=>a.date.localeCompare(b.date)));
   $('#dueCount').textContent = due.length ? `${due.length} حجز • ≈ ${moneyB(sumB(due,c=>c.rem))}` : '';
-  $('#dueList').innerHTML = due.length ? due.map(b=>{ const c=calc(b), M=v=>money(v,c.cur); return `<div class="appt ${b.date<todayStr()?'urgent':''}" style="--gc:var(--amb)">
+  $('#dueList').innerHTML = due.length ? due.map(b=>{ const c=calc(b), M=v=>money(v,c.cur), lt=isLate(b); return `<div class="appt ${lt?'urgent':''}" style="--gc:${lt?'var(--red)':'var(--amb)'}">
     <div class="time" style="font-size:14px">${fmtDate(b.date)}<small>${b.date}</small></div>
-    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} ${curTag(c.cur)}</div>
-      <div class="sub">👥 ${c.n} • الصافي ${M(c.total)} • مدفوع ${M(c.paid)} • <b style="color:var(--red)">متبقي ${M(c.rem)}</b>${b.date<todayStr()?' • <b style="color:var(--red)">موعده فات!</b>':''}</div></div>
+    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} ${curTag(c.cur)}${lt?` <span class="badge ${b.status==='done'?'b-gray':'b-amb'}">${lateText(b)}</span>`:''}</div>
+      <div class="sub">👥 ${c.n} • الصافي ${M(c.total)} • مدفوع ${M(c.paid)} • <b style="color:var(--red)">متبقي ${M(c.rem)}</b>${b.createdBy?` • 👤 ${who(b.createdBy)}`:''}</div></div>
     <div class="acts">
       <button class="ibtn money" onclick="openPay('${b.id}')">💵 تحصيل</button>
       <button class="ibtn" onclick="sendWA('${b.id}')">💬 تذكير</button>
-    </div></div>`; }).join('') : '<div class="empty">🎉 كل المبالغ محصّلة</div>';
+    </div></div>`; }).join('') : `<div class="empty">${dueTab==='late'?'🎉 مفيش متأخرين في السداد':'🎉 كل المبالغ محصّلة'}</div>`;
+}
+$('#dueTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ dueTab=x.dataset.d; renderDue(); } });
+
+/* 🔍 مراجعة الدفعات: الدفعة بتتسجل عادي، والمدير بس بيبص عليها ويعلّم «تمت المراجعة» */
+let revTab='pending';
+function payReviews(done){
+  const out=[];
+  for(const b of S.bookings) (b.payments||[]).forEach(p=>{ if(p && p.ref && (done ? p.rv===true && p.rvAt : p.rv===false)) out.push({b, p}); });
+  return out.sort((x,y)=> done ? y.p.rvAt-x.p.rvAt : x.p.at-y.p.at);
+}
+const tShort = t => new Date(t).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+function renderReview(){
+  const pend=payReviews(false), list = revTab==='done' ? payReviews(true).slice(0,30) : pend;
+  const d=$('#revDot'); d.style.display=pend.length?'grid':'none'; d.textContent=pend.length;
+  $('#revCount').textContent = pend.length ? `${pend.length} بانتظار المراجعة` : '';
+  document.querySelectorAll('#revTabs button').forEach(x=>x.classList.toggle('on', x.dataset.r===revTab));
+  $('#revList').innerHTML = list.length ? list.map(({b,p})=>{ const c=calc(b), cur=p.currency||b.currency; return `<div class="appt" style="--gc:${p.rv?'var(--g)':'var(--gold)'}">
+    <div class="time" style="font-size:14px">${money(p.amt,cur)}<small>${METHODS[p.method]||''}</small></div>
+    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} <span class="badge b-gray" dir="ltr">🧾 ${esc(p.ref)}</span></div>
+      <div class="sub">👤 ${who(p.by)} • ${tShort(p.at)}${c.rem>0?` • متبقي ${money(c.rem,c.cur)}`:''}${p.rv?` • ✓ راجعها ${who(p.rvBy)} ${tShort(p.rvAt)}`:''}</div></div>
+    <div class="acts">
+      <button class="ibtn" onclick="showReceipt('${b.id}',${p.at})">🖼 الإيصال</button>
+      ${p.rv?'':`<button class="ibtn ok" onclick="markReviewed('${b.id}',${p.at})">✓ تمت المراجعة</button>`}
+    </div></div>`; }).join('') : `<div class="empty">${revTab==='done'?'لسه مفيش دفعات اتراجعت':'✅ مفيش دفعات محتاجة مراجعة'}</div>`;
+}
+$('#revTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ revTab=x.dataset.r; renderReview(); } });
+const findPay = (id, at) => { const b=S.bookings.find(x=>x.id===id); return b ? {b, p:(b.payments||[]).find(x=>x && x.at===at)} : {}; };
+function markReviewed(id, at){
+  if(!isAdmin()) return;
+  const {p}=findPay(id, at); if(!p){ toast('⚠️ الدفعة دي مش موجودة'); return; }
+  p.rv=true; p.rvBy=myEmail(); p.rvAt=Date.now();
+  save(); renderAll(); closeOv('rcOv'); toast('✓ تمت المراجعة');
+}
+async function showReceipt(id, at){
+  const {b, p}=findPay(id, at); if(!p) return;
+  $('#rcTitle').textContent=p.ref;
+  $('#rcInfo').innerHTML=`<div><b>${esc(b.name)}</b><span>${money(p.amt,p.currency||b.currency)} • ${METHODS[p.method]||''}</span></div><div><span>سجّلها</span><span>${who(p.by)} • ${tShort(p.at)}</span></div>`;
+  $('#rcFoot').innerHTML=`<a class="btn sec" style="text-decoration:none" href="archive.html#${esc(p.ref)}" target="_blank">🗂 فتح في الأرشيف</a>${p.rv?'':`<button class="btn pri" onclick="markReviewed('${b.id}',${p.at})">✓ تمت المراجعة</button>`}`;
+  $('#rcImg').innerHTML='<div class="empty">⏳ جاري تحميل الصورة…</div>'; $('#rcOv').classList.add('on');
+  if(mode!=='cloud' || !db){ $('#rcImg').innerHTML='<div class="empty">الصور متاحة في الوضع السحابي بس</div>'; return; }
+  try{
+    const d=await fb.getDoc(fb.doc(db,'archiveImg',p.ref));
+    $('#rcImg').innerHTML = d.exists() ? `<img src="${esc(d.data().img)}" alt="" style="max-width:100%;border-radius:10px;border:1px solid var(--bd)">` : '<div class="empty">⚠️ الصورة مش موجودة في الأرشيف</div>';
+  }catch(e){ console.error(e); $('#rcImg').innerHTML='<div class="empty">⚠️ تعذر تحميل الصورة — اتأكد من النت</div>'; }
 }
 
 function renderClock(){
@@ -1295,7 +1384,7 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReport(); renderStaff(); } }
+function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
@@ -1511,6 +1600,8 @@ function submitForm(sendAfter){
   if(id){
     b=S.bookings.find(x=>x.id===id);
     if(!b){ toast('⚠️ هذا الحجز حُذف من جهاز آخر'); closeOv('formOv'); return; }
+    if(data.status==='done') data.entered={m:!!m, w:!!w};
+    else if(b.status==='done') data.entered={};   // رجّعوه من «تم الدخول» لحالة تانية
     Object.assign(b, data); toast('✓ تم تحديث الحجز');
   } else { b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data}; S.bookings.push(b); toast('✓ تمت إضافة الحجز'); tgNotify(b); }
   save(); closeOv('formOv'); renderAll();
@@ -1530,6 +1621,18 @@ function setStatus(id,st){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
   if(st==='done' && calc(b).rem>0 && !confirm(`تنبيه: ${b.name} لم يسدد ${money(calc(b).rem,b.currency)} بعد. تسجيل الدخول على أي حال؟`)) return;
   b.status=st; save(); renderAll(); toast('✓ '+STATUS[st][0]);
+}
+/* ✓ الدخول بيتسجل لكل فئة لوحدها (رجال / نساء) — والحالة ماتبقاش «تم الدخول» غير لما كل اللي في الحجز يدخلوا */
+const entered = (b, g) => !!(b.entered && b.entered[g]);
+const groupsOf = b => [+b.men&&'m', +b.women&&'w'].filter(Boolean);
+const enteredPart = b => b.status!=='done' && groupsOf(b).length>1 && groupsOf(b).some(g=>entered(b,g));
+function markEntered(id, g){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  const rest=groupsOf(b).filter(x=>x!==g && !entered(b,x)), lbl=g==='m'?'الرجال':'النساء';
+  if(!rest.length && calc(b).rem>0 && !confirm(`تنبيه: ${b.name} لم يسدد ${money(calc(b).rem,b.currency)} بعد. تسجيل الدخول على أي حال؟`)) return;
+  b.entered={...(b.entered||{}), [g]:true};
+  if(!rest.length){ b.status='done'; save(); renderAll(); toast('✓ تم الدخول — الحجز اكتمل'); return; }
+  save(); renderAll(); toast(`✓ تم دخول ${lbl} — الحالة هتتحدث لما ${rest[0]==='m'?'الرجال':'النساء'} يدخلوا`);
 }
 function toggleFreeze(i){
   const G=lastGroups[i]; if(!G) return;
@@ -1568,6 +1671,7 @@ async function confirmPay(send){
   if(raw && !ref){ toast('⚠️ رقم الإيصال مكتوب غلط — زي R-00012'); return; }
   if(!ref && method!=='cash'){ toast('🧾 اكتب رقم الإيصال من أرشيف الاسكرينات'); $('#payRef').focus(); return; }
   const win = send ? window.open('','_blank') : null;   // نفتح الواتساب قبل الانتظار عشان المتصفح مايمنعهوش
+  let verified=false;
   if(ref && mode==='cloud'){
     paying=true; $('#payOk').disabled=$('#payOkSend').disabled=true;
     try{
@@ -1580,12 +1684,14 @@ async function confirmPay(send){
       paying=false; $('#payOk').disabled=$('#payOkSend').disabled=false; if(win) win.close();
       toast(e.msg || (e.code==='permission-denied' ? '🚫 الإيصال ده مستخدم قبل كده' : '⚠️ تعذر التحقق من الإيصال — اتأكد من النت')); return;
     }
-    paying=false; $('#payOk').disabled=$('#payOkSend').disabled=false;
+    paying=false; $('#payOk').disabled=$('#payOkSend').disabled=false; verified=true;
   }
   b.paid=round2((+b.paid||0)+amt); b.payMethod=method;
-  (b.payments=b.payments||[]).push({amt, currency:b.currency, method, at:Date.now(), by:myEmail(), ...(ref?{ref}:{})});
+  // 🔍 الدفعة بإيصال بتتسجل فوراً، بس بتروح «مراجعة الدفعات» عند المدير يبص عليها (rv:false) — إلا لو المدير هو اللي سجّلها
+  (b.payments=b.payments||[]).push({amt, currency:b.currency, method, at:Date.now(), by:myEmail(), ...(ref?{ref, rv:isAdmin()}:{})});
   if(b.status==='new' && calc(b).rem===0) b.status='confirmed';
   save(); closeOv('payOv'); renderAll(); toast(`✓ تم تسجيل ${money(amt,b.currency)}${ref?' • 🧾 '+ref:''}`);
+  if(verified) tgPayNotify(b, amt, ref, method);
   if(win) win.location.href=waUrl(b);
 }
 $('#payOk').addEventListener('click',()=>confirmPay(false));
@@ -1608,20 +1714,29 @@ async function tgSend(text, token=TG.token, chatId=TG.chatId){
   if(!j.ok) throw new Error(j.description || ('HTTP '+r.status));
   return j;
 }
-function tgMsg(b){
-  const c=calc(b), M=v=>money(v,c.cur), L=['🆕 <b>حجز جديد</b>', '',
-    `👤 ${tgEsc(b.name)}`, `📞 <code>${tgEsc(b.phone)}</code>`];
-  if(+b.men) L.push(`🧔 رجال ${b.men} — ${fmtDate(gDate(b,'m'),true)} • ${fmt12(b.menSlot)}`);
-  if(+b.women) L.push(`🧕 نساء ${b.women} — ${fmtDate(gDate(b,'w'),true)} • ${fmt12(b.womenSlot)}`);
-  L.push('', `💰 الصافي: ${M(c.total)}${c.disc>0?` (خصم ${M(c.disc)})`:''}`, `💵 المدفوع: ${M(c.paid)} — ${PAY[c.st][0]}`);
-  if(c.rem>0) L.push(`⏳ المتبقي: ${M(c.rem)}`);
+/* حجز جديد: رسالتين — الأولى للعميل جاهزة تتحوّل له زي ما هي (من غير مبالغ)، والتانية بيانات داخلية قصيرة */
+const tgOn = () => TG.on && TG.token && TG.chatId;
+const byName = () => tgEsc(ME?.name || loginName(myEmail()));
+function tgInfo(b){
+  const L=[`🆕 <b>حجز جديد</b> — ${tgEsc(b.name)}`, `📞 <code>${tgEsc(b.phone)}</code>`];
   if(b.notes) L.push(`📝 ${tgEsc(b.notes)}`);
-  if(user?.email) L.push('', `أضافه: ${tgEsc(ME?.name || loginName(myEmail()))}`);
+  if(user?.email) L.push(`أضافه: ${byName()}`);
   return L.join('\n');
 }
-function tgNotify(b){
-  if(!TG.on || !TG.token || !TG.chatId) return;
-  tgSend(tgMsg(b)).catch(e=>{ console.error(e); toast('⚠️ تعذر إرسال إشعار تليجرم: '+e.message); });
+async function tgNotify(b){
+  if(!tgOn()) return;
+  try{ await tgSend(clientMsg(b, false, tgEsc)); await tgSend(tgInfo(b)); }
+  catch(e){ console.error(e); toast('⚠️ تعذر إرسال إشعار تليجرم: '+e.message); }
+}
+/* تحديث حالة السداد فور قبول رقم الإيصال */
+function tgPayNotify(b, amt, ref, method){
+  if(!tgOn()) return;
+  const c=calc(b), M=v=>money(v,c.cur);
+  const L=['💵 <b>تحديث سداد</b>', '', `👤 ${tgEsc(b.name)}`, `💰 دفعة: <b>${M(amt)}</b> • ${METHODS[method]||method}`,
+    `🧾 إيصال: <code>${tgEsc(ref)}</code> ✓ متحقَّق منه`, `📌 الحالة: <b>${PAY[c.st][0]}</b>`];
+  if(c.rem>0) L.push(`⏳ المتبقي: ${M(c.rem)}`);
+  if(user?.email) L.push('', `سجّله: ${byName()}`);
+  tgSend(L.join('\n')).catch(e=>{ console.error(e); toast('⚠️ تعذر إرسال تحديث السداد لتليجرم: '+e.message); });
 }
 async function tgTest(){
   const token=$('#tgToken').value.trim(), chat=$('#tgChat').value.trim();
