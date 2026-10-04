@@ -72,6 +72,8 @@ section.sec{display:none}section.sec.on{display:block;animation:fade .25s}
 .group .gh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .group .gh .t{font-weight:800;font-size:15px;flex:1}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ibtn.wa{background:#25D366;border-color:#25D366;color:#fff;font-weight:700}
+.ibtn.wa:hover{background:#1ebe5a}
 .chip{background:#f1f4f2;border-radius:8px;padding:4px 9px;font-size:13px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
 .toolbar input,.toolbar select{padding:9px 11px;border:1px solid var(--bd);border-radius:10px;background:#fff;min-width:0}
@@ -1022,7 +1024,17 @@ function groups(){
 }
 
 /* ========= واتساب ========= */
-const phoneDigits = p => String(p).replace(/[^\d]/g,'');
+/* رقم دولي لواتساب: 00 → بدون، 05xxxxxxxx (سعودي) → 9665…، 01xxxxxxxxx (مصري) → 201… */
+function phoneDigits(p){
+  let d=String(p ?? '').replace(/[٠-٩]/g, x=>x.charCodeAt(0)-0x660).replace(/[^\d]/g,'');
+  if(d.startsWith('00')) d=d.slice(2);
+  else if(/^05\d{8}$/.test(d)) d='966'+d.slice(1);
+  else if(/^01\d{9}$/.test(d)) d='20'+d.slice(1);
+  return d;
+}
+/* زر يفتح محادثة العميل على واتساب مباشرة (من غير رسالة جاهزة) */
+const waChat = b => `https://wa.me/${phoneDigits(b.phone)}`;
+const waBtn = b => b.phone ? `<a class="ibtn wa" href="${waChat(b)}" target="_blank" rel="noopener" title="فتح محادثة العميل على واتساب">🟢 واتساب</a>` : '';
 /* رسالة العميل الرسمية — نفس الصيغة للواتساب ولتليجرام (تليجرام من غير مبالغ عشان تتبعت للعميل زي ما هي) */
 const QR_LINE = 'سيتم إرسال رمز الدخول (QR) قبل موعد الزيارة بساعتين.';
 function clientMsg(b, withMoney=true, e=(x=>x)){
@@ -1134,7 +1146,8 @@ function apptRow(a){
       <div class="sub">${badgeFor(ms)} ${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
     </div>
     <div class="acts">
-      <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
+      ${waBtn(b)}
+      <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
       <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
       <button class="ibtn ok" onclick="markEntered('${b.id}','${a.g}')" title="تم دخول ${a.g==='m'?'الرجال':'النساء'}">✓</button>
@@ -1233,7 +1246,8 @@ function renderSearch(){
       <div class="acts">
         ${c.rem>0?`<button class="ibtn money" onclick="srchGo('openPay','${b.id}')">💵 تحصيل</button>`:''}
         <button class="ibtn" onclick="srchGo('openForm','${b.id}')">✏️</button>
-        <button class="ibtn" onclick="srchGo('sendWA','${b.id}')" title="واتساب">💬</button>
+        ${waBtn(b)}
+        <button class="ibtn" onclick="srchGo('sendWA','${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
         <button class="ibtn" onclick="srchGo('printBooking','${b.id}')" title="طباعة">🖨</button>
       </div></div>`; }).join('');
 }
@@ -1265,8 +1279,9 @@ function renderTable(){
     <td data-l="السداد"><span>${payBadge(b)}${c.rem>0?`<span class="slot">متبقي ${money(c.rem,c.cur)}</span>`:''}</span></td>
     <td data-l="الحالة"><span><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${enteredPart(b)?`<span class="slot"><span class="badge b-amb">✓ دخل ${entered(b,'m')?'الرجال':'النساء'} • ${entered(b,'m')?'النساء':'الرجال'} لسه</span></span>`:''}</span></td>
     <td data-l="إجراءات"><div class="acts">
+      ${waBtn(b)}
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
-      <button class="ibtn" onclick="sendWA('${b.id}')" title="واتساب">💬</button>
+      <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
       <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
       <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
       <button class="ibtn del admin-only" onclick="delBooking('${b.id}')" title="حذف">🗑</button></div></td>
@@ -1788,10 +1803,10 @@ async function saveTG(){
   else { const ls=localStore(); if(ls) ls.setItem(TG_KEY, JSON.stringify(TG)); }
 }
 const tgEsc = s => String(s ?? '').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-async function tgSend(text, token=TG.token, chatId=TG.chatId){
+async function tgSend(text, token=TG.token, chatId=TG.chatId, extra={}){
   if(!token || !chatId) throw new Error('missing');
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method:'POST', body:new URLSearchParams({chat_id:chatId, text, parse_mode:'HTML', disable_web_page_preview:'true'}) });
+    method:'POST', body:new URLSearchParams({chat_id:chatId, text, parse_mode:'HTML', disable_web_page_preview:'true', ...extra}) });
   const j = await r.json().catch(()=>({}));
   if(!j.ok) throw new Error(j.description || ('HTTP '+r.status));
   return j;
@@ -1801,7 +1816,12 @@ const tgOn = () => TG.on && TG.token && TG.chatId;
 const byName = () => tgEsc(ME?.name || loginName(myEmail()));
 async function tgNotify(b){
   if(!tgOn()) return;
-  try{ await tgSend(clientMsg(b, false, tgEsc)); }
+  try{
+    const j = await tgSend(clientMsg(b, false, tgEsc));
+    /* اسم الموظف في رسالة رد منفصلة تحتها — عشان رسالة العميل تفضل تتحوّل له زي ما هي */
+    const by = b.createdBy ? tgEsc(empName(b.createdBy)) : (user?.email ? byName() : '');
+    if(by) tgSend(`👨‍💼 أضاف الحجز: <b>${by}</b>`, TG.token, TG.chatId, {reply_to_message_id:String(j.result?.message_id||''), allow_sending_without_reply:'true'}).catch(e=>console.error(e));
+  }
   catch(e){ console.error(e); toast('⚠️ تعذر إرسال إشعار تليجرم: '+e.message); }
 }
 /* تحديث حالة السداد فور قبول رقم الإيصال */
