@@ -196,6 +196,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="list">📋 الحجوزات</button>
   <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
+  <button data-t="log" class="admin-only cloud-only">📜 سجل الموظف</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
 </nav>
 
@@ -355,6 +356,26 @@ body:not(.cloud) .cloud-only{display:none!important}
         <button data-d="late">🚨 متأخرون في السداد <span id="dueLateN"></span></button>
       </div>
       <div id="dueList"></div>
+    </div>
+  </section>
+
+  <!-- 📜 سجل الموظف: العملاء اللي أضافهم في فترة -->
+  <section class="sec" id="sec-log">
+    <div class="card">
+      <h2>📜 سجل العملاء حسب الموظف <span class="sp"></span><span class="hint" id="logCount"></span></h2>
+      <div class="toolbar">
+        <select id="logEmp"></select>
+        <label class="hint">من</label><input type="date" id="logFrom">
+        <label class="hint">إلى</label><input type="date" id="logTo">
+        <button class="ibtn" onclick="logRange('today')">اليوم</button>
+        <button class="ibtn" onclick="logRange('week')">7 أيام</button>
+        <button class="ibtn" onclick="logRange('month')">هذا الشهر</button>
+        <button class="ibtn" onclick="logRange('all')">الكل</button>
+        <button class="btn sec sm" onclick="printLog()">🖨 طباعة / PDF</button>
+      </div>
+      <div class="hint" style="margin-bottom:8px">مرتّب من الأقدم للأحدث حسب وقت إضافة الحجز.</div>
+      <div class="stats" id="logStats" style="margin-bottom:10px"></div>
+      <div style="overflow-x:auto"><table class="curTable" id="logTable"></table></div>
     </div>
   </section>
 
@@ -1368,6 +1389,67 @@ async function showReceipt(id, at){
   }catch(e){ console.error(e); $('#rcImg').innerHTML='<div class="empty">⚠️ تعذر تحميل الصورة — اتأكد من النت</div>'; }
 }
 
+/* 📜 سجل الموظف: كل العملاء اللي أضافهم في فترة، من الأقدم للأحدث */
+const addedAt = b => +b.createdAt || +new Date((b.date||todayStr())+'T00:00');
+function logRange(r){
+  const now=new Date(); let f='', t='';
+  if(r==='today'){ f=t=todayStr(); }
+  if(r==='week'){ f=dstr(new Date(Date.now()-6*864e5)); t=todayStr(); }
+  if(r==='month'){ f=dstr(new Date(now.getFullYear(),now.getMonth(),1)); t=dstr(new Date(now.getFullYear(),now.getMonth()+1,0)); }
+  $('#logFrom').value=f; $('#logTo').value=t; renderLog();
+}
+function logData(){
+  const emp=$('#logEmp').value, f=$('#logFrom').value, t=$('#logTo').value;
+  const list=S.bookings.filter(b=>{
+    if(emp && (b.createdBy||'').toLowerCase()!==emp) return false;
+    const d=dstr(new Date(addedAt(b)));
+    return (!f||d>=f) && (!t||d<=t);
+  }).sort((a,b)=>addedAt(a)-addedAt(b));
+  return {emp, f, t, list};
+}
+const tFull = t => new Date(t).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
+function fillLogEmps(){
+  const sel=$('#logEmp'), v=sel.value;
+  const emps=[...new Set([...Object.keys(USERS), ...S.bookings.map(b=>(b.createdBy||'').toLowerCase()).filter(Boolean)])]
+    .sort((a,b)=>empName(a).localeCompare(empName(b),'ar'));
+  sel.innerHTML='<option value="">👥 كل الموظفين</option>'+emps.map(e=>`<option value="${esc(e)}">${esc(empName(e))}${USERS[e]&&USERS[e].active===false?' (موقوف)':''}</option>`).join('');
+  sel.value = emps.includes(v) ? v : '';
+}
+function renderLog(){
+  if(!isAdmin()) return;
+  fillLogEmps();
+  if(!$('#logFrom').dataset.init){ $('#logFrom').dataset.init=1; logRange('month'); return; }
+  const {emp, list}=logData(), act=list.filter(b=>b.status!=='cancelled');
+  $('#logCount').textContent = `${list.length} حجز`;
+  $('#logStats').innerHTML=[
+    ['عدد العملاء', list.length, 'var(--g)'],
+    ['عدد الأفراد', act.reduce((s,b)=>s+calc(b).n,0), 'var(--blue)'],
+    ['الصافي', bigMoney(sumB(act,c=>c.total)), 'var(--g)'],
+    ['المحصّل', bigMoney(sumB(act,c=>Math.min(c.paid,c.total))), '#3fa37e'],
+    ['ملغي', list.length-act.length, 'var(--mu)'],
+  ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+  $('#logTable').innerHTML = list.length ? `<thead><tr><th>#</th><th>وقت الإضافة</th>${emp?'':'<th>الموظف</th>'}<th>العميل</th><th>الهاتف</th><th>رجال / نساء</th><th>يوم الزيارة</th><th>الصافي</th><th>السداد</th><th>الحالة</th></tr></thead>
+    <tbody>${list.map((b,i)=>{ const c=calc(b); return `<tr style="cursor:pointer" onclick="openForm('${b.id}')">
+      <td>${i+1}</td><td>${tFull(addedAt(b))}</td>${emp?'':`<td>${who(b.createdBy)||'—'}</td>`}<td><b>${esc(b.name)}</b></td><td dir="ltr">${esc(b.phone)}</td>
+      <td>${+b.men||0} / ${+b.women||0}</td><td>${fmtDate(b.date)}</td><td>${money(c.total,c.cur)}</td><td>${payBadge(b)}</td>
+      <td><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span></td></tr>`; }).join('')}</tbody>`
+    : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الفترة دي</td></tr></tbody>';
+}
+['#logEmp','#logFrom','#logTo'].forEach(k=>$(k).addEventListener('change', renderLog));
+function printLog(){
+  const {emp, f, t, list}=logData();
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>سجل ${esc(emp?empName(emp):'الموظفين')}</title><style>
+    @page{size:A4;margin:10mm} body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-size:12px;color:#1c2822}
+    h1{font-size:18px;margin:0 0 4px;color:#093f2e} p{margin:0 0 10px;color:#6b7a72}
+    table{width:100%;border-collapse:collapse} th,td{border:1px solid #dde3df;padding:5px;text-align:center} th{background:#f3f5f2}
+  </style></head><body><h1>📜 سجل العملاء — ${esc(emp?empName(emp):'كل الموظفين')}</h1>
+  <p>الفترة: ${f||'البداية'} ← ${t||'الآن'} • عدد الحجوزات: ${list.length}</p>
+  <table><thead><tr><th>#</th><th>وقت الإضافة</th>${emp?'':'<th>الموظف</th>'}<th>العميل</th><th>الهاتف</th><th>رجال / نساء</th><th>يوم الزيارة</th><th>الصافي</th><th>الحالة</th></tr></thead><tbody>
+  ${list.map((b,i)=>{ const c=calc(b); return `<tr><td>${i+1}</td><td>${tFull(addedAt(b))}</td>${emp?'':`<td>${who(b.createdBy)||'—'}</td>`}<td>${esc(b.name)}</td><td dir="ltr">${esc(b.phone)}</td><td>${+b.men||0} / ${+b.women||0}</td><td>${b.date}</td><td>${money(c.total,c.cur)}</td><td>${STATUS[b.status][0]}</td></tr>`; }).join('')}
+  </tbody></table></body></html>`;
+  printHtml(html);
+}
+
 function renderClock(){
   const d=new Date(); let hij='';
   try{ hij=' • '+d.toLocaleDateString('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}); }catch(e){}
@@ -1384,12 +1466,12 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); } }
+function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['fin','staff'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['fin','staff','log'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
   window.scrollTo({top:0,behavior:'smooth'});
