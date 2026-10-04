@@ -1796,18 +1796,12 @@ async function tgSend(text, token=TG.token, chatId=TG.chatId){
   if(!j.ok) throw new Error(j.description || ('HTTP '+r.status));
   return j;
 }
-/* حجز جديد: رسالتين — الأولى للعميل جاهزة تتحوّل له زي ما هي (من غير مبالغ)، والتانية بيانات داخلية قصيرة */
+/* حجز جديد: رسالة واحدة للعميل جاهزة تتحوّل له زي ما هي (من غير مبالغ) */
 const tgOn = () => TG.on && TG.token && TG.chatId;
 const byName = () => tgEsc(ME?.name || loginName(myEmail()));
-function tgInfo(b){
-  const L=[`🆕 <b>حجز جديد</b> — ${tgEsc(b.name)}`, `📞 <code>${tgEsc(b.phone)}</code>`];
-  if(b.notes) L.push(`📝 ${tgEsc(b.notes)}`);
-  if(user?.email) L.push(`أضافه: ${byName()}`);
-  return L.join('\n');
-}
 async function tgNotify(b){
   if(!tgOn()) return;
-  try{ await tgSend(clientMsg(b, false, tgEsc)); await tgSend(tgInfo(b)); }
+  try{ await tgSend(clientMsg(b, false, tgEsc)); }
   catch(e){ console.error(e); toast('⚠️ تعذر إرسال إشعار تليجرم: '+e.message); }
 }
 /* تحديث حالة السداد فور قبول رقم الإيصال */
