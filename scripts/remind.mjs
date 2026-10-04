@@ -1,11 +1,14 @@
 // تنبيه تليجرام قبل كل موعد بساعتين و10 دقايق: "اطبع الحجز وسلّمه للعميل"
-// بيشتغل من GitHub Actions كل 5 دقايق (.github/workflows/remind.yml) ومش محتاج الموقع يكون مفتوح.
+// بيشتغل من GitHub Actions كمراقب متواصل (.github/workflows/remind.yml) ومش محتاج الموقع يكون مفتوح.
 // إعدادات تليجرام (Token / Chat ID) بتتقرا من نفس إعدادات الموقع (Firestore: meta/telegram).
 import { pathToFileURL } from 'node:url';
+import { appendFileSync } from 'node:fs';
 
 // المطلوب: التنبيه يوصل قبل الموعد بساعتين و10 دقايق على الأقل.
-// GitHub بيشغّل الجدولة متأخر أحياناً، فبنبدأ نبعت من ساعتين ونص (150 د) عشان يفضل فيه هامش أمان 20 دقيقة.
-export const LEAD_MIN = 150;
+// السكربت بقى "مراقب" شغال على طول وبيفحص كل 20 ثانية (مش معتمد على جدولة GitHub اللي بتتأخر ساعات)،
+// فبنبعت أول ما يفضل ساعتين و11 دقيقة → التنبيه يوصل قبل الموعد بساعتين و10 دقايق بالظبط تقريباً.
+export const LEAD_MIN = 131;
+const TICK_MS = 20000;
 const CUR_SYM = { SAR: 'ر.س', EGP: 'ج.م', USD: '$' };
 
 /* تحويل "تاريخ + ساعة" بتوقيت منطقة معيّنة إلى لحظة زمنية (ms) — من غير مكتبات */
@@ -132,7 +135,75 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
   return { sent: ok, failed };
 }
 
+/* تاريخ اليوم وبكرة بتوقيت المنطقة */
+export function todayTomorrow(now, tz) {
+  const [today] = datesToQuery(now, tz);
+  const [y, m, d] = today.split('-').map(Number);
+  return [today, new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)];
+}
+
+/* وضع المراقبة: بيفضل شغال لمدة `minutes` ويفحص كل 20 ثانية.
+   بيستخدم Firestore listeners: الحجوزات بتتقري مرة واحدة في البداية وبعدها التعديلات بس — فالقراءات قليلة جداً. */
+export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cairo', siteUrl = '', log = console.log, clock = () => Date.now() }) {
+  const endAt = clock() + minutes * 60000;
+  let tg = null, sent = {}, totalSent = 0, totalFailed = 0;
+  const rs = await db.doc('meta/reminders').get();
+  sent = { ...((rs.exists && rs.data().sent) || {}) };
+
+  const unsubTg = db.doc('meta/telegram').onSnapshot((s) => { tg = s.exists ? s.data() : null; }, (e) => console.error('telegram listener:', e.message));
+
+  // listeners الحجوزات (يوم النهارده + بكرة) — بتتجدد لما اليوم يتغيّر
+  let days = '', subs = [], parts = [];
+  const resubscribe = (now) => {
+    const dd = todayTomorrow(now, tz);
+    if (dd.join() === days) return;
+    days = dd.join(); subs.forEach((u) => u()); parts = [];
+    subs = ['date', 'menDate', 'womenDate'].map((field, i) => {
+      parts[i] = new Map();
+      return db.collection('bookings').where(field, 'in', dd).onSnapshot((snap) => {
+        const m = new Map(); snap.forEach((doc) => m.set(doc.id, { ...doc.data(), id: doc.id })); parts[i] = m;
+      }, (e) => console.error(`bookings listener (${field}):`, e.message));
+    });
+    log(`بنراقب حجوزات ${dd.join(' و ')}`);
+  };
+
+  const names = {};
+  const nameOf = async (email) => {
+    email = String(email || '').toLowerCase();
+    if (!email) return '';
+    if (!(email in names)) { const u = await db.doc('users/' + email).get(); names[email] = (u.exists && u.data().name) || email.split('@')[0]; }
+    return names[email];
+  };
+
+  try {
+    while (clock() < endAt) {
+      const now = clock();
+      resubscribe(now);
+      if (tg && tg.on && tg.token && tg.chatId) {
+        const all = new Map(); parts.forEach((p) => p.forEach((v, k) => all.set(k, v)));
+        const due = dueReminders([...all.values()], now, tz).filter((r) => !sent[r.key]);
+        for (const r of due) {
+          try {
+            await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl));
+            sent[r.key] = now; totalSent++;
+            for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
+            await db.doc('meta/reminders').set({ sent, updatedAt: now });
+            log(`اتبعت تنبيه: ${r.b.name || r.b.id} • قبل الموعد بـ ${leftText(r.ms)}`);
+          } catch (e) { totalFailed++; console.error('تعذر إرسال تنبيه', r.key, '-', e.message); }
+        }
+      }
+      await new Promise((ok) => setTimeout(ok, Math.min(TICK_MS, Math.max(0, endAt - clock()))));
+    }
+  } finally {
+    subs.forEach((u) => u()); unsubTg();
+  }
+  return { sent: totalSent, failed: totalFailed };
+}
+
 async function main() {
+  const started = Date.now();
+  // لو المراقب اشتغل فترة كويسة (حتى لو وقع)، بنقول للـ workflow يشغّل التالي على طول
+  const chain = () => { if (process.env.GITHUB_OUTPUT && Date.now() - started > 10 * 60000) appendFileSync(process.env.GITHUB_OUTPUT, 'chain=true\n'); };
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!raw) { console.log('::notice::مفتاح FIREBASE_SERVICE_ACCOUNT مش مضاف في GitHub Secrets — التنبيهات متوقفة لحد ما تضيفه'); return; }
   const { initializeApp, cert } = await import('firebase-admin/app');
@@ -140,9 +211,13 @@ async function main() {
   initializeApp({ credential: cert(JSON.parse(raw)) });
   const [owner, repo] = (process.env.GITHUB_REPOSITORY || '/').split('/');
   const siteUrl = process.env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : '');
-  const res = await run({ db: getFirestore(), tz: process.env.APP_TZ || 'Africa/Cairo', siteUrl, log: (m) => console.log('::notice::' + m) });
-  console.log(`::notice::اتبعت ${res.sent} تنبيه${res.failed ? ` • فشل ${res.failed}` : ''}`);
-  if (res.failed) process.exitCode = 1;
+  const opts = { db: getFirestore(), tz: process.env.APP_TZ || 'Africa/Cairo', siteUrl, log: (m) => console.log('::notice::' + m) };
+  const watchMin = +process.env.WATCH_MINUTES || 0;
+  try {
+    const res = watchMin > 0 ? await watch({ ...opts, minutes: watchMin }) : await run(opts);
+    console.log(`::notice::اتبعت ${res.sent} تنبيه${res.failed ? ` • فشل ${res.failed}` : ''}`);
+    if (res.failed) process.exitCode = 1;
+  } finally { chain(); }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
