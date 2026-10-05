@@ -165,6 +165,11 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .lcard p{margin:0;text-align:center}
 .lcard .btn{width:100%;padding:13px}
 .linkbtn{background:none;border:0;color:var(--g);cursor:pointer;font-size:13px;text-decoration:underline}
+/* 🔒 قفل الحسابات برمز PIN */
+.pinIn{font-size:26px!important;letter-spacing:10px;text-align:center;font-family:monospace;padding:10px!important}
+#pinOv{align-items:center}
+.lockBtn{display:none}
+body.finpin .lockBtn{display:inline-flex}
 /* الصلاحيات */
 body.staff .admin-only{display:none!important}
 body:not(.cloud) .cloud-only{display:none!important}
@@ -262,6 +267,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 
   <!-- الحسابات -->
   <section class="sec" id="sec-fin">
+    <div class="lockBtn" style="justify-content:flex-end;margin-bottom:8px"><button class="btn sec sm" onclick="lockFin(true)">🔒 اقفل الحسابات دلوقتي</button></div>
     <div class="card">
       <h2>🔍 مراجعة الدفعات <span class="sp"></span><span class="hint" id="revCount"></span></h2>
       <div class="subtabs" id="revTabs">
@@ -580,6 +586,13 @@ body:not(.cloud) .cloud-only{display:none!important}
         <button type="button" class="btn sec sm" onclick="tgDetect()">🔍 جيب Chat ID</button>
         <button type="button" class="btn sec sm" onclick="tgTest()">📨 رسالة تجربة</button></div></div>
       <div class="f full"><span class="hint">اعمل بوت من <b dir="ltr">@BotFather</b> وانسخ الـ Token، ابعت للبوت أي رسالة، وبعدين دوس «جيب Chat ID». للجروب: ضيف البوت للجروب وابعت فيه رسالة. التوكن بيتحفظ في قاعدة البيانات (مش في الكود) ومحدش يشوفه غير المستخدمين المسجلين.</span></div>
+
+      <h4>🔒 قفل صفحة الحسابات</h4>
+      <div class="f full"><span class="hint" id="pinState"></span>
+        <div class="qchips" style="margin-top:6px">
+          <button type="button" class="btn sec sm" id="pinSetBtn" onclick="openPinSet()">🔑 حط رمز PIN</button>
+          <button type="button" class="btn danger sm" id="pinDelBtn" onclick="removePin()" style="display:none">🗑 شيل القفل</button>
+        </div></div>
     </div>
     <div class="mfoot">
       <button class="btn pri" onclick="saveSettings()">💾 حفظ</button>
@@ -594,6 +607,34 @@ body:not(.cloud) .cloud-only{display:none!important}
       <button class="btn sec" onclick="addDemo()">🧪 بيانات تجريبية</button>
       <input type="file" id="impFile" accept=".json" hidden>
     </div>
+  </div>
+</div>
+
+<!-- 🔒 فتح صفحة الحسابات برمز PIN -->
+<div class="overlay" id="pinOv">
+  <div class="modal" style="max-width:340px">
+    <h3 id="pinTitle">🔒 الحسابات مقفولة<button class="x" type="button" onclick="closeOv('pinOv')">×</button></h3>
+    <form id="pinForm" class="fg" style="grid-template-columns:1fr">
+      <div class="f"><label id="pinLbl">اكتب رمز PIN</label>
+        <input id="pinIn" class="pinIn" type="password" inputmode="numeric" maxlength="8" dir="ltr" autocomplete="off" required></div>
+      <div class="warn" id="pinErr" style="text-align:center"></div>
+      <div class="mfoot" style="margin-top:4px;justify-content:center"><button class="btn pri" id="pinGo" type="submit">🔓 افتح</button></div>
+      <button class="linkbtn" type="button" id="pinForgot" onclick="pinMode('reset')">نسيت الرمز؟</button>
+    </form>
+  </div>
+</div>
+
+<!-- 🔑 تعيين / تغيير رمز PIN -->
+<div class="overlay" id="pinSetOv">
+  <div class="modal" style="max-width:360px">
+    <h3>🔑 رمز قفل الحسابات<button class="x" type="button" onclick="closeOv('pinSetOv')">×</button></h3>
+    <form id="pinSetForm" class="fg" style="grid-template-columns:1fr">
+      <div class="f" id="pinOldWrap"><label>الرمز الحالي</label><input id="pinOld" class="pinIn" type="password" inputmode="numeric" maxlength="8" dir="ltr" autocomplete="off"></div>
+      <div class="f"><label>الرمز الجديد (4 لـ 8 أرقام)</label><input id="pinNew" class="pinIn" type="password" inputmode="numeric" maxlength="8" dir="ltr" autocomplete="off" required></div>
+      <div class="f"><label>اكتب الرمز الجديد تاني</label><input id="pinNew2" class="pinIn" type="password" inputmode="numeric" maxlength="8" dir="ltr" autocomplete="off" required></div>
+      <span class="hint">الصفحة بتتقفل لوحدها لما تخرج منها، أو بعد 5 دقايق من غير ما تلمس الشاشة. الرمز للمدير بس — الموظفين أصلاً مش بيشوفوا الحسابات.</span>
+      <div class="mfoot" style="margin-top:4px"><button class="btn pri" type="submit">💾 حفظ الرمز</button></div>
+    </form>
   </div>
 </div>
 
@@ -741,6 +782,7 @@ async function loadLocal(){
   }
   setSync(mode);
   if(fixEgpPrice()) save();
+  try{ const p=JSON.parse(localStore()?.getItem(KEY+'_finpin')||'null'); setFinPin(p&&p.hash?p:null); }catch(e){ setFinPin(null); }
 }
 async function save(){
   if(mode==='cloud') return cloudSave();
@@ -799,7 +841,7 @@ async function initCloud(){
   fb = {...authM, ...fsM};
   authM.onAuthStateChanged(auth, async u=>{
     user = u;
-    if(!u){ unsubscribe(); ME=null; USERS={}; S.bookings=[]; synced.bookings={}; renderAll(); showLogin(false); return; }
+    if(!u){ unsubscribe(); lockFin(); ME=null; USERS={}; S.bookings=[]; synced.bookings={}; renderAll(); showLogin(false); return; }
     showLogin(true); $('#loginBtn').textContent='جارٍ التحقق من الصلاحية...';
     try{ ME = await loadProfile(u); }
     catch(e){ console.error(e); ME=null; $('#loginErr').textContent = e.code==='timeout'||!navigator.onLine ? 'لا يوجد اتصال بالإنترنت — حاول تاني' : 'تعذر التحقق من الحساب ('+(e.code||e.message)+')'; await fb.signOut(auth); return; }
@@ -811,7 +853,9 @@ async function initCloud(){
 function subscribe(){
   unsubscribe(); setSync('connecting'); startPresence();
   FIN={costs:[], expenses:[], plans:[], advances:[]};
+  finUnlocked=false; setFinPin(undefined);
   if(isAdmin()){
+    unsubs.push(fb.onSnapshot(fb.doc(db,'finance','pin'), d=>{ setFinPin(d.exists() && d.data().hash ? d.data() : null); }, e=>{ console.warn('pin:', e.code||e); setFinPin(null); }));
     unsubs.push(fb.onSnapshot(fb.doc(db,'finance','main'), d=>{ const x=d.exists()?d.data():{}; FIN.costs=Array.isArray(x.costs)?x.costs:[]; FIN.plans=Array.isArray(x.plans)?x.plans:[]; renderAll(); }, e=>console.warn('finance:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'advances'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.advances=a; renderAll(); }, e=>console.warn('advances:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'expenses'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.expenses=a; renderAll(); }, e=>console.warn('expenses:', e.code||e)));
@@ -1487,6 +1531,11 @@ function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGrou
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
   if(!isAdmin() && ['fin','staff','log'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(t==='fin' && !finUnlocked){
+    if(FINPIN===undefined){ toast('⏳ لحظة… بيتأكد من قفل الحسابات'); return; }
+    if(FINPIN){ askPin(); return; }
+  }
+  if(t!=='fin' && currentTab()==='fin' && FINPIN) lockFin();
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1948,6 +1997,138 @@ $('#pwForm').addEventListener('submit', async ev=>{
     closeOv('pwOv'); toast('✅ تم تغيير كلمة المرور');
   }catch(err){ toast('⚠️ '+(err.code==='auth/invalid-credential'||err.code==='auth/wrong-password'?'كلمة المرور الحالية غلط':authMsg(err.code))); }
 });
+
+/* ========= 🔒 قفل صفحة الحسابات برمز PIN =========
+   الرمز بيتحفظ متشفّر (hash + salt) — في السحابة في finance/pin (المدير بس يقراه حسب قواعد Firestore)،
+   وفي الوضع المحلي على الجهاز. الصفحة بتتقفل لما تخرج منها، أو بعد 5 دقايق من غير نشاط، أو بزرار «اقفل». */
+var FINPIN = undefined;      // undefined = لسه بيحمّل • null = مفيش قفل • {hash,salt} = في قفل
+var finUnlocked = false, finIdleT = null, pinFails = 0, pinBlockUntil = 0, pinModeNow = 'unlock';
+const FIN_IDLE_MS = 5*60*1000;
+const currentTab = () => document.querySelector('nav.tabs button.on')?.dataset.t;
+
+async function pinHash(pin, salt){
+  const txt = 'rawdah-finpin|'+salt+'|'+pin;
+  if(window.crypto?.subtle){
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(txt), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({name:'PBKDF2', hash:'SHA-256', salt:new TextEncoder().encode(salt), iterations:150000}, key, 256);
+    return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  let h=5381; for(let i=0;i<txt.length;i++) h=((h<<5)+h+txt.charCodeAt(i))|0;   // احتياطي لو المتصفح قديم
+  return 'x'+(h>>>0).toString(16);
+}
+const newSalt = () => [...(window.crypto?.getRandomValues ? crypto.getRandomValues(new Uint8Array(12)) : Array.from({length:12},()=>Math.random()*256|0))].map(b=>(b&255).toString(16).padStart(2,'0')).join('');
+async function pinOk(pin){ return !!FINPIN && await pinHash(pin, FINPIN.salt) === FINPIN.hash; }
+
+function setFinPin(p){
+  const changed = JSON.stringify(p||null) !== JSON.stringify(FINPIN||null);
+  FINPIN = p;
+  document.body.classList.toggle('finpin', !!p);
+  if(changed && p) lockFin();          // الرمز اتغيّر من جهاز تاني → يقفل هنا كمان
+  renderPinState();
+}
+function renderPinState(){
+  if(!$('#pinState')) return;
+  $('#pinState').innerHTML = FINPIN===undefined ? '⏳ جارٍ التحميل…'
+    : FINPIN ? '✅ صفحة الحسابات مقفولة برمز PIN — محدش يفتحها من غير الرمز حتى لو السيستم مفتوح.'
+    : '🔓 صفحة الحسابات مش مقفولة. حط رمز علشان لو السيستم مفتوح قدام حد مايقدرش يشوف الحسابات.';
+  $('#pinSetBtn').textContent = FINPIN ? '🔑 غيّر الرمز' : '🔑 حط رمز PIN';
+  $('#pinDelBtn').style.display = FINPIN ? '' : 'none';
+}
+async function storePin(p){
+  if(mode==='cloud'){
+    const ref = fb.doc(db,'finance','pin');
+    if(p) await fb.setDoc(ref, {...p, at:Date.now(), by:myEmail()}); else await fb.deleteDoc(ref);
+  } else {
+    const ls=localStore(); if(!ls) throw new Error('no storage');
+    if(p) ls.setItem(KEY+'_finpin', JSON.stringify(p)); else ls.removeItem(KEY+'_finpin');
+    setFinPin(p);
+  }
+}
+
+function lockFin(manual){
+  finUnlocked=false; clearTimeout(finIdleT);
+  if(currentTab()==='fin'){
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t==='dash'));
+    document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-dash'));
+    if(manual) toast('🔒 تم قفل الحسابات');
+  }
+}
+function finActivity(){
+  if(!finUnlocked || !FINPIN) return;
+  clearTimeout(finIdleT);
+  finIdleT = setTimeout(()=>{ if(currentTab()==='fin') toast('🔒 الحسابات اتقفلت لوحدها بعد 5 دقايق من غير نشاط'); lockFin(); }, FIN_IDLE_MS);
+}
+['pointerdown','keydown','scroll','touchstart'].forEach(ev=>document.addEventListener(ev, finActivity, {passive:true}));
+
+function pinMode(m){
+  pinModeNow=m; $('#pinErr').textContent=''; $('#pinIn').value='';
+  const reset = m==='reset';
+  $('#pinTitle').firstChild.textContent = reset ? '🔑 نسيت الرمز' : '🔒 الحسابات مقفولة';
+  if(reset && mode==='cloud'){
+    $('#pinLbl').textContent='اكتب كلمة مرور حسابك علشان تشيل الرمز';
+    $('#pinIn').classList.remove('pinIn'); $('#pinIn').removeAttribute('maxlength'); $('#pinIn').setAttribute('inputmode','text');
+    $('#pinGo').textContent='🗑 شيل الرمز';
+  } else {
+    $('#pinLbl').textContent='اكتب رمز PIN';
+    $('#pinIn').classList.add('pinIn'); $('#pinIn').setAttribute('maxlength','8'); $('#pinIn').setAttribute('inputmode','numeric');
+    $('#pinGo').textContent='🔓 افتح';
+  }
+  $('#pinForgot').style.display = reset ? 'none' : '';
+  if(reset && mode!=='cloud'){
+    if(confirm('في الوضع المحلي مفيش كلمة مرور حساب. تشيل رمز الحسابات من الجهاز ده؟'))
+      storePin(null).then(()=>{ closeOv('pinOv'); toast('🔓 اتشال الرمز — تقدر تحط رمز جديد من الإعدادات'); }).catch(()=>toast('⚠️ تعذر الحفظ'));
+    else pinMode('unlock');
+    return;
+  }
+  setTimeout(()=>$('#pinIn').focus(), 50);
+}
+function askPin(){ pinMode('unlock'); $('#pinOv').classList.add('on'); setTimeout(()=>$('#pinIn').focus(), 80); }
+
+$('#pinForm').addEventListener('submit', async ev=>{
+  ev.preventDefault();
+  const v=$('#pinIn').value.trim(); if(!v) return;
+  if(pinModeNow==='reset'){
+    try{
+      await fb.reauthenticateWithCredential(user, fb.EmailAuthProvider.credential(user.email, v));
+      await storePin(null); closeOv('pinOv'); toast('🔓 اتشال الرمز — تقدر تحط رمز جديد من الإعدادات');
+    }catch(err){ $('#pinErr').textContent = err.code==='auth/invalid-credential'||err.code==='auth/wrong-password' ? 'كلمة المرور غلط' : authMsg(err.code||''); }
+    return;
+  }
+  const wait=Math.ceil((pinBlockUntil-Date.now())/1000);
+  if(wait>0){ $('#pinErr').textContent=`استنى ${wait} ثانية وجرّب تاني`; return; }
+  if(await pinOk(v)){
+    pinFails=0; finUnlocked=true; closeOv('pinOv'); switchTab('fin'); finActivity();
+  } else {
+    pinFails++; $('#pinIn').value=''; $('#pinIn').focus();
+    if(pinFails>=5){ pinBlockUntil=Date.now()+30000*Math.min(pinFails-4,10); $('#pinErr').textContent=`محاولات غلط كتير — استنى ${Math.ceil((pinBlockUntil-Date.now())/1000)} ثانية`; }
+    else $('#pinErr').textContent=`❌ الرمز غلط (فاضل ${5-pinFails} محاولات)`;
+  }
+});
+
+function openPinSet(){
+  if(!isAdmin()) return;
+  $('#pinSetForm').reset();
+  $('#pinOldWrap').style.display = FINPIN ? '' : 'none';
+  $('#pinSetOv').classList.add('on'); setTimeout(()=>$(FINPIN?'#pinOld':'#pinNew').focus(), 80);
+}
+$('#pinSetForm').addEventListener('submit', async ev=>{
+  ev.preventDefault();
+  const o=$('#pinOld').value.trim(), n1=$('#pinNew').value.trim(), n2=$('#pinNew2').value.trim();
+  if(FINPIN && !(await pinOk(o))){ toast('❌ الرمز الحالي غلط'); return; }
+  if(!/^\d{4,8}$/.test(n1)){ toast('الرمز لازم يكون أرقام بس، من 4 لـ 8 أرقام'); return; }
+  if(n1!==n2){ toast('الرمزين مش زي بعض'); return; }
+  try{
+    const salt=newSalt(); await storePin({salt, hash:await pinHash(n1, salt)});
+    closeOv('pinSetOv'); toast('✅ تم حفظ رمز قفل الحسابات');
+  }catch(e){ console.error(e); toast('⚠️ تعذر حفظ الرمز'+(e.code?' ('+e.code+')':'')); }
+});
+async function removePin(){
+  if(!FINPIN) return;
+  const o=prompt('اكتب الرمز الحالي علشان تشيل القفل:'); if(o===null) return;
+  if(!(await pinOk(o.trim()))){ toast('❌ الرمز غلط'); return; }
+  try{ await storePin(null); finUnlocked=false; toast('🔓 اتشال قفل الحسابات'); }
+  catch(e){ toast('⚠️ تعذر الحفظ'); }
+}
 
 /* ========= 📑 التقرير الشهري ========= */
 const monthName = ym => { const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString('ar-u-nu-latn',{month:'long',year:'numeric'}); };
@@ -2429,7 +2610,7 @@ function openSettings(){
   $('#sBulkPct').value=s.bulkPct; $('#sBulkMin').value=s.bulkMin;
   $('#tgOn').checked=!!TG.on; $('#tgToken').value=TG.token||''; $('#tgChat').value=TG.chatId||'';
   $('#backupHint').textContent = mode==='cloud' ? '☁️ بياناتك محفوظة على السحابة، ومع ذلك يُنصح بتصدير نسخة أسبوعياً.' : '💻 البيانات محفوظة على هذا الجهاز فقط — صدّر نسخة بانتظام.';
-  updateRateInfo();
+  updateRateInfo(); renderPinState();
   $('#setOv').classList.add('on');
 }
 ['sEgpPerSar','sSarPerUsd'].forEach(k=>$('#'+k).addEventListener('input',updateRateInfo));
