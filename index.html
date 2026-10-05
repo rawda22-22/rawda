@@ -1876,10 +1876,10 @@ async function tgNotify(b){
 /* تحديث حالة السداد فور قبول رقم الإيصال */
 function tgPayNotify(b, amt, ref, method){
   if(!tgOn()) return;
-  const c=calc(b), M=v=>money(v,c.cur);
-  const L=['💵 <b>تحديث سداد</b>', '', `👤 ${tgEsc(b.name)}`, `💰 دفعة: <b>${M(amt)}</b> • ${METHODS[method]||method}`,
-    `🧾 إيصال: <code>${tgEsc(ref)}</code> ✓ متحقَّق منه`, `📌 الحالة: <b>${PAY[c.st][0]}</b>`];
-  if(c.rem>0) L.push(`⏳ المتبقي: ${M(c.rem)}`);
+  // من غير أي مبالغ (لا الدفعة ولا المتبقي)
+  const c=calc(b);
+  const L=['💵 <b>تحديث سداد</b>', '', `👤 ${tgEsc(b.name)}`, `💳 طريقة الدفع: ${METHODS[method]||method}`,
+    `🧾 إيصال: <code>${tgEsc(ref)}</code> ✓ متحقَّق منه`, `📌 الحالة: <b>${PAY[c.st][0]}</b>`, '', '⏳ <b>بانتظار الاعتماد</b>'];
   if(user?.email) L.push('', `سجّله: ${byName()}`);
   tgSend(L.join('\n')).catch(e=>{ console.error(e); toast('⚠️ تعذر إرسال تحديث السداد لتليجرم: '+e.message); });
 }
