@@ -70,15 +70,11 @@ export function leftText(ms) {
 }
 
 export function reminderMessage(r, empName, siteUrl) {
-  const b = r.b, n = (+b.men || 0) + (+b.women || 0), sub = n * (+b.price || 0);
-  const manual = b.discType === 'percent' ? sub * Math.min(+b.disc || 0, 100) / 100 : Math.min(+b.disc || 0, sub);
-  const total = Math.max(0, Math.round((sub - manual - (sub - manual) * (+b.bulkPct || 0) / 100) * 100) / 100);
-  const rem = Math.max(0, Math.round((total - Math.max(0, +b.paid || 0)) * 100) / 100), sym = CUR_SYM[b.currency] || 'ر.س';
+  const b = r.b; // من غير أي مبالغ في التنبيه
   const day = new Date(r.date + 'T12:00:00Z').toLocaleDateString('ar-u-nu-latn', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
   const L = ['🖨 <b>اطبع الحجز وسلّمه للعميل</b>', '', `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`,
     `${r.g === 'm' ? '🧔 رجال' : '🧕 نساء'} (${r.n}) — ${day} • ${fmt12(r.slot)}`, '',
     `👤 ${h(b.name)}`, `📞 <code>${h(b.phone)}</code>`];
-  if (rem > 0) L.push(`⏳ المتبقي للتحصيل: <b>${rem} ${sym}</b>`);
   if (b.notes) L.push(`📝 ${h(b.notes)}`);
   L.push('', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`);
   if (siteUrl) L.push(`🔗 <a href="${siteUrl}?print=${encodeURIComponent(b.id)}">افتح الحجز للطباعة</a>`);
