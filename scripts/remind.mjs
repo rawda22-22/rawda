@@ -85,11 +85,26 @@ export function reminderMessage(r, empName, siteUrl) {
   return L.join('\n');
 }
 
-export async function tgSend(token, chatId, text) {
-  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    body: new URLSearchParams({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: 'true' }),
-  });
+/* رقم دولي لواتساب — نفس منطق الموقع: 00 → بدون، 05xxxxxxxx (سعودي) → 9665…، 01xxxxxxxxx (مصري) → 201… */
+export function phoneDigits(p) {
+  let d = String(p ?? '').replace(/[٠-٩]/g, (x) => x.charCodeAt(0) - 0x660).replace(/[^\d]/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  else if (/^05\d{8}$/.test(d)) d = '966' + d.slice(1);
+  else if (/^01\d{9}$/.test(d)) d = '20' + d.slice(1);
+  return d;
+}
+
+/* زرار تحت رسالة التنبيه: يفتح محادثة العميل على واتساب مباشرة */
+export function reminderButtons(r) {
+  const d = phoneDigits(r.b.phone);
+  if (d.length < 8) return null;
+  return { inline_keyboard: [[{ text: '🟢 فتح واتساب العميل', url: `https://wa.me/${d}` }]] };
+}
+
+export async function tgSend(token, chatId, text, markup) {
+  const body = new URLSearchParams({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: 'true' });
+  if (markup) body.set('reply_markup', JSON.stringify(markup));
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', body });
   const j = await r.json().catch(() => ({}));
   if (!j.ok) throw new Error(j.description || 'HTTP ' + r.status);
 }
@@ -126,7 +141,7 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
   let ok = 0, failed = 0;
   for (const r of due) {
     try {
-      await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl));
+      await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl), reminderButtons(r));
       sent[r.key] = now; ok++;
       for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
       await db.doc('meta/reminders').set({ sent, updatedAt: now });
@@ -184,7 +199,7 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
         const due = dueReminders([...all.values()], now, tz).filter((r) => !sent[r.key]);
         for (const r of due) {
           try {
-            await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl));
+            await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl), reminderButtons(r));
             sent[r.key] = now; totalSent++;
             for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
             await db.doc('meta/reminders').set({ sent, updatedAt: now });
