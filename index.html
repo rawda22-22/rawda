@@ -892,7 +892,7 @@ function subscribe(){
     applyRole(); renderAll();
   }, e=>console.warn('profile:', e)));
   if(isAdmin()) unsubs.push(fb.onSnapshot(fb.collection(db,'users'), snap=>{
-    USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderStaff(); renderReport();
+    USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderAll();
   }, e=>console.warn('users:', e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
@@ -1063,10 +1063,14 @@ function autoSlot(g, date, pref, count, exId){
 /* ========= المواعيد والدفعات ========= */
 /* الموظف يشوف الحجوزات اللي هو سجّلها بس — المدير (ووضع الجهاز الواحد) يشوف الكل */
 const canSee = b => isAdmin() || (b.createdBy||'').toLowerCase()===myEmail();
+/* 🙈 موظفين المدير مخفي عملاءهم من شاشة التشغيل (المواعيد القادمة والجروبات والتنبيهات) — الحجوزات نفسها بتفضل موجودة في الجدول والحسابات */
+const opsHidden = b => isAdmin() && !!USERS[(b.createdBy||'').toLowerCase()]?.hideOps;
+let hiddenAppts=0;
 function appts(){
-  const out=[];
+  const out=[]; hiddenAppts=0;
   for(const b of S.bookings){
     if(b.status==='cancelled' || b.status==='done' || !canSee(b)) continue;
+    if(opsHidden(b)){ hiddenAppts++; continue; }
     if(+b.men && b.menSlot && !entered(b,'m')){ const d=gDate(b,'m'); out.push({b, g:'m', slot:b.menSlot, n:+b.men, date:d, dt:new Date(d+'T'+b.menSlot)}); }
     if(+b.women && b.womenSlot && !entered(b,'w')){ const d=gDate(b,'w'); out.push({b, g:'w', slot:b.womenSlot, n:+b.women, date:d, dt:new Date(d+'T'+b.womenSlot)}); }
   }
@@ -1230,7 +1234,8 @@ function apptRow(a){
 }
 function renderUpcoming(){
   const list = appts().filter(a=>a.dt>Date.now()-36e5);
-  $('#upCount').textContent = list.length ? `${list.length} موعد` : '';
+  const hid=Object.values(USERS).filter(u=>u.hideOps).map(u=>u.name||loginName(u.email));
+  $('#upCount').innerHTML = (list.length ? `${list.length} موعد` : '') + (isAdmin() && hid.length ? ` <span class="badge b-gray" title="${esc(hid.join('، '))}">🙈 مخفي عملاء: ${esc(hid.join('، '))}</span>` : '');
   $('#upcoming').innerHTML = list.length ? list.slice(0,30).map(apptRow).join('')
     : `<div class="empty">لا توجد مواعيد قادمة<br><br><button class="btn pri" onclick="openForm()">＋ إضافة حجز</button></div>`;
 }
@@ -1960,12 +1965,19 @@ function renderStaff(){
       </div>
       <div class="acts">
         ${mode==='cloud'?`<select class="ibtn" onchange="setComm('${k}',this.value)" title="طريقة حساب العمولة في التقرير الشهري">${[['','بدون عمولة'],...plans().map(p=>[p.id,p.name])].map(([v,l])=>`<option value="${v}" ${(commMode(e))===v?'selected':''}>💵 ${esc(l)}</option>`).join('')}</select>`:''}
+        <button class="ibtn ${u.hideOps?'del':''}" onclick="toggleOps('${k}')" title="إظهار / إخفاء عملاء الموظف ده من شاشة التشغيل (المواعيد القادمة)">${u.hideOps?'🙈 مخفي من التشغيل':'👁 ظاهر في التشغيل'}</button>
         <button class="ibtn" onclick="staffAct('name','${k}')" title="تغيير الاسم">✏️</button>
         ${me?'':`<button class="ibtn" onclick="staffAct('role','${k}')">${u.role==='admin'?'👤 خليه موظف':'⭐ خليه مدير'}</button>
         <button class="ibtn ${off?'ok':'del'}" onclick="staffAct('active','${k}')">${off?'✅ تفعيل':'⛔ إيقاف'}</button>`}
         ${!me && !e.endsWith('@'+STAFF_DOMAIN)?`<button class="ibtn" onclick="staffAct('reset','${k}')" title="إرسال رابط تغيير كلمة المرور على إيميله">📧</button>`:''}
       </div></div>`;
   }).join('') : '<div class="empty">لسه مفيش حسابات</div>';
+}
+async function toggleOps(k){
+  const e=decodeURIComponent(k), u=USERS[e]; if(!u || !isAdmin()) return;
+  const v=!u.hideOps;
+  try{ await fb.updateDoc(fb.doc(db,'users',e), {hideOps:v}); toast(v?`🙈 عملاء ${u.name||loginName(e)} مش هيظهروا في شاشة التشغيل`:`👁 عملاء ${u.name||loginName(e)} رجعوا يظهروا في التشغيل`); }
+  catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); renderStaff(); }
 }
 async function setComm(k, v){
   const e=decodeURIComponent(k); if(!USERS[e] || !isAdmin()) return;
