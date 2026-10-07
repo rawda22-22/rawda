@@ -287,11 +287,27 @@ body:not(.cloud) .cloud-only{display:none!important}
         </select>
         <button class="btn pri sm" onclick="downloadReport()">⬇️ تحميل Excel</button>
         <button class="btn sec sm" onclick="printReport()">🖨 طباعة / PDF</button>
-        <button class="btn gold sm" onclick="printStatement('*')" title="كشف حساب لكل موظف في صفحة منفصلة">🧾 كشوف الموظفين</button>
+        <button class="btn gold sm" onclick="printStatement('*')" title="للمراجعة بس — الكشف الرسمي اللي بيتحفظ من «كشوف حساب الموظفين» تحت">📋 عمولات الشهر</button>
       </div>
       <div class="stats" id="repStats" style="margin-bottom:10px"></div>
       <div id="repProfit"></div>
       <div style="overflow-x:auto"><table class="curTable" id="repEmp"></table></div>
+    </div>
+    <div class="card" id="stmtCard">
+      <h2>🧾 كشوف حساب الموظفين (الأرشيف) <span class="sp"></span><span class="hint" id="sxCount"></span></h2>
+      <div class="hint" style="margin-bottom:8px">كل كشف بيبدأ من بعد آخر كشف اتعمل للموظف — وأي حجز أو سلفة دخلت في كشف قبل كده مش بتتحسب تاني. الحجوزات اللي لسه ماتمتش بتستنى لحد ما تتم وتنزل في الكشف اللي بعده.</div>
+      <div class="fg3 fge">
+        <div class="f"><label>الموظف</label><select id="sxEmp"></select></div>
+        <div class="f"><label>من</label><input id="sxFrom" type="date" disabled></div>
+        <div class="f"><label>إلى</label><input id="sxTo" type="date"></div>
+      </div>
+      <div id="sxInfo" style="margin:10px 0"></div>
+      <div class="toolbar">
+        <button class="btn sec sm" onclick="stmtPreview()">👁 معاينة</button>
+        <button class="btn pri sm" onclick="stmtIssue()">✅ اعتماد وحفظ الكشف وطباعته</button>
+      </div>
+      <h3 style="margin:14px 0 6px;font-size:15px">🗂 الكشوف السابقة</h3>
+      <div id="sxList"></div>
     </div>
     <div class="card">
       <h2>🧮 تكلفة الحجز للفرد <span class="sp"></span><span class="hint">للمدير بس — الموظفين مش بيشوفوها</span></h2>
@@ -760,7 +776,7 @@ const isSplit = b => +b.men && +b.women && gDate(b,'m')!==gDate(b,'w');
 function applyData(raw){
   if(!raw) return;
   try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate);
-    if(d.fin && mode!=='cloud'){ FIN={costs:d.fin.costs||[], expenses:d.fin.expenses||[], plans:d.fin.plans||[], advances:d.fin.advances||[]}; S.fin=FIN; } }catch(e){ console.error(e); }
+    if(d.fin && mode!=='cloud'){ FIN={costs:d.fin.costs||[], expenses:d.fin.expenses||[], plans:d.fin.plans||[], advances:d.fin.advances||[], statements:d.fin.statements||[]}; S.fin=FIN; } }catch(e){ console.error(e); }
 }
 
 /* ========= حالة المزامنة ========= */
@@ -852,12 +868,13 @@ async function initCloud(){
 }
 function subscribe(){
   unsubscribe(); setSync('connecting'); startPresence();
-  FIN={costs:[], expenses:[], plans:[], advances:[]};
+  FIN={costs:[], expenses:[], plans:[], advances:[], statements:[]};
   finUnlocked=false; setFinPin(undefined);
   if(isAdmin()){
     unsubs.push(fb.onSnapshot(fb.doc(db,'finance','pin'), d=>{ setFinPin(d.exists() && d.data().hash ? d.data() : null); }, e=>{ console.warn('pin:', e.code||e); setFinPin(null); }));
     unsubs.push(fb.onSnapshot(fb.doc(db,'finance','main'), d=>{ const x=d.exists()?d.data():{}; FIN.costs=Array.isArray(x.costs)?x.costs:[]; FIN.plans=Array.isArray(x.plans)?x.plans:[]; renderAll(); }, e=>console.warn('finance:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'advances'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.advances=a; renderAll(); }, e=>console.warn('advances:', e.code||e)));
+    unsubs.push(fb.onSnapshot(fb.collection(db,'statements'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.statements=a; renderAll(); }, e=>console.warn('statements:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'expenses'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.expenses=a; renderAll(); }, e=>console.warn('expenses:', e.code||e)));
   }
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','settings'), d=>{
@@ -1008,15 +1025,15 @@ const curTag = c => `<span class="cur">${CUR[c].flag} ${CUR[c].sym}</span>`;
 const sumB = (arr, fn) => arr.reduce((s,b)=> s + conv(fn(calc(b)), b.currency, base()), 0);
 /* ✅ الجزء المنفَّذ من الحجز: الإيراد والتكلفة والعمولة بيتحسبوا بس بعد ما الخدمة تتأدّى
    «تم الدخول» = الحجز كله • لو فئة واحدة دخلت (رجال أو نساء) = نصيب الفئة دي بس • غير كده = صفر */
-function servedCalc(b){
-  const c=calc(b);
-  const m = b.status==='cancelled' ? 0 : (b.status==='done' || entered(b,'m')) ? (+b.men||0) : 0;
-  const w = b.status==='cancelled' ? 0 : (b.status==='done' || entered(b,'w')) ? (+b.women||0) : 0;
+function portionCalc(b, gs){
+  const c=calc(b), m=gs.includes('m') ? (+b.men||0) : 0, w=gs.includes('w') ? (+b.women||0) : 0;
   const n=m+w, f=c.n ? n/c.n : 0, total=round2(c.total*f), paid=round2(Math.min(c.paid, total));
   const adv=round2(Math.max(0, Math.min(c.paid, c.total)-paid));   // مقدّم محصّل لجزء لسه مااتنفذش
   return {...c, n, men:m, women:w, f, sub:round2(c.sub*f), manual:round2(c.manual*f), bulk:round2(c.bulk*f), disc:round2(c.disc*f),
     total, paid, rem:round2(total-paid), adv, pendTotal:round2(c.total-total), st: paid>=total ? 'paid' : paid>0 ? 'partial' : 'unpaid'};
 }
+const servedGroups = b => b.status==='cancelled' ? [] : groupsOf(b).filter(g=>b.status==='done' || entered(b,g));
+const servedCalc = b => portionCalc(b, servedGroups(b));
 const sumS = (arr, fn) => arr.reduce((s,b)=> s + conv(fn(servedCalc(b)), b.currency, base()), 0);
 
 /* ========= توزيع الأوقات ========= */
@@ -2188,7 +2205,7 @@ function planText(p, d){ const v=planVer(p, d||todayStr()); return v.tiers.map((
 /* ========= 🧮 التكاليف والمصروفات (للمدير بس) =========
    السحابة: finance/main {costs:[{id,amt,cur,from}]} + collection expenses — قواعد Firestore بتمنع الموظفين يقروهم.
    الوضع المحلي: بيتحفظوا مع البيانات في S.fin. */
-let FIN = { costs:[], expenses:[], plans:[], advances:[] };
+let FIN = { costs:[], expenses:[], plans:[], advances:[], statements:[] };
 const EXP_TYPES = ['إيجار','رواتب','إعلانات وتسويق','مواصلات','اتصالات وإنترنت','رسوم تحويل وعمولات بنكية','مطبوعات وأدوات','ضيافة','أخرى'];
 /* تكلفة الفرد السارية على يوم معيّن (لو الحجز أقدم من أول تكلفة متسجلة بناخد أول تكلفة) */
 function costAt(d){
@@ -2259,7 +2276,8 @@ async function addAdvance(){
   }catch(e){ cloudErr(e); toast('⚠️ الحفظ فشل'); }
 }
 async function delAdvance(id){
-  const x=(FIN.advances||[]).find(a=>a.id===id); if(!x || !isAdmin() || !confirm(`حذف ${x.type} (${money(x.amt,x.cur)}) من حساب ${empName(x.emp)}؟`)) return;
+  const x=(FIN.advances||[]).find(a=>a.id===id); if(x && settledAdv(id)){ toast('⛔ السلفة دي اتحاسب عليها في كشف — الغي الكشف الأول لو عاوز تعدّلها'); return; }
+  if(!x || !isAdmin() || !confirm(`حذف ${x.type} (${money(x.amt,x.cur)}) من حساب ${empName(x.emp)}؟`)) return;
   try{
     if(mode==='cloud') await fb.deleteDoc(fb.doc(db,'advances',id));
     else { FIN.advances=FIN.advances.filter(a=>a.id!==id); finSave(); }
@@ -2281,7 +2299,7 @@ function renderAdvances(R){
   $('#advList').innerHTML = list.length ? list.map(x=>`<div class="appt" style="--gc:var(--amb);margin-bottom:6px">
       <div class="time" style="font-size:13px">${fmtDate(x.date)}<small>${x.date}</small></div>
       <div class="info"><div class="nm">${esc(empName(x.emp))} • ${esc(x.type)} <b style="color:var(--red)">${money(x.amt,x.cur)}</b></div>${x.note?`<div class="sub">${esc(x.note)}</div>`:''}</div>
-      <div class="acts"><button class="ibtn" onclick="printStatement('${encodeURIComponent(x.emp)}')" title="كشف حساب الموظف">🧾</button><button class="ibtn del" onclick="delAdvance('${x.id}')">🗑</button></div></div>`).join('')
+      <div class="acts"><button class="ibtn" onclick="goStmt('${encodeURIComponent(x.emp)}')" title="كشف حساب الموظف">🧾</button><button class="ibtn del" onclick="delAdvance('${x.id}')">🗑</button></div></div>`).join('')
     : '<div class="empty">مفيش مسحوبات في الشهر ده</div>';
 }
 
@@ -2443,9 +2461,9 @@ function renderReport(){
     ...(R.pend.n ? [['🕓 لسه ماتمتش (مش محسوبة)', `${R.pend.n} <small>حجز • ${R.pend.persons} فرد • ${num(R.pend.total)} ${CUR[R.B].sym}</small>`, 'var(--mu)'], ['💰 مقدمات محصّلة لحجوزات لسه', bigMoney(R.pend.adv), 'var(--blue)']] : []),
   ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
   $('#repProfit').innerHTML = profitBox(R);
-  renderCosts(R); renderAdvances(R); renderPlans();
+  renderCosts(R); renderAdvances(R); renderPlans(); renderStmts();
   $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة (ج.م)</th><th>مسحوبات (ج.م)</th><th>الصافي له (ج.م)</th><th></th></tr></thead>
-    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${esc(planName(x.cm))}${x.tierList.length?' • '+x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '):''}</div>`:'—'}</td><td>${x.adv?`<b style="color:var(--red)">${num(x.adv)}</b>`:'—'}</td><td>${x.cm||x.adv?`<b style="color:${x.net<0?'var(--red)':'var(--g)'}">${num(x.net)}</b>`:'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="printStatement('${encodeURIComponent(x.email)}')" title="طباعة كشف حساب الموظف">🖨 كشف</button>`}</td></tr>`).join('')}</tbody>`
+    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${esc(planName(x.cm))}${x.tierList.length?' • '+x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '):''}</div>`:'—'}</td><td>${x.adv?`<b style="color:var(--red)">${num(x.adv)}</b>`:'—'}</td><td>${x.cm||x.adv?`<b style="color:${x.net<0?'var(--red)':'var(--g)'}">${num(x.net)}</b>`:'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="goStmt('${encodeURIComponent(x.email)}')" title="كشف حساب الموظف">🧾 كشف</button>`}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الشهر ده</td></tr></tbody>';
 }
 ['repMonth','repBasis'].forEach(k=>$('#'+k).addEventListener('change', renderReport));
@@ -2604,6 +2622,146 @@ function printStatement(k){
   </style></head><body>
   <div class="noprint"><button onclick="print()">🖨 طباعة / حفظ PDF</button></div>
   ${emails.map(page).join('')}
+  <script>setTimeout(()=>print(),400)<\/script></body></html>`;
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ========= 🧾 أرشيف كشوف حساب الموظفين =========
+   كل كشف بيتحفظ بنسخة ثابتة من تفاصيله (statements/{id}) — وبيسجّل الحجوزات (بالفئة: رجال/نساء) والسلف اللي اتحاسب عليها،
+   عشان الكشف اللي بعده مايحسبهاش تاني. الحجز اللي اتنفذ متأخر (بعد ما كشف فترته اتقفل) بينزل في أول كشف جاي. */
+const stmtsOf = e => (FIN.statements||[]).filter(x=>x.emp===e).sort((a,b)=>a.to.localeCompare(b.to) || a.at-b.at);
+const lastStmt = e => { const L=stmtsOf(e); return L[L.length-1] || null; };
+function settledMap(e){
+  const G={}, A=new Set();
+  stmtsOf(e).forEach(st=>{ (st.items||[]).forEach(it=>{ G[it.id]=[...new Set([...(G[it.id]||[]), ...(it.g||[])])]; }); (st.advIds||[]).forEach(id=>A.add(id)); });
+  return {G, A};
+}
+const settledAdv = id => (FIN.statements||[]).some(st=>(st.advIds||[]).includes(id));
+function stmtEmps(){
+  return [...new Set([...Object.keys(USERS).filter(e=>USERS[e].active!==false), ...S.bookings.map(b=>(b.createdBy||'').toLowerCase()).filter(Boolean), ...(FIN.statements||[]).map(x=>x.emp)])]
+    .sort((a,b)=>empName(a).localeCompare(empName(b),'ar'));
+}
+/* تجهيز كشف جديد (من غير حفظ) لموظف لحد يوم معيّن */
+function buildStmt(e, to){
+  const last=lastStmt(e), {G, A}=settledMap(e), cm=commMode(e);
+  const items=[];
+  S.bookings.filter(b=>(b.createdBy||'').toLowerCase()===e).forEach(b=>{
+    const gs=servedGroups(b).filter(g=>!(G[b.id]||[]).includes(g) && gDate(b,g)<=to);
+    if(!gs.length) return;
+    const c=portionCalc(b, gs), ct=commCalc(b, e, c), d=gs.map(g=>gDate(b,g)).sort()[0];
+    items.push({id:b.id, g:gs, name:b.name, date:d, men:c.men, women:c.women, n:c.n, pe:ct.pe, rl:ct.id?ct.rl:'', lbl:ct.id?ct.lbl:'', key:ct.key||'', cm:round2(ct.amt)});
+  });
+  items.sort((a,b)=>a.date.localeCompare(b.date));
+  const advs=(FIN.advances||[]).filter(a=>a.emp===e && !A.has(a.id) && a.date<=to).sort((a,b)=>a.date.localeCompare(b.date))
+    .map(a=>({id:a.id, date:a.date, type:a.type, amt:a.amt, cur:a.cur, egp:round2(conv(a.amt,a.cur,'EGP')), note:a.note||''}));
+  const T={};
+  items.forEach(it=>{ if(!it.rl) return; const t=T[it.key]||(T[it.key]={lbl:it.lbl, rl:it.rl, bk:0, p:0, amt:0}); t.bk++; t.p+=it.n; t.amt=round2(t.amt+it.cm); });
+  let from = last ? addDays(last.to, 1) : (items[0]?.date || advs[0]?.date || to);
+  if(from>to) from=to;
+  const comm=round2(items.reduce((s,x)=>s+x.cm,0)), adv=round2(advs.reduce((s,x)=>s+x.egp,0));
+  const late=items.filter(x=>x.date<from).length;
+  const pend=S.bookings.filter(b=>(b.createdBy||'').toLowerCase()===e && b.status!=='cancelled' && servedCalc(b).f<1).length;
+  return {emp:e, no:stmtsOf(e).length+1, from, to, cm, plan:cm?planName(cm):'', items, advs, advIds:advs.map(a=>a.id), tiers:Object.values(T),
+    comm, adv, net:round2(comm-adv), persons:items.reduce((s,x)=>s+x.n,0), count:items.length, late, pend,
+    rates:{egpPerSar:S.settings.egpPerSar, sarPerUsd:S.settings.sarPerUsd}};
+}
+function renderStmts(){
+  if(!isAdmin()) return;
+  const sel=$('#sxEmp'), v=sel.value, emps=stmtEmps(), html='<option value="">— اختار الموظف —</option>'+emps.map(e=>`<option value="${esc(e)}">${esc(empName(e))}</option>`).join('');
+  if(sel.innerHTML!==html){ sel.innerHTML=html; sel.value=v; }
+  const e=sel.value, all=[...(FIN.statements||[])].sort((a,b)=>b.at-a.at), L=e?all.filter(x=>x.emp===e):all;
+  $('#sxCount').textContent = all.length ? `${all.length} كشف محفوظ` : '';
+  if(!$('#sxTo').value) $('#sxTo').value=todayStr();
+  if(!e){ $('#sxFrom').value=''; $('#sxInfo').innerHTML='<div class="hint">اختار الموظف عشان يظهر الكشف الجاي بتاعه.</div>'; }
+  else {
+    const P=buildStmt(e, $('#sxTo').value||todayStr()), last=lastStmt(e);
+    $('#sxFrom').value=P.from;
+    $('#sxInfo').innerHTML = `<div class="bill" style="padding:10px 14px">
+      <div class="hint" style="display:block">${last?`آخر كشف: رقم ${last.no} عن الفترة من ${last.from} إلى ${last.to} (اتعمل ${new Date(last.at).toLocaleDateString('ar-u-nu-latn')})`:'مفيش كشوف سابقة للموظف ده — ده هيبقى أول كشف'}</div>
+      <div style="margin-top:6px">الكشف الجاي (رقم ${P.no}): <b>${P.count}</b> حجز • <b>${P.persons}</b> فرد • عمولة <b>${num(P.comm)} ج.م</b> • مسحوبات <b style="color:var(--red)">${num(P.adv)} ج.م</b> • الصافي <b style="color:${P.net<0?'var(--red)':'var(--g)'}">${num(P.net)} ج.م</b></div>
+      ${P.late?`<div class="hint" style="display:block;color:var(--amb)">⚠️ منهم ${P.late} حجز من فترة قبل كده بس دخولهم اتسجل متأخر — هيتحسبوا في الكشف ده.</div>`:''}
+      ${P.pend?`<div class="hint" style="display:block">🕓 ${P.pend} حجز لسه ماتمش — مش هيدخل، وهيستنى الكشف اللي بعده.</div>`:''}
+      ${!P.cm?'<div class="hint" style="display:block;color:var(--red)">الموظف ده مالوش نظام عمولة — حدّده من تبويب الموظفين.</div>':''}</div>`;
+  }
+  const lastIds=new Set(stmtEmps().map(x=>lastStmt(x)?.id).filter(Boolean));
+  $('#sxList').innerHTML = L.length ? L.map(x=>`<div class="appt" style="--gc:var(--gold);margin-bottom:6px">
+      <div class="time" style="font-size:13px">رقم ${x.no}<small>${new Date(x.at).toLocaleDateString('ar-u-nu-latn')}</small></div>
+      <div class="info"><div class="nm">${esc(empName(x.emp))} • من ${x.from} إلى ${x.to}</div>
+        <div class="sub">${x.count} حجز • ${x.persons} فرد • عمولة ${num(x.comm)} • مسحوبات ${num(x.adv)} • <b>الصافي ${num(x.net)} ج.م</b>${x.by?` • اعتمده ${who(x.by)}`:''}</div></div>
+      <div class="acts"><button class="ibtn" onclick="stmtPrint('${x.id}')" title="طباعة تاني">🖨</button>${lastIds.has(x.id)?`<button class="ibtn del" onclick="stmtDel('${x.id}')" title="إلغاء آخر كشف">🗑</button>`:''}</div></div>`).join('')
+    : '<div class="empty">مفيش كشوف محفوظة لسه</div>';
+}
+$('#sxEmp').addEventListener('change', renderStmts);
+$('#sxTo').addEventListener('change', renderStmts);
+function goStmt(k){ const e=decodeURIComponent(k); renderStmts(); $('#sxEmp').value=e; renderStmts(); $('#stmtCard').scrollIntoView({behavior:'smooth', block:'start'}); }
+function stmtCheck(){
+  const e=$('#sxEmp').value, to=$('#sxTo').value;
+  if(!e){ toast('اختار الموظف'); return null; }
+  if(!to){ toast('اختار تاريخ نهاية الكشف'); return null; }
+  const last=lastStmt(e);
+  if(last && to<=last.to){ toast(`آخر كشف لحد ${last.to} — اختار تاريخ بعده`); return null; }
+  return buildStmt(e, to);
+}
+function stmtPreview(){ const P=stmtCheck(); if(P) stmtWindow([P], true); }
+async function stmtIssue(){
+  const P=stmtCheck(); if(!P) return;
+  if(!P.count && !P.advs.length){ toast('مفيش حاجة جديدة تتحاسب في الفترة دي'); return; }
+  if(!confirm(`اعتماد كشف رقم ${P.no} لـ ${empName(P.emp)} من ${P.from} إلى ${P.to}؟\nالصافي: ${num(P.net)} ج.م\n\nبعد الاعتماد الحجوزات والسلف دي مش هتتحسب في أي كشف تاني.`)) return;
+  const st={...P, id:uid(), at:Date.now(), by:myEmail()};
+  const w=window.open('','_blank');
+  try{
+    if(mode==='cloud'){ const {id,...d}=st; await fb.setDoc(fb.doc(db,'statements',id), d); }
+    else { (FIN.statements=FIN.statements||[]).push(st); finSave(); }
+    toast(`✅ اتحفظ كشف رقم ${st.no}`); renderAll(); stmtWindow([st], false, w);
+  }catch(err){ if(w) w.close(); cloudErr(err); toast('⚠️ الحفظ فشل — اتأكد إن قواعد Firestore اتنشرت'); }
+}
+function stmtPrint(id){ const st=(FIN.statements||[]).find(x=>x.id===id); if(st) stmtWindow([st], false); }
+async function stmtDel(id){
+  const st=(FIN.statements||[]).find(x=>x.id===id); if(!st || !isAdmin()) return;
+  if(lastStmt(st.emp)?.id!==id){ toast('ممكن تلغي آخر كشف بس'); return; }
+  if(!confirm(`إلغاء كشف رقم ${st.no} لـ ${empName(st.emp)} (${st.from} إلى ${st.to})؟\nالحجوزات والسلف اللي فيه هترجع تنزل في الكشف الجاي.`)) return;
+  try{
+    if(mode==='cloud') await fb.deleteDoc(fb.doc(db,'statements',id));
+    else { FIN.statements=FIN.statements.filter(x=>x.id!==id); finSave(); }
+    toast('اتلغى الكشف'); renderAll();
+  }catch(err){ cloudErr(err); }
+}
+function stmtWindow(list, draft, w){
+  w = w || window.open('','_blank'); if(!w){ toast('اسمح بالنوافذ المنبثقة (Pop-ups) للموقع ده'); return; }
+  const EG=v=>`${num(v)} ج.م`;
+  const page = P=>`<section class="pg">${draft?'<div class="draft">معاينة — الكشف ده لسه مااتحفظش</div>':''}
+      <header><div class="lg">🧾</div><div><h1>كشف حساب موظف — ${esc(empName(P.emp))}</h1><p>كشف رقم ${P.no} • عن الفترة من <b>${P.from}</b> إلى <b>${P.to}</b></p>
+        <p class="mu">${P.cm?`نظام العمولة: <b>${esc(P.plan)}</b>`:'<b>لم تُحدَّد طريقة عمولة لهذا الموظف</b>'} • ${draft?'معاينة':`اعتُمد ${new Date(P.at).toLocaleString('ar-u-nu-latn')}${P.by?' بواسطة '+esc(empName(P.by)):''}`}</p></div></header>
+      <div class="kp"><div><span>عدد الحجوزات</span><b>${P.count}</b></div><div><span>عدد الأفراد</span><b>${P.persons}</b></div><div style="border-top-color:#c9a24a"><span>إجمالي العمولة</span><b>${P.cm?EG(P.comm):'—'}</b></div>
+        <div style="border-top-color:#d63c3c"><span>المسحوبات والسلف</span><b>${EG(P.adv)}</b></div><div style="grid-column:span 2;border-top-color:${P.net<0?'#d63c3c':'#0e6b4f'}"><span>${P.net<0?'الباقي على الموظف (المسحوبات أكتر من العمولة)':'صافي المستحق للموظف'}</span><b>${EG(Math.abs(P.net))}</b></div></div>
+      ${P.tiers.length?`<h2>العمولة حسب الشريحة</h2><table><thead><tr><th>الشريحة</th><th>العمولة</th><th>عدد الحجوزات</th><th>عدد الأفراد</th><th>المبلغ</th></tr></thead>
+        <tbody>${P.tiers.map(t=>`<tr><td>${t.lbl}</td><td>${t.rl}</td><td>${t.bk}</td><td>${t.p}</td><td><b>${EG(t.amt)}</b></td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>الإجمالي</td><td></td><td>${P.count}</td><td>${P.persons}</td><td>${EG(P.comm)}</td></tr></tfoot></table>`:''}
+      <h2>الحجوزات اللي تمت</h2>
+      <table><thead><tr><th>#</th><th>تاريخ الزيارة</th><th>العميل</th><th>ر / ن</th><th>سعر الفرد (ج.م)</th><th>الشريحة</th><th>العمولة</th></tr></thead>
+        <tbody>${P.items.map((r,i)=>`<tr><td>${i+1}</td><td>${r.date}${r.date<P.from?' <span class="mu">(دخول متأخر)</span>':''}</td><td>${esc(r.name)}</td><td>${r.men||0} / ${r.women||0}</td><td>${num(r.pe)}</td><td>${r.rl||'—'}</td><td>${r.rl?num(r.cm):'—'}</td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center">لا يوجد</td></tr>'}</tbody></table>
+      ${P.advs.length?`<h2>المسحوبات والسلف</h2><table><thead><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>تفاصيل</th></tr></thead>
+        <tbody>${P.advs.map(a=>`<tr><td>${a.date}</td><td>${esc(a.type)}</td><td>${money(a.amt,a.cur)}${a.cur!=='EGP'?` <span class="mu">(${EG(a.egp)})</span>`:''}</td><td>${esc(a.note)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>الإجمالي</td><td></td><td>${EG(P.adv)}</td><td></td></tr></tfoot></table>`:''}
+      <p class="mu">محسوب على الحجوزات اللي تمت بس (لو دخول جزئي: الفئة اللي دخلت بس)، وأي حجز أو سلفة اتحاسب عليها في كشف قبل كده مش محسوبة هنا.${P.pend?` فيه ${P.pend} حجز لسه ماتمش هيتحسب في الكشف الجاي.`:''} • الأسعار بالجنيه (1 ريال = ${num(P.rates?.egpPerSar)} جنيه • 1 دولار = ${num(P.rates?.sarPerUsd)} ريال) • السعر قبل الخصم.</p>
+      <div class="sig"><span>توقيع المحاسب: ..............................</span><span>توقيع الموظف (استلمت): ..............................</span></div>
+    </section>`;
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>كشف حساب ${esc(empName(list[0].emp))} — رقم ${list[0].no}</title><style>
+    @page{size:A4;margin:12mm} *{box-sizing:border-box} body{font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;color:#1c2822;margin:0;padding:16px;font-size:12px}
+    .pg{page-break-after:always} .pg:last-of-type{page-break-after:auto}
+    .draft{border:2px dashed #d63c3c;color:#d63c3c;text-align:center;font-weight:700;padding:6px;border-radius:8px;margin-bottom:10px}
+    header{display:flex;align-items:center;gap:12px;border-bottom:3px solid #c9a24a;padding-bottom:10px;margin-bottom:14px}
+    header .lg{font-size:34px} header h1{margin:0;font-size:20px;color:#093f2e} header p{margin:2px 0 0;color:#6b7a72}
+    .kp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px} .kp div{border:1px solid #e2e7e3;border-radius:10px;padding:8px 10px;border-top:3px solid #0e6b4f}
+    .kp span{color:#6b7a72;font-size:11px} .kp b{display:block;font-size:18px;margin-top:2px}
+    h2{font-size:14px;color:#0e6b4f;margin:16px 0 6px} table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    th,td{border:1px solid #e2e7e3;padding:5px 6px;text-align:right} th{background:#f3f5f2;font-size:11px} tfoot td{font-weight:700;background:#f6faf8}
+    tr{page-break-inside:avoid} .mu{color:#6b7a72;font-size:11px} .sig{display:flex;justify-content:space-between;gap:20px;margin-top:34px;font-size:12px}
+    .noprint{margin-bottom:12px} @media print{.noprint{display:none}}
+    .noprint button{font:inherit;padding:8px 16px;border-radius:8px;border:0;background:#0e6b4f;color:#fff;cursor:pointer}
+  </style></head><body>
+  <div class="noprint"><button onclick="print()">🖨 طباعة / حفظ PDF</button></div>
+  ${list.map(page).join('')}
   <script>setTimeout(()=>print(),400)<\/script></body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
 }

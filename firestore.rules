@@ -43,6 +43,10 @@ service cloud.firestore {
     match /advances/{id} {
       allow read, write: if isAdmin();
     }
+    // 🧾 أرشيف كشوف حساب الموظفين: للمدير بس — الكشف بعد اعتماده مايتعدلش (يتلغي بس)
+    match /statements/{id} {
+      allow read, create, delete: if isAdmin();
+    }
 
     // 🗂 أرشيف الاسكرينات (archive.html) — منفصل عن الحجوزات
     // أي حساب نشط يرفع ويشوف، ومحدش يعدّل صورة بعد ما اتحفظت، والمدير بس يحذف
