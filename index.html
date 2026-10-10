@@ -217,7 +217,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="list">📋 الحجوزات</button>
   <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
-  <button data-t="appts" class="admin-only">🎫 المواعيد المحجوزة <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
+  <button data-t="appts" class="admin-only">🎫 المواعيد <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
   <button data-t="bank" class="admin-only">📧 بنك الإيميلات <span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="log" class="admin-only cloud-only">📜 سجل الموظف</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
@@ -229,7 +229,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div id="apAlert"></div>
     <div id="bankAlert"></div>
     <div class="card" id="bkCard" style="display:none;border:2px solid var(--blue)">
-      <h2>📲 مطلوب حجزهم على المنصة <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
+      <h2>📲 مطلوب إنشاء حساب على المنصة <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
       <div id="bkList"></div>
     </div>
     <div id="alertBox"></div>
@@ -428,8 +428,8 @@ body:not(.cloud) .cloud-only{display:none!important}
   <!-- 🎫 المواعيد المحجوزة -->
   <section class="sec" id="sec-appts">
     <div class="card">
-      <h2>🎫 المواعيد المحجوزة <span class="sp"></span><span class="hint" id="apHead"></span></h2>
-      <div class="hint" style="display:block;margin-bottom:8px">✔️ <b>تأكيد الموعد</b> بيفتح قبل الموعد بـ 48 ساعة • 🖨 <b>طباعة الباركود</b> بتفتح قبل الموعد بساعتين. المس الإيميل يتنسخ وادخل بيه على المنصة.</div>
+      <h2>🎫 المواعيد (بعد إنشاء الحساب) <span class="sp"></span><span class="hint" id="apHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">هنا الحجوزات اللي اتعملها حساب • 📅 <b>احجز الموعد</b> وبعدين ✔️ <b>تأكيد الموعد</b> بيفتح قبل الموعد بـ 48 ساعة • 🖨 <b>طباعة الباركود</b> بتفتح قبل الموعد بساعتين. المس الإيميل يتنسخ وادخل بيه على المنصة.</div>
       <div class="subtabs" id="apTabs">
         <button data-f="now" class="on">⏰ مطلوب دلوقتي <span id="apNowN"></span></button>
         <button data-f="all">كل المواعيد الجاية <span id="apAllN"></span></button>
@@ -576,11 +576,11 @@ body:not(.cloud) .cloud-only{display:none!important}
 <!-- 📲 شاشة النسخ السريع للحجز على المنصة -->
 <div class="overlay" id="bkOv">
   <div class="modal bkm" style="max-width:560px">
-    <h3>📲 الحجز على المنصة<button class="x" onclick="closeOv('bkOv');BKID=null">×</button></h3>
+    <h3>📲 إنشاء حساب على المنصة<button class="x" onclick="closeOv('bkOv');BKID=null">×</button></h3>
     <div id="bkHead" class="bill" style="margin-bottom:10px"></div>
     <div class="hint" style="display:block;margin-bottom:8px">المس أي خانة تتنسخ على طول ← الصقها في المنصة ← ارجع هنا للخانة اللي بعدها.</div>
     <div id="bkPeople"></div>
-    <div class="bkfoot"><button class="btn pri" id="bkDoneBtn" onclick="bkDone()" style="width:100%;font-size:17px;padding:14px">✅ تم الحجز</button></div>
+    <div class="bkfoot"><button class="btn pri" id="bkDoneBtn" onclick="bkDone()" style="width:100%;font-size:17px;padding:14px">✅ تم إنشاء الحسابات</button></div>
   </div>
 </div>
 
@@ -2905,7 +2905,7 @@ const paxDone = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.visa && r.pass &&
 function paxBtn(b){
   const n=paxN(b); if(!n) return '';
   const d=paxDone(b), miss=paxMissing(b), ok=d===n;
-  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}${b.booked?' ✅':''}</button>`;
+  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}${acctDone(b)?' ✅':''}</button>`;
 }
 
 /* سحب إيميلات للصفوف اللي مالهاش — بيرجع {got, short} */
@@ -3218,8 +3218,10 @@ async function bankDel(seq){
 
 /* ========= 📲 الحجز على المنصة (نسخ سريع من الموبايل) =========
    المدير بيشوف الحجوزات الجديدة اللي لسه ماتحجزتش على المنصة • يفتح الحجز ← كارت لكل فرد وكل خانة تتنسخ بلمسة
-   ← يعلّم على كل فرد خلص حسابه ← «تم الحجز». المتسجل: b.booked={at,by} • r.made=true لكل فرد */
-const needBook = b => paxN(b)>0 && b.status!=='cancelled' && b.status!=='done' && !b.booked;
+   ← يعلّم على كل فرد خلص حسابه ← «تم إنشاء الحسابات». المتسجل: b.acct={at,by} • r.made=true لكل فرد */
+/* المرحلة 1: إنشاء الحسابات (b.acct) — الحجوزات اللي اتعلّم عليها «تم الحجز» قبل التقسيم بتتحسب حساباتها اتعملت */
+const acctDone = b => !!(b.acct || b.booked);
+const needBook = b => paxN(b)>0 && b.status!=='cancelled' && b.status!=='done' && !acctDone(b);
 let BKID=null;
 const bkB = () => S.bookings.find(x=>x.id===BKID);
 function renderBookQueue(){
@@ -3244,7 +3246,7 @@ function bkRender(){
   const b=bkB(); if(!b) return;
   const n=paxN(b), made=b.pax.filter(r=>r.made).length;
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
-  $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${b.booked?' <span class="badge b-green">✅ اتحجز</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
+  $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b> حساب</div>`;
   const row = (i,k,lbl,v,ltr) => v ? `<button type="button" class="cp" data-i="${i}" data-k="${k}" onclick="bkCopy(this)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
@@ -3253,8 +3255,8 @@ function bkRender(){
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل الحساب':'⬜ لسه'}</button></div>
       ${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`).join('');
-  $('#bkDoneBtn').textContent = b.booked ? '↩️ إلغاء «تم حجز الموعد»' : `✅ تم حجز الموعد${made<n?` (${made}/${n})`:''}`;
-  $('#bkDoneBtn').className = 'btn '+(b.booked?'sec':'pri');
+  $('#bkDoneBtn').textContent = acctDone(b) ? '↩️ إلغاء «تم إنشاء الحسابات»' : `✅ تم إنشاء الحسابات${made<n?` (${made}/${n})`:''}`;
+  $('#bkDoneBtn').className = 'btn '+(acctDone(b)?'sec':'pri');
 }
 async function copyText(t){
   try{ await navigator.clipboard.writeText(t); return true; }
@@ -3273,27 +3275,27 @@ function bkMade(i){
 }
 async function bkDone(){
   const b=bkB(); if(!b) return;
-  if(b.booked){ if(!confirm('إلغاء «تم الحجز» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.booked; save(); renderAll(); bkRender(); return; }
+  if(acctDone(b)){ if(!confirm('إلغاء «تم إنشاء الحسابات» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.acct; delete b.booked; save(); renderAll(); bkRender(); return; }
   if(paxMissing(b)){ toast('⛔ فيه أفراد من غير إيميل — ضيف إيميلات للبنك الأول'); return; }
   const n=paxN(b), made=b.pax.filter(r=>r.made).length;
-  if(made<n && !confirm(`علّمت على ${made} من ${n} بس. تسجيل «تم الحجز» للكل؟`)) return;
-  b.pax.forEach(r=>r.made=true); b.booked={at:Date.now(), by:myEmail()}; if(b.status==='new') b.status='confirmed';
-  save(); closeOv('bkOv'); BKID=null; renderAll(); toast(`✅ تم الحجز — ${b.name}`);
-  if(tgOn()) tgSend(`✅ <b>تم الحجز على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${n}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+  if(made<n && !confirm(`علّمت على ${made} من ${n} بس. تسجيل «تم إنشاء الحسابات» للكل؟`)) return;
+  b.pax.forEach(r=>r.made=true); b.acct={at:Date.now(), by:myEmail()}; if(b.status==='new') b.status='confirmed';
+  save(); closeOv('bkOv'); BKID=null; renderAll(); toast(`✅ اتعملت الحسابات — ${b.name} • احجز الموعد من «المواعيد المحجوزة»`);
+  if(tgOn()) tgSend(`✅ <b>تم إنشاء الحسابات على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${n}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
 
 /* ========= 🚦 مراحل تنفيذ الحجز =========
-   1) 📤 رفع على نسك (b.uploaded) • 2) 📅 حجز الموعد (b.booked) • 3) ✔️ تأكيد الموعد — بيفتح قبل الموعد بـ 48 ساعة (b.conf[g])
+   1) 👤 إنشاء حساب على المنصة (b.acct) • 2) 📅 حجز الموعد لكل فئة (b.slotBk[g] — أو b.booked القديمة) • 3) ✔️ تأكيد الموعد — بيفتح قبل الموعد بـ 48 ساعة (b.conf[g])
    4) 🖨 طباعة الباركود — بتفتح قبل الموعد بساعتين (b.bar[g]). المرحلة 3 و 4 لكل فئة لوحدها (رجال / نساء) لأن ممكن يكونوا في يومين مختلفين. */
 const CONF_H = 48, BAR_H = 2;
 const gDt = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return sl ? +new Date(gDate(b,g)+'T'+sl) : null; };
 const stGroups = b => groupsOf(b).filter(g=>gDt(b,g)!==null);
-const gDone = (b, k, g) => !!(b[k] && b[k][g]);
+const gDone = (b, k, g) => k==='slotBk' ? !!((b.slotBk && b.slotBk[g]) || b.booked) : !!(b[k] && b[k][g]);
 function stages(b){
   const gs=stGroups(b), part=k=>{ const d=gs.filter(g=>gDone(b,k,g)).length; return d===0 ? 0 : d===gs.length ? 2 : 1; };
   return [
-    {k:'up', ic:'📤', l:'الرفع على نسك', s: b.uploaded ? 2 : 0},
-    {k:'bk', ic:'📅', l:'حجز الموعد', s: b.booked ? 2 : 0},
+    {k:'acct', ic:'👤', l:'إنشاء حساب', s: acctDone(b) ? 2 : (b.pax||[]).some(r=>r.made) ? 1 : 0},
+    {k:'slotBk', ic:'📅', l:'حجز الموعد', s: gs.length ? part('slotBk') : 0},
     {k:'conf', ic:'✔️', l:'تأكيد الموعد', s: gs.length ? part('conf') : 0},
     {k:'bar', ic:'🖨', l:'طباعة الباركود', s: gs.length ? part('bar') : 0},
   ];
@@ -3304,7 +3306,7 @@ function stageBar(b){
   if(!paxN(b) || b.status==='cancelled') return '';
   const S_=stages(b), cls=['b-gray','b-amb','b-green'];
   const next=S_.find(x=>x.s<2); let hint='';
-  if(next && (next.k==='conf'||next.k==='bar') && b.booked){
+  if(next && (next.k==='conf'||next.k==='bar')){
     const g=stGroups(b).find(g=>!gDone(b,next.k,g)), dt=g?gDt(b,g):null, open=dt-(next.k==='conf'?CONF_H:BAR_H)*36e5;
     if(dt && open>Date.now()) hint=` <span class="hint">${next.l} ${opensText(open-Date.now())}</span>`;
     else if(dt) hint=` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⏰ ${next.l} مطلوب دلوقتي</span>`;
@@ -3317,24 +3319,26 @@ let apFilter='now';
 function apItems(){
   const out=[], now=Date.now();
   S.bookings.forEach(b=>{
-    if(!b.booked || b.status==='cancelled' || b.status==='done') return;
+    if(!acctDone(b) || b.status==='cancelled' || b.status==='done') return;
     stGroups(b).forEach(g=>{ if(entered(b,g)) return; const dt=gDt(b,g); if(dt < now-3*36e5) return;
       const ms=dt-now, cOpen=ms<=CONF_H*36e5, bOpen=ms<=BAR_H*36e5;
-      out.push({b, g, dt, ms, cOpen, bOpen, cDone:gDone(b,'conf',g), bDone:gDone(b,'bar',g)}); });
+      out.push({b, g, dt, ms, cOpen, bOpen, sDone:gDone(b,'slotBk',g), cDone:gDone(b,'conf',g), bDone:gDone(b,'bar',g)}); });
   });
   return out.sort((x,y)=>x.dt-y.dt);
 }
-const apNeed = a => (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
+const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
 function renderAppts(){
   if(!isAdmin()) return;
-  const all=apItems(), need=all.filter(apNeed), nc=all.filter(a=>a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
+  const all=apItems(), need=all.filter(apNeed), ns=all.filter(a=>!a.sDone).length, nc=all.filter(a=>a.sDone&&a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
   $('#apDot').style.display = need.length ? 'grid' : 'none'; $('#apDot').textContent = need.length;
   document.querySelectorAll('#apTabs button').forEach(x=>x.classList.toggle('on', x.dataset.f===apFilter));
   $('#apNowN').textContent = need.length ? `(${need.length})` : ''; $('#apAllN').textContent = all.length ? `(${all.length})` : '';
-  $('#apHead').textContent = `${nc?`✔️ ${nc} محتاج تأكيد`:''}${nc&&nb?' • ':''}${nb?`🖨 ${nb} محتاج طباعة`:''}`;
+  $('#apHead').textContent = [ns&&`📅 ${ns} محتاج حجز موعد`, nc&&`✔️ ${nc} محتاج تأكيد`, nb&&`🖨 ${nb} محتاج طباعة`].filter(Boolean).join(' • ');
   const L = apFilter==='now' ? need : all;
   $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, gl=a.g==='m'?'👨 رجال':'👩 نساء', n=+b[a.g==='m'?'men':'women'];
-    const cBtn = a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${a.g}')">✔️ اتأكد</button>`
+    const sBtn = a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 اتحجز</button>`
+      : `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 تم حجز الموعد</button>`;
+    const cBtn = !a.sDone ? `<button class="btn sec sm" disabled>🔒 التأكيد بعد حجز الموعد</button>` : a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${a.g}')">✔️ اتأكد</button>`
       : a.cOpen ? `<button class="btn pri sm" onclick="stMark('${b.id}','conf','${a.g}')">✔️ تأكيد الموعد</button>`
       : `<button class="btn sec sm" disabled title="التأكيد بيفتح قبل الموعد بـ 48 ساعة">🔒 التأكيد ${opensText(a.ms-CONF_H*36e5)}</button>`;
     const bBtn = a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${a.g}')">🖨 اتطبع</button>`
@@ -3345,15 +3349,17 @@ function renderAppts(){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>
         <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
       <div class="apEm">${(b.pax||[]).filter(r=>r.email).map(r=>`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span>${r.name?`<span class="l">${esc(r.name)}</span>`:''}<span class="c">📋</span></button>`).join('')||'<span class="hint">مفيش إيميلات</span>'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${cBtn}${bBtn}</div></div>`; }).join('')
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}</div></div>`; }).join('')
     : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
 $('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
 async function apCopy(el, v){ if(await copyText(v)){ el.classList.add('done'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); } }
 function stMark(id, k, g){
   const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
-  const on=gDone(b,k,g), lbl=k==='conf'?'تأكيد الموعد':'طباعة الباركود';
-  if(on){ if(!confirm(`إلغاء «${lbl}» لـ ${b.name}؟`)) return; b[k]={...(b[k]||{})}; delete b[k][g]; }
+  const on=gDone(b,k,g), lbl={slotBk:'حجز الموعد', conf:'تأكيد الموعد', bar:'طباعة الباركود'}[k];
+  if(on){ if(!confirm(`إلغاء «${lbl}» لـ ${b.name}؟`)) return;
+    if(k==='slotBk' && b.booked){ delete b.booked; b.slotBk={...(b.slotBk||{})}; stGroups(b).filter(x=>x!==g).forEach(x=>b.slotBk[x]={at:Date.now(), by:myEmail()}); b.acct=b.acct||{at:Date.now(), by:myEmail()}; }
+    b[k]={...(b[k]||{})}; delete b[k][g]; }
   else {
     if(k==='bar' && !gDone(b,'conf',g) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
     b[k]={...(b[k]||{}), [g]:{at:Date.now(), by:myEmail()}};
@@ -3362,9 +3368,9 @@ function stMark(id, k, g){
 }
 function renderApAlert(){
   if(!isAdmin()){ $('#apAlert').innerHTML=''; return; }
-  const all=apItems(), nc=all.filter(a=>a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
-  $('#apAlert').innerHTML = nc||nb ? `<div class="alertbar" style="background:#eaf1fd;border-color:#a9c3f3;color:#1d3f7a"><span class="ic">🎫</span><div>
-    ${nc?`<b>${nc} موعد محتاج تأكيد</b>`:''}${nc&&nb?' • ':''}${nb?`<b>${nb} باركود محتاج طباعة</b>`:''}
+  const all=apItems(), ns=all.filter(a=>!a.sDone).length, nc=all.filter(a=>a.sDone&&a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
+  $('#apAlert').innerHTML = ns||nc||nb ? `<div class="alertbar" style="background:#eaf1fd;border-color:#a9c3f3;color:#1d3f7a"><span class="ic">🎫</span><div>
+    ${[ns&&`<b>${ns} موعد محتاج حجز</b>`, nc&&`<b>${nc} موعد محتاج تأكيد</b>`, nb&&`<b>${nb} باركود محتاج طباعة</b>`].filter(Boolean).join(' • ')}
     <button class="ibtn" style="margin-right:8px" onclick="apFilter='now';switchTab('appts')">افتح المواعيد</button></div></div>` : '';
 }
 setInterval(()=>{ if(isAdmin()){ renderApAlert(); if(currentTab()==='appts') renderAppts(); else { const n=apItems().filter(apNeed).length; $('#apDot').style.display=n?'grid':'none'; $('#apDot').textContent=n; } } }, 60000);

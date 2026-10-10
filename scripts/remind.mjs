@@ -152,6 +152,7 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
 export const PAX_FROM = 1791579600000;
 export const CONF_MIN = 48 * 60, BAR_MIN = 120;
 const paxOn = (b) => (+b.createdAt || 0) >= PAX_FROM || (Array.isArray(b.pax) && b.pax.some((r) => r && (r.email || r.visa || r.pass)));
+const grpBooked = (b, g) => !!(b.booked || (b.slotBk && b.slotBk[g]));
 export function stageAlerts(bookings, now, tz) {
   const out = [];
   for (const b of bookings) {
@@ -161,10 +162,10 @@ export function stageAlerts(bookings, now, tz) {
       const dt = zonedEpoch(a.date, a.slot, tz), ms = dt - now, id = `${b.id}|${a.g}|${a.date}T${a.slot}`;
       if (ms <= 0) continue;
       if (ms <= CONF_MIN * 60000) {
-        if (!b.booked) out.push({ kind: 'nobk', b, ...a, dt, ms, key: 'nobk|' + id });
+        if (!grpBooked(b, a.g)) out.push({ kind: 'nobk', b, ...a, dt, ms, key: 'nobk|' + id });
         else if (!(b.conf && b.conf[a.g])) out.push({ kind: 'conf', b, ...a, dt, ms, key: 'conf|' + id });
       }
-      if (b.booked && ms <= BAR_MIN * 60000 && !(b.bar && b.bar[a.g])) out.push({ kind: 'bar', b, ...a, dt, ms, key: 'bar|' + id });
+      if (grpBooked(b, a.g) && ms <= BAR_MIN * 60000 && !(b.bar && b.bar[a.g])) out.push({ kind: 'bar', b, ...a, dt, ms, key: 'bar|' + id });
     }
   }
   return out.sort((x, y) => x.dt - y.dt);
@@ -173,6 +174,7 @@ export function stageMessage(r, empName) {
   const b = r.b;
   const day = new Date(r.date + 'T12:00:00Z').toLocaleDateString('ar-u-nu-latn', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
   const head = { conf: '✔️ <b>وقت تأكيد الموعد</b>', bar: '🖨 <b>اطبع الباركود</b>', nobk: '⚠️ <b>الموعد قرّب ولسه ماتحجزش على المنصة!</b>' }[r.kind];
+  if (r.kind === 'nobk' && !(b.acct || b.booked)) return [head, '', `👤 ${h(b.name)}`, '❗ لسه حتى ماتعملهوش حساب', `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`, '', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`].join('\n');
   const L = [head, '', `👤 ${h(b.name)}`, `${r.g === 'm' ? '🧔 رجال' : '🧕 نساء'} (${r.n}) — ${day} • ${fmt12(r.slot)}`, `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`];
   const em = (Array.isArray(b.pax) ? b.pax : []).filter((x) => x && x.email);
   if (r.kind !== 'nobk' && em.length) { L.push(''); em.forEach((x, i) => L.push(`${i + 1}) <code>${h(x.email)}</code>`)); }
