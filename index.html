@@ -1363,7 +1363,7 @@ function searchText(b){
   const parts=[b.name, b.phone, b.notes, b.discNote, STATUS[b.status]?.[0], PAY[c.st]?.[0], CUR[c.cur]?.name, b.id,
     ...dates, ...dates.map(d=>fmtDate(d,true)), b.menSlot&&fmt12(b.menSlot), b.womenSlot&&fmt12(b.womenSlot),
     c.total, c.paid, c.rem, b.createdBy, b.createdBy&&empName(b.createdBy),
-    ...(b.payments||[]).flatMap(p=>[p.ref, p.amt, METHODS[p.method]]), ...(b.pax||[]).flatMap(r=>[r.visa, r.pass])];
+    ...(b.payments||[]).flatMap(p=>[p.ref, p.amt, METHODS[p.method]]), ...(b.pax||[]).flatMap(r=>[r.name, r.visa, r.pass])];
   return normAr(parts.filter(x=>x!==undefined && x!==null && x!=='').join(' | '));
 }
 function matchB(b, q){
@@ -2872,8 +2872,8 @@ const bankFree = () => mode==='cloud' && isAdmin() && BANK.list.length ? BANK.li
 const PAX_FROM = 1791579600000;   // 2026-10-10 00:00 القاهرة
 const paxOn = b => (+b.createdAt||0) >= PAX_FROM || (b.pax||[]).some(r=>r && (r.email||r.visa||r.pass));
 const paxN = b => (b.status==='cancelled' || !paxOn(b)) ? 0 : (+b.men||0) + (+b.women||0);
-const emptyRow = () => ({visa:'', pass:'', nat:'', email:''});
-const rowHasData = r => !!(r && (r.visa || r.pass || r.nat));
+const emptyRow = () => ({name:'', visa:'', pass:'', nat:'', email:''});
+const rowHasData = r => !!(r && (r.name || r.visa || r.pass || r.nat));
 /* عدد الصفوف = عدد الأفراد. لو العدد قلّ بنشيل الصفوف الفاضية الأول (والإيميل بتاعها بيتحرق) */
 function fixRows(pax, n){
   const L = Array.isArray(pax) ? pax.map(r=>({...emptyRow(), ...r})) : [];
@@ -2959,15 +2959,15 @@ function paxRender(){
     <div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' • ')}</div>
     <div style="margin-top:4px;display:block">مكتمل <b>${d}</b> من <b>${n}</b>${miss?` • <b style="color:var(--red)">⚠️ ${miss} من غير إيميل</b>`:' • ✅ كل الأفراد ليهم إيميل'}</div>`;
   const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
-  $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
-    (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
+  $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
+    (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
       <td>${r.email ? (adm ? `<span dir="ltr" style="font-size:13px">${esc(r.email)}</span>` : '<span class="badge b-green">✓ مربوط</span>') : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
   $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
 }
 $('#paxTable').addEventListener('input', e=>{ if(e.target.classList.contains('px')){ paxDirty=true; e.target.style.background=''; } });
 function paxCollect(){
   const b=paxB(); if(!b) return;
-  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
+  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
 }
 function paxSave(close=true){
   const b=paxB(); if(!b) return;
@@ -2990,7 +2990,7 @@ async function paxUpload(){
   if(!tgOn()){ toast('📤 اتسجل «تم الرفع» — تليجرام مش متفعّل فمفيش رسالة اتبعتت'); return; }
   const gl = g => +bb[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'}: <b>${bb[g==='m'?'men':'women']}</b> — ${fmtDate(gDate(bb,g))} ${fmt12(g==='m'?bb.menSlot:bb.womenSlot)}` : '';
   const head=['📤 <b>تم الرفع</b>', '', `👤 العميل: <b>${tgEsc(bb.name)}</b>`, ...[gl('m'),gl('w')].filter(Boolean), ''];
-  const rows=bb.pax.map((r,i)=>`${i+1}) <code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
+  const rows=bb.pax.map((r,i)=>`${i+1}) ${r.name?`<code>${tgEsc(r.name)}</code>\n     📧 `:''}<code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
   const foot = user?.email ? ['', `سجّله: ${byName()}`] : [];
   const msgs=[]; let cur=head.join('\n');
   rows.forEach(x=>{ if((cur+'\n'+x).length>3800){ msgs.push(cur); cur='📤 <b>تكملة</b> — '+tgEsc(bb.name); } cur+='\n'+x; });
@@ -3036,9 +3036,21 @@ function parseMRZ(t){
   }
   return null;
 }
+/* الاسم بالإنجليزي من السطر الأول في MRZ: النوع + الدولة ثم اللقب<<الاسم<الأب<الجد */
+function mrzName(t){
+  const L=t.split(/\n/).map(mrzFix).filter(x=>x.length>=28 && /<{2,}/.test(x));
+  for(let i=0;i<L.length;i++){
+    const l=L[i]; if(/\d{6}/.test(l.slice(10))) continue;           // ده السطر التاني (فيه تواريخ)
+    const m=l.match(/^[A-Z0-9<]{2}[A-Z]{3}([A-Z<]+?)<*$/); if(!m || !m[1].includes('<<')) continue;
+    const [sur, giv=''] = m[1].split('<<');
+    const nm=[giv.replace(/</g,' '), sur.replace(/</g,' ')].join(' ').replace(/\s+/g,' ').trim();
+    if(/^[A-Z ]{3,60}$/.test(nm) && nm.split(' ').length>=2) return nm;
+  }
+  return '';
+}
 function parseVisa(raw){
   const t=String(raw||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toUpperCase();
-  const r={visa:'', pass:'', nat:''};
+  const r={name:'', visa:'', pass:'', nat:''};
   let m = t.match(/(?:VISA\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*التأشيرة|رقم\s*التاشيرة)\s*[:：\-]?\s*([0-9]{10})\b/);
   if(m) r.visa=m[1];
   // احتياطي: رقم من 10 أرقام بيبدأ بـ 6 — بعيد عن سطور MRZ (عشان مايلقطش تاريخ الميلاد)
@@ -3052,6 +3064,7 @@ function parseVisa(raw){
   if(!r.nat){ m = t.match(/([A-Z][A-Z ]{2,25})\s*-\s*[^\n]{0,40}NATIONALITY/); if(m && NAT_EN[m[1].trim()]) r.nat=NAT_EN[m[1].trim()]; }
   if(!r.nat){ m = t.match(/الجنسية\s*[:：\-]?\s*([؀-ۿ][؀-ۿ ]{1,20})/); if(m) r.nat=m[1].trim(); }
   if(!r.nat && z && NAT_EN[z.nat]) r.nat=NAT_EN[z.nat];
+  r.name=mrzName(t);
   return r;
 }
 /* تجهيز صورة الموبايل قبل القراءة: تكبير + أبيض وأسود + تباين أعلى (والجزء السفلي لوحده عشان سطر MRZ) */
@@ -3065,11 +3078,11 @@ async function prepImg(src, crop){
   for(let i=0;i<a.length;i+=4){ let v=0.299*a[i]+0.587*a[i+1]+0.114*a[i+2]; v=Math.max(0,Math.min(255,(v-140)*1.8+140)); a[i]=a[i+1]=a[i+2]=v; }
   g.putImageData(d,0,0); return cv;
 }
-const mergeV = (a, b) => ({visa:a.visa||b.visa, pass:a.pass||b.pass, nat:a.nat||b.nat});
+const mergeV = (a, b) => ({name:a.name||b.name, visa:a.visa||b.visa, pass:a.pass||b.pass, nat:a.nat||b.nat});
 async function ocrVisa(src){
   let r=parseVisa(await ocr(await prepImg(src)));
-  if(!(r.visa && r.pass && r.nat)) r=mergeV(r, parseVisa(await ocr(await prepImg(src, true))));
-  if(!(r.visa && r.pass && r.nat)) r=mergeV(r, parseVisa(await ocr(src)));
+  if(!(r.visa && r.pass && r.nat && r.name)) r=mergeV(r, parseVisa(await ocr(await prepImg(src, true))));
+  if(!(r.visa && r.pass && r.nat && r.name)) r=mergeV(r, parseVisa(await ocr(src)));
   return r;
 }
 async function readVisaFile(f, onStep){
@@ -3105,7 +3118,7 @@ $('#paxFiles').addEventListener('change', async e=>{
         const bb=paxB(); if(!bb) return;
         if(bb.pax.some(x=>r.visa && x.visa===r.visa)){ continue; }   // التأشيرة دي متسجلة بالفعل
         const k=bb.pax.findIndex(x=>!x.visa && !x.pass); if(k<0){ toast('⚠️ مفيش صفوف فاضية — زوّد عدد الأفراد من تعديل الحجز'); break; }
-        ['visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } });
+        ['name','visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } });
         found++;
       }
     }catch(err){ console.error(err); fail.push(f.name); }
@@ -3219,7 +3232,7 @@ function bkRender(){
   $('#bkPeople').innerHTML = b.pax.map((r,i)=>`<div class="pcard ${r.made?'made':''}">
       <div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل الحساب':'⬜ لسه'}</button></div>
-      ${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
+      ${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`).join('');
   $('#bkDoneBtn').textContent = b.booked ? '↩️ إلغاء «تم الحجز»' : `✅ تم الحجز${made<n?` (${made}/${n})`:''}`;
   $('#bkDoneBtn').className = 'btn '+(b.booked?'sec':'pri');
