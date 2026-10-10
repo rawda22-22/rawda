@@ -100,6 +100,17 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .modal h4{margin:4px 0 0;font-size:14px;color:var(--g);grid-column:1/-1}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;grid-column:1/-1}
+/* 📲 النسخ السريع */
+.pcard{border:1px solid var(--bd);border-radius:14px;padding:10px;margin-bottom:12px;background:#fff}
+.pcard.made{background:#f1faf5;border-color:#9fd6bb}
+.pcard .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px}.pcard .ph .sp{flex:1}
+.cp{display:flex;align-items:center;gap:10px;width:100%;text-align:right;border:1.5px solid var(--bd);background:#f8faf9;border-radius:12px;padding:12px;margin-bottom:8px;font:inherit;cursor:pointer;min-height:54px}
+.cp .l{font-size:13px;color:var(--mu);white-space:nowrap;min-width:84px}.cp .v{flex:1;font-size:17px;font-weight:700;word-break:break-all}
+.cp .c{font-size:20px}.cp:active{transform:scale(.98)}
+.cp.done{border-color:#9fd6bb;background:#eef8f3}.cp.just{border-color:var(--g);box-shadow:0 0 0 3px #0e6b4f33}
+.cp.miss{cursor:default;opacity:.6}.cp.miss .v{color:var(--red);font-size:14px}
+.bkfoot{position:sticky;bottom:-18px;background:#fff;padding:10px 0 4px;margin-top:6px}
+@media(max-width:520px){#bkOv{padding:0}#bkOv .bkm{border-radius:0;min-height:100vh;padding:14px}}
 @media(max-width:520px){.fg{grid-template-columns:1fr}.fg3{grid-template-columns:1fr}}
 .fgc{grid-template-columns:1fr 1fr 1fr auto;align-items:end}.fge{grid-template-columns:1fr 1.3fr 1fr 1fr}.fge .fen{grid-column:1/-2}
 @media(max-width:700px){.fgc,.fge{grid-template-columns:1fr 1fr}.fge .fen{grid-column:1/-1}}
@@ -212,6 +223,10 @@ body:not(.cloud) .cloud-only{display:none!important}
   <!-- لوحة التحكم -->
   <section class="sec on" id="sec-dash">
     <div id="bankAlert"></div>
+    <div class="card" id="bkCard" style="display:none;border:2px solid var(--blue)">
+      <h2>📲 مطلوب حجزهم على المنصة <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
+      <div id="bkList"></div>
+    </div>
     <div id="alertBox"></div>
     <div class="stats" id="stats"></div>
     <div class="grid2">
@@ -537,6 +552,17 @@ body:not(.cloud) .cloud-only{display:none!important}
       <button class="btn pri" id="payOk">✓ تسجيل</button>
       <button class="btn gold" id="payOkSend">✓ تسجيل وإرسال إيصال</button>
     </div>
+  </div>
+</div>
+
+<!-- 📲 شاشة النسخ السريع للحجز على المنصة -->
+<div class="overlay" id="bkOv">
+  <div class="modal bkm" style="max-width:560px">
+    <h3>📲 الحجز على المنصة<button class="x" onclick="closeOv('bkOv');BKID=null">×</button></h3>
+    <div id="bkHead" class="bill" style="margin-bottom:10px"></div>
+    <div class="hint" style="display:block;margin-bottom:8px">المس أي خانة تتنسخ على طول ← الصقها في المنصة ← ارجع هنا للخانة اللي بعدها.</div>
+    <div id="bkPeople"></div>
+    <div class="bkfoot"><button class="btn pri" id="bkDoneBtn" onclick="bkDone()" style="width:100%;font-size:17px;padding:14px">✅ تم الحجز</button></div>
   </div>
 </div>
 
@@ -1611,7 +1637,7 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderBankAlert(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderBankAlert(); renderBookQueue(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
@@ -2860,7 +2886,7 @@ const paxDone = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.visa && r.pass &&
 function paxBtn(b){
   const n=paxN(b); if(!n) return '';
   const d=paxDone(b), miss=paxMissing(b), ok=d===n;
-  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}</button>`;
+  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}${b.booked?' ✅':''}</button>`;
 }
 
 /* سحب إيميلات للصفوف اللي مالهاش — بيرجع {got, short} */
@@ -2964,7 +2990,7 @@ async function paxUpload(){
   if(!tgOn()){ toast('📤 اتسجل «تم الرفع» — تليجرام مش متفعّل فمفيش رسالة اتبعتت'); return; }
   const gl = g => +bb[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'}: <b>${bb[g==='m'?'men':'women']}</b> — ${fmtDate(gDate(bb,g))} ${fmt12(g==='m'?bb.menSlot:bb.womenSlot)}` : '';
   const head=['📤 <b>تم الرفع</b>', '', `👤 العميل: <b>${tgEsc(bb.name)}</b>`, ...[gl('m'),gl('w')].filter(Boolean), ''];
-  const rows=bb.pax.map((r,i)=>`${i+1}) <code>${tgEsc(r.email)}</code>\n     🛂 ${tgEsc(r.pass||'—')} • 📄 ${tgEsc(r.visa||'—')} • 🌍 ${tgEsc(r.nat||'—')}`);
+  const rows=bb.pax.map((r,i)=>`${i+1}) <code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
   const foot = user?.email ? ['', `سجّله: ${byName()}`] : [];
   const msgs=[]; let cur=head.join('\n');
   rows.forEach(x=>{ if((cur+'\n'+x).length>3800){ msgs.push(cur); cur='📤 <b>تكملة</b> — '+tgEsc(bb.name); } cur+='\n'+x; });
@@ -3156,6 +3182,72 @@ async function bankDel(seq){
   if(!confirm(`حذف ${x.email} من البنك؟`)) return;
   try{ if(mode==='cloud') await fb.deleteDoc(fb.doc(db,'emailBank',bankId(seq))); else { const B=localBank(); B.list=B.list.filter(e=>e.seq!==seq); save(); } renderAll(); }
   catch(e){ cloudErr(e); }
+}
+
+/* ========= 📲 الحجز على المنصة (نسخ سريع من الموبايل) =========
+   المدير بيشوف الحجوزات الجديدة اللي لسه ماتحجزتش على المنصة • يفتح الحجز ← كارت لكل فرد وكل خانة تتنسخ بلمسة
+   ← يعلّم على كل فرد خلص حسابه ← «تم الحجز». المتسجل: b.booked={at,by} • r.made=true لكل فرد */
+const needBook = b => paxN(b)>0 && b.status!=='cancelled' && b.status!=='done' && !b.booked;
+let BKID=null;
+const bkB = () => S.bookings.find(x=>x.id===BKID);
+function renderBookQueue(){
+  const card=$('#bkCard'); if(!card) return;
+  if(!isAdmin()){ card.style.display='none'; return; }
+  const L=S.bookings.filter(needBook).sort((a,b)=>(nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
+  card.style.display = L.length ? '' : 'none';
+  $('#bkCount').textContent = L.length ? `${L.length} حجز` : '';
+  $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made).length;
+    return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
+      <div class="time" style="font-size:20px">👥 ${n}</div>
+      <div class="info"><div class="nm">${esc(b.name)}${made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
+        <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
+      <div class="acts"><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">📲 ابدأ</button></div></div>`; }).join('');
+}
+function bkOpen(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  BKID=id; b.pax=fixRows(b.pax, paxN(b)); bkRender(); $('#bkOv').classList.add('on');
+  if(paxMissing(b)>0) Promise.resolve(save()).then(()=>allocEmails(b)).then(()=>{ if(BKID===id) bkRender(); });
+}
+function bkRender(){
+  const b=bkB(); if(!b) return;
+  const n=paxN(b), made=b.pax.filter(r=>r.made).length;
+  const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
+  $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${b.booked?' <span class="badge b-green">✅ اتحجز</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
+    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b> حساب</div>`;
+  const row = (i,k,lbl,v,ltr) => v ? `<button type="button" class="cp" data-i="${i}" data-k="${k}" onclick="bkCopy(this)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
+    : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
+  $('#bkPeople').innerHTML = b.pax.map((r,i)=>`<div class="pcard ${r.made?'made':''}">
+      <div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
+        <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل الحساب':'⬜ لسه'}</button></div>
+      ${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
+    </div>`).join('');
+  $('#bkDoneBtn').textContent = b.booked ? '↩️ إلغاء «تم الحجز»' : `✅ تم الحجز${made<n?` (${made}/${n})`:''}`;
+  $('#bkDoneBtn').className = 'btn '+(b.booked?'sec':'pri');
+}
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); return true; }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=t; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length);
+    let ok=false; try{ ok=document.execCommand('copy'); }catch(_){} ta.remove(); return ok; }
+}
+async function bkCopy(el){
+  const b=bkB(); if(!b) return; const v=(b.pax[+el.dataset.i]||{})[el.dataset.k]; if(!v) return;
+  if(await copyText(v)){ document.querySelectorAll('#bkPeople .cp.just').forEach(x=>x.classList.remove('just')); el.classList.add('done','just'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); }
+  else toast('⚠️ النسخ ماشتغلش — اضغط على الكلام كتير وانسخه');
+}
+function bkMade(i){
+  const b=bkB(); if(!b || !b.pax[i]) return;
+  b.pax[i].made=!b.pax[i].made; save(); bkRender(); renderBookQueue();
+  if(b.pax[i].made){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
+}
+async function bkDone(){
+  const b=bkB(); if(!b) return;
+  if(b.booked){ if(!confirm('إلغاء «تم الحجز» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.booked; save(); renderAll(); bkRender(); return; }
+  if(paxMissing(b)){ toast('⛔ فيه أفراد من غير إيميل — ضيف إيميلات للبنك الأول'); return; }
+  const n=paxN(b), made=b.pax.filter(r=>r.made).length;
+  if(made<n && !confirm(`علّمت على ${made} من ${n} بس. تسجيل «تم الحجز» للكل؟`)) return;
+  b.pax.forEach(r=>r.made=true); b.booked={at:Date.now(), by:myEmail()}; if(b.status==='new') b.status='confirmed';
+  save(); closeOv('bkOv'); BKID=null; renderAll(); toast(`✅ تم الحجز — ${b.name}`);
+  if(tgOn()) tgSend(`✅ <b>تم الحجز على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${n}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
 
 /* ========= الإعدادات ========= */
