@@ -43,6 +43,21 @@ service cloud.firestore {
     match /advances/{id} {
       allow read, write: if isAdmin();
     }
+    // 📧 بنك الإيميلات: المدير بس يشوف القائمة ويضيف ويحذف
+    // أي حساب نشط يقرا إيميل واحد برقمه (وقت سحب إيميلات حجز جديد) — ومايقدرش يعرض القائمة كلها
+    match /emailBank/{id} {
+      allow get: if isActive();
+      allow list, create, delete: if isAdmin();
+    }
+    // العدّاد: الموظف يقدّم «next» لقدّام بس (السحب) — من غير مايلمس الإجمالي ولا حد التنبيه
+    match /emailMeta/{d} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+      allow update: if isActive()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['next'])
+        && request.resource.data.next > resource.data.next
+        && request.resource.data.next <= resource.data.total;
+    }
     // 🧾 أرشيف كشوف حساب الموظفين: للمدير بس — الكشف بعد اعتماده مايتعدلش (يتلغي بس)
     match /statements/{id} {
       allow read, create, delete: if isAdmin();

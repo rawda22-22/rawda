@@ -203,6 +203,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="list">📋 الحجوزات</button>
   <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
+  <button data-t="bank" class="admin-only">📧 بنك الإيميلات <span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="log" class="admin-only cloud-only">📜 سجل الموظف</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
 </nav>
@@ -210,6 +211,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 <main>
   <!-- لوحة التحكم -->
   <section class="sec on" id="sec-dash">
+    <div id="bankAlert"></div>
     <div id="alertBox"></div>
     <div class="stats" id="stats"></div>
     <div class="grid2">
@@ -403,6 +405,29 @@ body:not(.cloud) .cloud-only{display:none!important}
     </div>
   </section>
 
+  <!-- 📧 بنك الإيميلات -->
+  <section class="sec" id="sec-bank">
+    <div class="card">
+      <h2>📧 بنك الإيميلات <span class="sp"></span><span class="hint" id="bankHead"></span></h2>
+      <div class="stats" id="bankStats" style="margin-bottom:10px"></div>
+      <div class="hint" style="display:block;margin-bottom:8px">كل حجز جديد بياخد من هنا إيميل لكل فرد (بالترتيب). الإيميل اللي اتسحب <b>بيتحرق</b> ومش بيرجع للبنك تاني حتى لو الحجز اتلغى أو العدد قلّ.</div>
+      <div class="f"><label>➕ إضافة إيميلات — الصق الإيميلات هنا (كل إيميل في سطر، أو مفصولين بمسافة أو فاصلة)</label>
+        <textarea id="bankIn" rows="7" dir="ltr" spellcheck="false" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;font:inherit" placeholder="client1@gmail.com&#10;client2@gmail.com"></textarea></div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn pri sm" onclick="bankAdd()">＋ إضافة للبنك</button>
+        <span class="hint" id="bankInInfo"></span>
+        <span class="sp"></span>
+        <label class="hint">نبّهني لما يفضل أقل من</label><input id="bankLow" type="number" min="0" step="1" style="width:80px" onchange="bankSetLow()"><span class="hint">إيميل</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>🔎 الإيميلات <span class="sp"></span>
+        <input id="bankQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderBank()">
+        <select id="bankF" class="ibtn" onchange="renderBank()"><option value="free">المتاحة</option><option value="used">المستخدمة</option><option value="">الكل</option></select></h2>
+      <div style="overflow-x:auto"><table class="curTable" id="bankTable"></table></div>
+    </div>
+  </section>
+
   <!-- الموظفين -->
   <section class="sec" id="sec-staff">
     <div class="card">
@@ -511,6 +536,25 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="mfoot">
       <button class="btn pri" id="payOk">✓ تسجيل</button>
       <button class="btn gold" id="payOkSend">✓ تسجيل وإرسال إيصال</button>
+    </div>
+  </div>
+</div>
+
+<!-- 👥 بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل) -->
+<div class="overlay" id="paxOv">
+  <div class="modal" style="max-width:860px">
+    <h3>👥 بيانات الأفراد<button class="x" onclick="paxClose()">×</button></h3>
+    <div id="paxInfo" class="bill" style="margin-bottom:10px"></div>
+    <div class="toolbar" style="margin-bottom:8px">
+      <label class="btn gold sm" style="cursor:pointer">📎 قراءة من التأشيرات (PDF أو صور)<input id="paxFiles" type="file" accept="application/pdf,image/*" multiple style="display:none"></label>
+      <span class="hint" id="paxRead"></span>
+    </div>
+    <div style="overflow-x:auto"><table class="curTable" id="paxTable"></table></div>
+    <datalist id="natList"></datalist>
+    <div class="hint" style="display:block;margin-top:6px">ارفع ملف التأشيرة (أو أكتر من ملف مرة واحدة) وهو بيملى أول صف فاضي لوحده — <b>راجع الأرقام قبل الحفظ</b> خصوصاً لو التأشيرة صورة.</div>
+    <div class="mfoot">
+      <button class="btn pri" onclick="paxSave()">💾 حفظ</button>
+      <button class="btn gold" id="paxUpBtn" onclick="paxUpload()">📤 تم الرفع</button>
     </div>
   </div>
 </div>
@@ -775,7 +819,7 @@ const gDate = (b, g) => (g==='m' ? b.menDate : b.womenDate) || b.date;
 const isSplit = b => +b.men && +b.women && gDate(b,'m')!==gDate(b,'w');
 function applyData(raw){
   if(!raw) return;
-  try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate);
+  try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate); if(d.bank) S.bank=d.bank;
     if(d.fin && mode!=='cloud'){ FIN={costs:d.fin.costs||[], expenses:d.fin.expenses||[], plans:d.fin.plans||[], advances:d.fin.advances||[], statements:d.fin.statements||[]}; S.fin=FIN; } }catch(e){ console.error(e); }
 }
 
@@ -894,6 +938,8 @@ function subscribe(){
   if(isAdmin()) unsubs.push(fb.onSnapshot(fb.collection(db,'users'), snap=>{
     USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderAll();
   }, e=>console.warn('users:', e)));
+  unsubs.push(fb.onSnapshot(fb.doc(db,'emailMeta','main'), d=>{ BANK.meta={total:0, next:0, low:30, ...(d.exists()?d.data():{})}; renderAll(); }, e=>console.warn('emailMeta:', e.code||e)));
+  if(isAdmin()) unsubs.push(fb.onSnapshot(fb.collection(db,'emailBank'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); if(x.email) a.push({email:x.email, seq:+x.seq, at:x.at}); }); BANK.list=a; renderAll(); }, e=>console.warn('emailBank:', e.code||e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
     const arr=[]; synced.bookings={};
@@ -1223,6 +1269,7 @@ function apptRow(a){
       <div class="sub">${badgeFor(ms)} ${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
     </div>
     <div class="acts">
+      ${paxBtn(b)}
       ${waBtn(b)}
       <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
       <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
@@ -1290,7 +1337,7 @@ function searchText(b){
   const parts=[b.name, b.phone, b.notes, b.discNote, STATUS[b.status]?.[0], PAY[c.st]?.[0], CUR[c.cur]?.name, b.id,
     ...dates, ...dates.map(d=>fmtDate(d,true)), b.menSlot&&fmt12(b.menSlot), b.womenSlot&&fmt12(b.womenSlot),
     c.total, c.paid, c.rem, b.createdBy, b.createdBy&&empName(b.createdBy),
-    ...(b.payments||[]).flatMap(p=>[p.ref, p.amt, METHODS[p.method]])];
+    ...(b.payments||[]).flatMap(p=>[p.ref, p.amt, METHODS[p.method]]), ...(b.pax||[]).flatMap(r=>[r.visa, r.pass])];
   return normAr(parts.filter(x=>x!==undefined && x!==null && x!=='').join(' | '));
 }
 function matchB(b, q){
@@ -1357,6 +1404,7 @@ function renderTable(){
     <td data-l="السداد"><span>${payBadge(b)}${c.rem>0?`<span class="slot">متبقي ${money(c.rem,c.cur)}</span>`:''}</span></td>
     <td data-l="الحالة"><span><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${enteredPart(b)?`<span class="slot"><span class="badge b-amb">✓ دخل ${entered(b,'m')?'الرجال':'النساء'} • ${entered(b,'m')?'النساء':'الرجال'} لسه</span></span>`:''}</span></td>
     <td data-l="إجراءات"><div class="acts">
+      ${paxBtn(b)}
       ${waBtn(b)}
       ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
       <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
@@ -1563,12 +1611,12 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); } }
+function renderAll(){ renderClock(); renderBankAlert(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['fin','staff','log'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['fin','staff','log','bank'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   if(t==='fin' && !finUnlocked){
     if(FINPIN===undefined){ toast('⏳ لحظة… بيتأكد من قفل الحسابات'); return; }
     if(FINPIN){ askPin(); return; }
@@ -1788,7 +1836,9 @@ function submitForm(sendAfter){
     else if(b.status==='done') data.entered={};   // رجّعوه من «تم الدخول» لحالة تانية
     Object.assign(b, data); toast('✓ تم تحديث الحجز');
   } else { b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data}; S.bookings.push(b); toast('✓ تمت إضافة الحجز'); tgNotify(b); }
-  save(); closeOv('formOv'); renderAll();
+  b.pax=fixRows(b.pax, paxN(b));
+  const sv=save(); closeOv('formOv'); renderAll();
+  Promise.resolve(sv).then(()=>{ if(paxMissing(b)) allocEmails(b); });
   if(sendAfter) window.open(waUrl(b),'_blank');
 }
 $('#bf').addEventListener('submit', e=>{ e.preventDefault(); submitForm(false); });
@@ -2776,6 +2826,296 @@ function stmtWindow(list, draft, w){
   ${list.map(page).join('')}
   <script>setTimeout(()=>print(),400)<\/script></body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ========= 📧 بنك الإيميلات + 👥 بيانات الأفراد =========
+   السحابة: emailBank/e000001… {email, seq, at, by} (المدير بس يشوف القائمة ويضيف) • emailMeta/main {total, next, low}
+   next = آخر رقم اتسحب. السحب بيمشي بالترتيب جوه transaction واحدة مع الحجز نفسه — فمستحيل نفس الإيميل يروح لعميلين.
+   الإيميل اللي اتسحب «اتحرق»: مش بيرجع للبنك حتى لو الحجز اتلغى أو العدد قلّ.
+   كل حجز فيه b.pax = [{visa, pass, nat, email}] صف لكل فرد. */
+const bankId = n => 'e'+String(n).padStart(6,'0');
+let BANK = { list:[], meta:{total:0, next:0, low:30} };
+const localBank = () => (S.bank = S.bank || {list:[], total:0, next:0, low:30});
+const bankMeta = () => mode==='cloud' ? BANK.meta : localBank();
+const bankList = () => mode==='cloud' ? BANK.list : localBank().list;
+const bankLowN = () => { const v=bankMeta().low; return v===undefined||v===null||v==='' ? 30 : +v; };
+const bankFree = () => mode==='cloud' && isAdmin() && BANK.list.length ? BANK.list.filter(x=>x.seq>(+BANK.meta.next||0)).length
+  : Math.max(0, (+bankMeta().total||0) - (+bankMeta().next||0));
+const paxN = b => b.status==='cancelled' ? 0 : (+b.men||0) + (+b.women||0);
+const emptyRow = () => ({visa:'', pass:'', nat:'', email:''});
+const rowHasData = r => !!(r && (r.visa || r.pass || r.nat));
+/* عدد الصفوف = عدد الأفراد. لو العدد قلّ بنشيل الصفوف الفاضية الأول (والإيميل بتاعها بيتحرق) */
+function fixRows(pax, n){
+  const L = Array.isArray(pax) ? pax.map(r=>({...emptyRow(), ...r})) : [];
+  while(L.length < n) L.push(emptyRow());
+  while(L.length > n){ let i=-1; for(let k=L.length-1;k>=0;k--) if(!rowHasData(L[k])){ i=k; break; } if(i>=0) L.splice(i,1); else L.pop(); }
+  return L;
+}
+const paxMissing = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filter(r=>!r.email).length;
+const paxDone = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.visa && r.pass && r.nat && r.email).length;
+function paxBtn(b){
+  const n=paxN(b); if(!n) return '';
+  const d=paxDone(b), miss=paxMissing(b), ok=d===n;
+  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}</button>`;
+}
+
+/* سحب إيميلات للصفوف اللي مالهاش — بيرجع {got, short} */
+let allocBusy = new Set();
+async function allocEmails(b, quiet){
+  if(!b || allocBusy.has(b.id)) return {got:0, short:0};
+  allocBusy.add(b.id);
+  try{
+    let res;
+    if(mode==='cloud'){
+      const ref=fb.doc(db,'bookings',b.id), mref=fb.doc(db,'emailMeta','main');
+      res = await fb.runTransaction(db, async t=>{
+        const bs=await t.get(ref); if(!bs.exists()) return {got:0, short:0};
+        const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0};
+        const d=bs.data(), n=d.status==='cancelled' ? 0 : (+d.men||0)+(+d.women||0);
+        const pax=fixRows(d.pax, n), need=pax.filter(r=>!r.email).length;
+        if(!need) return {got:0, short:0, pax};
+        const start=+m.next||0, total=+m.total||0, got=[]; let next=start;
+        while(got.length<need && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); if(es.exists() && es.data().email) got.push(es.data().email); }
+        if(next===start) return {got:0, short:need, pax};
+        let k=0; pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
+        t.update(mref, {next});
+        t.update(ref, {pax, updatedAt:Date.now(), updatedBy:myEmail()});
+        return {got:got.length, short:need-got.length, pax, before:total-start, after:total-next, low:m.low===undefined?30:+m.low};
+      });
+      if(res.pax){ b.pax=res.pax; }
+    } else {
+      const B=localBank(); b.pax=fixRows(b.pax, paxN(b));
+      const need=b.pax.filter(r=>!r.email).length, before=B.total-B.next, got=[];
+      while(got.length<need && B.next<B.total){ B.next++; const x=B.list.find(e=>e.seq===B.next); if(x) got.push(x.email); }
+      let k=0; b.pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
+      res={got:got.length, short:need-got.length, before, after:B.total-B.next, low:bankLowN()};
+      if(got.length) save();
+    }
+    if(res.short>0){
+      if(!quiet) toast(`⚠️ بنك الإيميلات مش كفاية — حجز ${b.name} ناقص ${res.short} إيميل. ${isAdmin()?'ضيف إيميلات من «بنك الإيميلات»':'بلّغ المدير'}`);
+      if(tgOn() && res.got>=0 && !quiet) tgSend(`🚫 <b>بنك الإيميلات خلص</b>\nحجز <b>${tgEsc(b.name)}</b> ناقص ${res.short} إيميل — ضيف إيميلات للبنك.`).catch(e=>console.error(e));
+    } else if(res.got && res.before>=res.low && res.after<res.low && tgOn()){
+      tgSend(`⚠️ <b>بنك الإيميلات قرب يخلص</b>\nفاضل <b>${res.after}</b> إيميل بس — ضيف إيميلات جديدة.`).catch(e=>console.error(e));
+    }
+    if(res.got) renderAll();
+    return res;
+  }catch(e){ console.error(e); if(!quiet) toast('⚠️ تعذر سحب الإيميلات: '+(e.code||e.message)); return {got:0, short:-1}; }
+  finally{ allocBusy.delete(b.id); }
+}
+/* بعد إضافة إيميلات: كمّل الحجوزات اللي كانت ناقصة (اللي لسه ماتمتش) */
+async function fillAllMissing(){
+  const L=S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && paxMissing(b)>0).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  let n=0; for(const b of L){ const r=await allocEmails(b, true); if(r.got) n++; if(r.short) break; }
+  if(n) toast(`✓ اتربطت إيميلات لـ ${n} حجز كان ناقص`);
+}
+
+/* ===== شاشة بيانات الأفراد ===== */
+let PAXID=null, paxDirty=false, paxHi=new Set();
+const NATS=['مصر','السعودية','السودان','الأردن','فلسطين','سوريا','لبنان','العراق','اليمن','ليبيا','تونس','الجزائر','المغرب','الكويت','الإمارات','قطر','البحرين','عمان','باكستان','الهند','بنجلاديش','إندونيسيا','ماليزيا','تركيا','نيجيريا','أفغانستان','بريطانيا','أمريكا','كندا','فرنسا','ألمانيا'];
+const paxB = () => S.bookings.find(x=>x.id===PAXID);
+function paxOpen(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  PAXID=id; paxDirty=false; paxHi=new Set(); $('#paxRead').textContent='';
+  const fixed=fixRows(b.pax, paxN(b)); if(JSON.stringify(fixed)!==JSON.stringify(b.pax||[])){ b.pax=fixed; save(); }
+  $('#natList').innerHTML = NATS.map(x=>`<option value="${x}">`).join('');
+  paxRender(); $('#paxOv').classList.add('on');
+  if(paxMissing(b)>0) Promise.resolve(save()).then(()=>allocEmails(b)).then(()=>{ if(PAXID===id){ paxCollect(); const bb=paxB(); if(bb) bb.pax=fixRows(bb.pax, paxN(bb)); paxRender(); } });
+}
+function paxRender(){
+  const b=paxB(); if(!b) return;
+  const n=paxN(b), d=paxDone(b), miss=paxMissing(b), adm=isAdmin();
+  const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'} ${b[g==='m'?'men':'women']} — ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
+  $('#paxInfo').innerHTML = `<b>${esc(b.name)}</b> <span dir="ltr">${esc(b.phone||'')}</span> <span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${b.uploaded?` <span class="badge b-green">📤 اترفع ${new Date(b.uploaded.at).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span>`:''}
+    <div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' • ')}</div>
+    <div style="margin-top:4px;display:block">مكتمل <b>${d}</b> من <b>${n}</b>${miss?` • <b style="color:var(--red)">⚠️ ${miss} من غير إيميل</b>`:' • ✅ كل الأفراد ليهم إيميل'}</div>`;
+  const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
+  $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
+    (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
+      <td>${r.email ? (adm ? `<span dir="ltr" style="font-size:13px">${esc(r.email)}</span>` : '<span class="badge b-green">✓ مربوط</span>') : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
+  $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
+}
+$('#paxTable').addEventListener('input', e=>{ if(e.target.classList.contains('px')){ paxDirty=true; e.target.style.background=''; } });
+function paxCollect(){
+  const b=paxB(); if(!b) return;
+  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
+}
+function paxSave(close=true){
+  const b=paxB(); if(!b) return;
+  paxCollect(); b.pax=fixRows(b.pax, paxN(b)); paxDirty=false; save(); renderAll();
+  if(close){ closeOv('paxOv'); PAXID=null; toast(`✓ اتحفظت بيانات الأفراد (${paxDone(b)}/${paxN(b)})`); } else paxRender();
+}
+function paxClose(){ if(paxDirty) paxSave(true); else { closeOv('paxOv'); PAXID=null; } }
+
+/* ===== 📤 تم الرفع: بيأكد الحجز وبيبعت الإيميلات والبيانات على تليجرام ===== */
+async function paxUpload(){
+  const b=paxB(); if(!b) return;
+  paxCollect(); b.pax=fixRows(b.pax, paxN(b)); await Promise.resolve(save());
+  if(paxMissing(b)){ const r=await allocEmails(b); paxRender(); if(paxMissing(paxB()||b)){ toast('⛔ فيه أفراد من غير إيميل — لازم البنك يتملى الأول'); return; } }
+  const bb=paxB()||b, n=paxN(bb), d=paxDone(bb);
+  if(d<n && !confirm(`بيانات ${n-d} فرد مش مكتملة (تأشيرة / جواز / جنسية). تسجيل «تم الرفع» على أي حال؟`)) return;
+  if(bb.uploaded && !confirm('الحجز ده اتسجل «تم الرفع» قبل كده. إعادة الإرسال على تليجرام؟')) return;
+  bb.uploaded={at:Date.now(), by:myEmail()};
+  if(bb.status==='new') bb.status='confirmed';
+  paxDirty=false; save(); renderAll(); paxRender(); toast('📤 تم الرفع ✓');
+  if(!tgOn()){ toast('📤 اتسجل «تم الرفع» — تليجرام مش متفعّل فمفيش رسالة اتبعتت'); return; }
+  const gl = g => +bb[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'}: <b>${bb[g==='m'?'men':'women']}</b> — ${fmtDate(gDate(bb,g))} ${fmt12(g==='m'?bb.menSlot:bb.womenSlot)}` : '';
+  const head=['📤 <b>تم الرفع</b>', '', `👤 العميل: <b>${tgEsc(bb.name)}</b>`, ...[gl('m'),gl('w')].filter(Boolean), ''];
+  const rows=bb.pax.map((r,i)=>`${i+1}) <code>${tgEsc(r.email)}</code>\n     🛂 ${tgEsc(r.pass||'—')} • 📄 ${tgEsc(r.visa||'—')} • 🌍 ${tgEsc(r.nat||'—')}`);
+  const foot = user?.email ? ['', `سجّله: ${byName()}`] : [];
+  const msgs=[]; let cur=head.join('\n');
+  rows.forEach(x=>{ if((cur+'\n'+x).length>3800){ msgs.push(cur); cur='📤 <b>تكملة</b> — '+tgEsc(bb.name); } cur+='\n'+x; });
+  msgs.push(cur+'\n'+foot.join('\n'));
+  try{ for(const m of msgs) await tgSend(m); }catch(e){ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); }
+}
+
+/* ===== 📎 قراءة التأشيرة (PDF أو صورة) — بيشتغل جوه المتصفح بمكتبات مجانية ===== */
+const loadJS = (src, test) => test() ? Promise.resolve() : new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=()=>res(); sc.onerror=()=>rej(new Error('load')); document.head.appendChild(sc); });
+async function pdfLib(){
+  await loadJS('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ()=>window.pdfjsLib);
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return window.pdfjsLib;
+}
+let ocrWorker=null;
+async function ocr(img){
+  await loadJS('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', ()=>window.Tesseract);
+  if(!ocrWorker) ocrWorker = await window.Tesseract.createWorker('eng');
+  const r = await ocrWorker.recognize(img);
+  return r.data.text || '';
+}
+const NAT_EN = {EGYPT:'مصر',EGYPTIAN:'مصر',EGY:'مصر','SAUDI ARABIA':'السعودية',SAUDI:'السعودية',SAU:'السعودية',SUDAN:'السودان',SUDANESE:'السودان',SDN:'السودان',JORDAN:'الأردن',JORDANIAN:'الأردن',JOR:'الأردن',
+  PALESTINE:'فلسطين',PALESTINIAN:'فلسطين',PSE:'فلسطين',SYRIA:'سوريا',SYRIAN:'سوريا',SYR:'سوريا',LEBANON:'لبنان',LEBANESE:'لبنان',LBN:'لبنان',IRAQ:'العراق',IRAQI:'العراق',IRQ:'العراق',YEMEN:'اليمن',YEMENI:'اليمن',YEM:'اليمن',
+  LIBYA:'ليبيا',LIBYAN:'ليبيا',LBY:'ليبيا',TUNISIA:'تونس',TUNISIAN:'تونس',TUN:'تونس',ALGERIA:'الجزائر',ALGERIAN:'الجزائر',DZA:'الجزائر',MOROCCO:'المغرب',MOROCCAN:'المغرب',MAR:'المغرب',
+  KUWAIT:'الكويت',KWT:'الكويت',EMIRATES:'الإمارات','UNITED ARAB EMIRATES':'الإمارات',ARE:'الإمارات',QATAR:'قطر',QAT:'قطر',BAHRAIN:'البحرين',BHR:'البحرين',OMAN:'عمان',OMN:'عمان',
+  PAKISTAN:'باكستان',PAKISTANI:'باكستان',PAK:'باكستان',INDIA:'الهند',INDIAN:'الهند',IND:'الهند',BANGLADESH:'بنجلاديش',BGD:'بنجلاديش',INDONESIA:'إندونيسيا',INDONESIAN:'إندونيسيا',IDN:'إندونيسيا',
+  MALAYSIA:'ماليزيا',MYS:'ماليزيا',TURKEY:'تركيا',TURKIYE:'تركيا',TURKISH:'تركيا',TUR:'تركيا',NIGERIA:'نيجيريا',NGA:'نيجيريا',AFGHANISTAN:'أفغانستان',AFG:'أفغانستان',
+  'UNITED KINGDOM':'بريطانيا',BRITISH:'بريطانيا',GBR:'بريطانيا','UNITED STATES':'أمريكا',USA:'أمريكا',AMERICAN:'أمريكا',CANADA:'كندا',CAN:'كندا',FRANCE:'فرنسا',FRA:'فرنسا',GERMANY:'ألمانيا',DEU:'ألمانيا'};
+const natAr = s => { s=String(s||'').trim().toUpperCase().replace(/[^A-Z؀-ۿ ]/g,' ').replace(/\s+/g,' ').trim(); if(!s) return '';
+  if(/[؀-ۿ]/.test(s)) return s; for(const k of Object.keys(NAT_EN).sort((a,b)=>b.length-a.length)) if(s===k || s.startsWith(k+' ') || s.includes(' '+k)) return NAT_EN[k]; return s; };
+function parseVisa(raw){
+  const t=String(raw||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toUpperCase();
+  const r={visa:'', pass:'', nat:''};
+  let m = t.match(/(?:VISA\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*التأشيرة|رقم\s*التاشيرة)\s*[:：\-]?\s*([0-9]{7,12})/);
+  if(m) r.visa=m[1];
+  m = t.match(/(?:PASSPORT\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*الجواز|رقم\s*جواز\s*السفر)\s*[:：\-]?\s*([A-Z0-9]{5,12})/);
+  if(m) r.pass=m[1];
+  m = t.match(/(?:NATIONALITY|الجنسية)\s*[:：\-]?\s*([A-Z؀-ۿ][A-Z؀-ۿ ]{2,30})/);
+  if(m) r.nat=natAr(m[1].split(/\s{2,}|\n/)[0]);
+  // MRZ (لو موجود): السطر التاني فيه الجنسية بكود من 3 حروف
+  const mrz=t.split(/\n/).map(x=>x.replace(/\s/g,'')).filter(x=>/^[A-Z0-9<]{28,}$/.test(x) && x.includes('<'));
+  if(mrz.length>=2){ const l2=mrz[mrz.length-1]; const nat=l2.slice(10,13).replace(/</g,''); if(!r.nat && NAT_EN[nat]) r.nat=NAT_EN[nat]; }
+  if(!r.visa){ const v=t.match(/\b\d{10}\b/); if(v) r.visa=v[0]; }
+  if(!r.pass){ const p=t.match(/\b[A-Z]{1,2}\d{6,8}\b/); if(p) r.pass=p[0]; }
+  return r;
+}
+async function readVisaFile(f, onStep){
+  const out=[];
+  if(f.type==='application/pdf' || /\.pdf$/i.test(f.name)){
+    const lib=await pdfLib(), pdf=await lib.getDocument({data:await f.arrayBuffer()}).promise;
+    for(let p=1;p<=pdf.numPages;p++){
+      const pg=await pdf.getPage(p), tc=await pg.getTextContent();
+      let text=tc.items.map(it=>it.str+(it.hasEOL?'\n':' ')).join('');
+      if(text.replace(/\s/g,'').length<30){   // PDF متصوّر سكانر — نقراه كصورة
+        onStep(`🔎 بيقرا صفحة ${p} كصورة…`);
+        const vp=pg.getViewport({scale:2.2}), cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+        await pg.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise; text=await ocr(cv);
+      }
+      const r=parseVisa(text); if(r.visa||r.pass) out.push(r);
+    }
+  } else {
+    onStep('🔎 بيقرا الصورة…');
+    const r=parseVisa(await ocr(f)); if(r.visa||r.pass) out.push(r);
+  }
+  return out;
+}
+$('#paxFiles').addEventListener('change', async e=>{
+  const files=[...e.target.files]; e.target.value=''; const b=paxB(); if(!b || !files.length) return;
+  paxCollect(); const st=$('#paxRead'); let found=0, fail=[];
+  for(const [i,f] of files.entries()){
+    st.textContent=`⏳ ${i+1}/${files.length}: ${f.name}`;
+    try{
+      const recs=await readVisaFile(f, s=>st.textContent=`⏳ ${i+1}/${files.length}: ${s}`);
+      if(!recs.length){ fail.push(f.name); continue; }
+      for(const r of recs){
+        const bb=paxB(); if(!bb) return;
+        if(bb.pax.some(x=>r.visa && x.visa===r.visa)){ continue; }   // التأشيرة دي متسجلة بالفعل
+        const k=bb.pax.findIndex(x=>!x.visa && !x.pass); if(k<0){ toast('⚠️ مفيش صفوف فاضية — زوّد عدد الأفراد من تعديل الحجز'); break; }
+        ['visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } });
+        found++;
+      }
+    }catch(err){ console.error(err); fail.push(f.name); }
+  }
+  paxDirty = paxDirty || found>0; paxRender();
+  st.innerHTML = `${found?`✅ اتقرت ${found} تأشيرة — <b>راجع الخانات الصفرا</b> واحفظ`:'' }${fail.length?` <span style="color:var(--red)">• ماعرفتش أقرا: ${esc(fail.join('، '))}</span>`:''}`;
+});
+
+/* ===== صفحة بنك الإيميلات (للمدير) ===== */
+function renderBankAlert(){
+  if(!isAdmin()){ $('#bankAlert').innerHTML=''; $('#bankDot').style.display='none'; return; }
+  const free=bankFree(), low=bankLowN(), miss=S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && paxMissing(b)>0);
+  const show = free<low || miss.length;
+  $('#bankDot').style.display = show ? 'grid' : 'none'; $('#bankDot').textContent = show ? '!' : '';
+  $('#bankAlert').innerHTML = show ? `<div class="alertbar" style="background:#fff6e5;border-color:#f0d08a;color:#7a5200;animation:none"><span class="ic">📧</span><div>
+    ${free<low?`<b>بنك الإيميلات ${free?`قرب يخلص — فاضل ${free} إيميل بس`:'خلص'}</b>`:''}${miss.length?`${free<low?' • ':''}<b>${miss.length} حجز ناقص إيميلات</b>`:''}
+    <button class="ibtn" style="margin-right:8px" onclick="switchTab('bank')">ضيف إيميلات</button></div></div>` : '';
+}
+function renderBank(){
+  if(!isAdmin()) return;
+  const M=bankMeta(), next=+M.next||0, list=[...bankList()].sort((a,b)=>a.seq-b.seq), free=bankFree(), used=list.filter(x=>x.seq<=next).length;
+  if(document.activeElement!==$('#bankLow')) $('#bankLow').value=bankLowN();
+  $('#bankHead').textContent = `${list.length} إيميل`;
+  $('#bankStats').innerHTML = [['📧 إجمالي البنك', list.length, 'var(--blue)'], ['✅ متاح', free, free<bankLowN()?'var(--red)':'var(--g)'], ['🔥 اتسحب', used, 'var(--mu)']]
+    .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+  const U={}; S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r.email) U[r.email.toLowerCase()]={b, i}; }));
+  const q=normAr($('#bankQ').value.trim().toLowerCase()), f=$('#bankF').value;
+  const rows=list.filter(x=>{ const u=U[x.email]; const isUsed=x.seq<=next;
+    if(f==='free' && isUsed) return false; if(f==='used' && !isUsed) return false;
+    return !q || x.email.includes(q) || (u && normAr(u.b.name.toLowerCase()).includes(q)); });
+  $('#bankTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.slice(0,300).map(x=>{ const u=U[x.email], isUsed=x.seq<=next;
+      return `<tr><td>${x.seq}</td><td dir="ltr" style="text-align:right">${esc(x.email)}</td><td>${isUsed ? (u?`<span class="badge b-gray">🔥 ${esc(u.b.name)} (فرد ${u.i+1})</span> <button class="ibtn" onclick="paxOpen('${u.b.id}')">👥</button>`:'<span class="badge b-gray">🔥 اتسحب</span>') : '<span class="badge b-green">متاح</span>'}</td>
+      <td>${isUsed?'':`<button class="ibtn del" onclick="bankDel(${x.seq})" title="حذف من البنك">🗑</button>`}</td></tr>`; }).join('')}</tbody>${rows.length>300?`<tfoot><tr><td colspan="4">… وكمان ${rows.length-300} — استخدم البحث</td></tr></tfoot>`:''}`
+    : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
+}
+function parseEmails(txt){
+  const all=(String(txt).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(x=>x.toLowerCase());
+  const have=new Set(bankList().map(x=>x.email)), seen=new Set(), ok=[]; let dup=0, notG=0;
+  all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; return; } if(have.has(e)||seen.has(e)){ dup++; return; } seen.add(e); ok.push(e); });
+  return {ok, dup, notG};
+}
+$('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').value);
+  $('#bankInInfo').textContent = $('#bankIn').value.trim() ? `${r.ok.length} إيميل جديد${r.dup?` • ${r.dup} مكرر`:''}${r.notG?` • ${r.notG} مش جيميل`:''}` : ''; });
+async function bankAdd(){
+  if(!isAdmin()) return;
+  const r=parseEmails($('#bankIn').value);
+  if(!r.ok.length){ toast(r.dup||r.notG ? `مفيش إيميلات جديدة (${r.dup} مكرر • ${r.notG} مش جيميل)` : 'الصق الإيميلات الأول'); return; }
+  if(!confirm(`إضافة ${r.ok.length} إيميل للبنك؟${r.dup?`\n(${r.dup} مكرر هيتشالوا)`:''}${r.notG?`\n(${r.notG} مش جيميل هيتشالوا)`:''}`)) return;
+  try{
+    if(mode==='cloud'){
+      const mref=fb.doc(db,'emailMeta','main');
+      for(let i=0;i<r.ok.length;i+=300){
+        const part=r.ok.slice(i,i+300);
+        await fb.runTransaction(db, async t=>{
+          const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0, low:30}; let total=+m.total||0;
+          part.forEach(email=>{ total++; t.set(fb.doc(db,'emailBank',bankId(total)), {email, seq:total, at:Date.now(), by:myEmail()}); });
+          t.set(mref, {total, next:+m.next||0, low:m.low===undefined?30:+m.low}, {merge:true});
+        });
+      }
+    } else {
+      const B=localBank(); r.ok.forEach(email=>{ B.total++; B.list.push({email, seq:B.total, at:Date.now()}); }); save();
+    }
+    $('#bankIn').value=''; $('#bankInInfo').textContent=''; toast(`✅ اتضاف ${r.ok.length} إيميل للبنك`); renderAll();
+    setTimeout(fillAllMissing, 1500);
+  }catch(e){ cloudErr(e); toast('⚠️ الإضافة فشلت — اتأكد إن قواعد Firestore اتنشرت'); }
+}
+async function bankSetLow(){
+  const v=Math.max(0, Math.round(+$('#bankLow').value||0));
+  try{ if(mode==='cloud') await fb.setDoc(fb.doc(db,'emailMeta','main'), {low:v}, {merge:true}); else { localBank().low=v; save(); }
+    toast(`✓ هنبّهك لما يفضل أقل من ${v} إيميل`); renderAll(); }catch(e){ cloudErr(e); }
+}
+async function bankDel(seq){
+  const x=bankList().find(e=>e.seq===seq); if(!x || seq<=(+bankMeta().next||0)) return;
+  if(!confirm(`حذف ${x.email} من البنك؟`)) return;
+  try{ if(mode==='cloud') await fb.deleteDoc(fb.doc(db,'emailBank',bankId(seq))); else { const B=localBank(); B.list=B.list.filter(e=>e.seq!==seq); save(); } renderAll(); }
+  catch(e){ cloudErr(e); }
 }
 
 /* ========= الإعدادات ========= */
