@@ -2841,7 +2841,11 @@ const bankList = () => mode==='cloud' ? BANK.list : localBank().list;
 const bankLowN = () => { const v=bankMeta().low; return v===undefined||v===null||v==='' ? 30 : +v; };
 const bankFree = () => mode==='cloud' && isAdmin() && BANK.list.length ? BANK.list.filter(x=>x.seq>(+BANK.meta.next||0)).length
   : Math.max(0, (+bankMeta().total||0) - (+bankMeta().next||0));
-const paxN = b => b.status==='cancelled' ? 0 : (+b.men||0) + (+b.women||0);
+/* النظام ده بيشتغل على الحجوزات اللي اتسجلت من يوم 10 أكتوبر 2026 وبعده بس (بتوقيت القاهرة).
+   الحجوزات القديمة مالهاش صفوف ولا إيميلات — إلا لو حد كان دخّل لها بيانات بالفعل */
+const PAX_FROM = 1791579600000;   // 2026-10-10 00:00 القاهرة
+const paxOn = b => (+b.createdAt||0) >= PAX_FROM || (b.pax||[]).some(r=>r && (r.email||r.visa||r.pass));
+const paxN = b => (b.status==='cancelled' || !paxOn(b)) ? 0 : (+b.men||0) + (+b.women||0);
 const emptyRow = () => ({visa:'', pass:'', nat:'', email:''});
 const rowHasData = r => !!(r && (r.visa || r.pass || r.nat));
 /* عدد الصفوف = عدد الأفراد. لو العدد قلّ بنشيل الصفوف الفاضية الأول (والإيميل بتاعها بيتحرق) */
@@ -2871,7 +2875,7 @@ async function allocEmails(b, quiet){
       res = await fb.runTransaction(db, async t=>{
         const bs=await t.get(ref); if(!bs.exists()) return {got:0, short:0};
         const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0};
-        const d=bs.data(), n=d.status==='cancelled' ? 0 : (+d.men||0)+(+d.women||0);
+        const d=bs.data(), n=paxN(d);
         const pax=fixRows(d.pax, n), need=pax.filter(r=>!r.email).length;
         if(!need) return {got:0, short:0, pax};
         const start=+m.next||0, total=+m.total||0, got=[]; let next=start;
