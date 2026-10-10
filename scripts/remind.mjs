@@ -146,6 +146,46 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
   return { sent: ok, failed };
 }
 
+
+/* ===== 🚦 تنبيهات مراحل الحجز على المنصة (النظام الجديد بس — الحجوزات من 10 أكتوبر 2026) =====
+   ✔️ تأكيد الموعد بيفتح قبل الموعد بـ 48 ساعة • 🖨 طباعة الباركود قبل الموعد بساعتين */
+export const PAX_FROM = 1791579600000;
+export const CONF_MIN = 48 * 60, BAR_MIN = 120;
+const paxOn = (b) => (+b.createdAt || 0) >= PAX_FROM || (Array.isArray(b.pax) && b.pax.some((r) => r && (r.email || r.visa || r.pass)));
+export function stageAlerts(bookings, now, tz) {
+  const out = [];
+  for (const b of bookings) {
+    if (b.status === 'cancelled' || b.status === 'done' || !paxOn(b)) continue;
+    for (const a of appointments(b)) {
+      if (!a.date || !a.slot || (b.entered && b.entered[a.g])) continue;
+      const dt = zonedEpoch(a.date, a.slot, tz), ms = dt - now, id = `${b.id}|${a.g}|${a.date}T${a.slot}`;
+      if (ms <= 0) continue;
+      if (ms <= CONF_MIN * 60000) {
+        if (!b.booked) out.push({ kind: 'nobk', b, ...a, dt, ms, key: 'nobk|' + id });
+        else if (!(b.conf && b.conf[a.g])) out.push({ kind: 'conf', b, ...a, dt, ms, key: 'conf|' + id });
+      }
+      if (b.booked && ms <= BAR_MIN * 60000 && !(b.bar && b.bar[a.g])) out.push({ kind: 'bar', b, ...a, dt, ms, key: 'bar|' + id });
+    }
+  }
+  return out.sort((x, y) => x.dt - y.dt);
+}
+export function stageMessage(r, empName) {
+  const b = r.b;
+  const day = new Date(r.date + 'T12:00:00Z').toLocaleDateString('ar-u-nu-latn', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+  const head = { conf: '✔️ <b>وقت تأكيد الموعد</b>', bar: '🖨 <b>اطبع الباركود</b>', nobk: '⚠️ <b>الموعد قرّب ولسه ماتحجزش على المنصة!</b>' }[r.kind];
+  const L = [head, '', `👤 ${h(b.name)}`, `${r.g === 'm' ? '🧔 رجال' : '🧕 نساء'} (${r.n}) — ${day} • ${fmt12(r.slot)}`, `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`];
+  const em = (Array.isArray(b.pax) ? b.pax : []).filter((x) => x && x.email);
+  if (r.kind !== 'nobk' && em.length) { L.push(''); em.forEach((x, i) => L.push(`${i + 1}) <code>${h(x.email)}</code>`)); }
+  L.push('', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`);
+  return L.join('\n');
+}
+/* الأيام اللي محتاجين نراقبها: النهارده + 3 أيام (عشان تنبيه الـ 48 ساعة) */
+export function nextDays(now, tz, n = 4) {
+  const [today] = datesToQuery(now, tz);
+  const [y, m, d] = today.split('-').map(Number);
+  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+}
+
 /* تاريخ اليوم وبكرة بتوقيت المنطقة */
 export function todayTomorrow(now, tz) {
   const [today] = datesToQuery(now, tz);
@@ -166,7 +206,7 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
   // listeners الحجوزات (يوم النهارده + بكرة) — بتتجدد لما اليوم يتغيّر
   let days = '', subs = [], parts = [];
   const resubscribe = (now) => {
-    const dd = todayTomorrow(now, tz);
+    const dd = nextDays(now, tz);
     if (dd.join() === days) return;
     days = dd.join(); subs.forEach((u) => u()); parts = [];
     subs = ['date', 'menDate', 'womenDate'].map((field, i) => {
@@ -200,6 +240,14 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
             for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
             await db.doc('meta/reminders').set({ sent, updatedAt: now });
             log(`اتبعت تنبيه: ${r.b.name || r.b.id} • قبل الموعد بـ ${leftText(r.ms)}`);
+          } catch (e) { totalFailed++; console.error('تعذر إرسال تنبيه', r.key, '-', e.message); }
+        }
+        for (const r of stageAlerts([...all.values()], now, tz).filter((x) => !sent[x.key])) {
+          try {
+            await send(tg.token, tg.chatId, stageMessage(r, await nameOf(r.b.createdBy)));
+            sent[r.key] = now; totalSent++;
+            await db.doc('meta/reminders').set({ sent, updatedAt: now });
+            log(`اتبعت تنبيه مرحلة (${r.kind}): ${r.b.name || r.b.id}`);
           } catch (e) { totalFailed++; console.error('تعذر إرسال تنبيه', r.key, '-', e.message); }
         }
       }

@@ -100,6 +100,9 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .modal h4{margin:4px 0 0;font-size:14px;color:var(--g);grid-column:1/-1}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;grid-column:1/-1}
+/* 🚦 المراحل */
+.stbar{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center}.stbar .badge{font-size:11px}.stsep{color:var(--mu);font-size:10px}
+.apEm{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.cp.sm{width:auto;min-height:0;padding:8px 10px;margin:0}.cp.sm .v{font-size:14px}.cp.sm .l{min-width:0;font-size:12px}
 /* 📲 النسخ السريع */
 .pcard{border:1px solid var(--bd);border-radius:14px;padding:10px;margin-bottom:12px;background:#fff}
 .pcard.made{background:#f1faf5;border-color:#9fd6bb}
@@ -214,6 +217,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="list">📋 الحجوزات</button>
   <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
+  <button data-t="appts" class="admin-only">🎫 المواعيد المحجوزة <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
   <button data-t="bank" class="admin-only">📧 بنك الإيميلات <span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="log" class="admin-only cloud-only">📜 سجل الموظف</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
@@ -222,6 +226,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 <main>
   <!-- لوحة التحكم -->
   <section class="sec on" id="sec-dash">
+    <div id="apAlert"></div>
     <div id="bankAlert"></div>
     <div class="card" id="bkCard" style="display:none;border:2px solid var(--blue)">
       <h2>📲 مطلوب حجزهم على المنصة <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
@@ -417,6 +422,19 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="hint" style="margin-bottom:8px">مرتّب من الأحدث للأقدم حسب وقت إضافة الحجز.</div>
       <div class="stats" id="logStats" style="margin-bottom:10px"></div>
       <div style="overflow-x:auto"><table class="curTable" id="logTable"></table></div>
+    </div>
+  </section>
+
+  <!-- 🎫 المواعيد المحجوزة -->
+  <section class="sec" id="sec-appts">
+    <div class="card">
+      <h2>🎫 المواعيد المحجوزة <span class="sp"></span><span class="hint" id="apHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">✔️ <b>تأكيد الموعد</b> بيفتح قبل الموعد بـ 48 ساعة • 🖨 <b>طباعة الباركود</b> بتفتح قبل الموعد بساعتين. المس الإيميل يتنسخ وادخل بيه على المنصة.</div>
+      <div class="subtabs" id="apTabs">
+        <button data-f="now" class="on">⏰ مطلوب دلوقتي <span id="apNowN"></span></button>
+        <button data-f="all">كل المواعيد الجاية <span id="apAllN"></span></button>
+      </div>
+      <div id="apList"></div>
     </div>
   </section>
 
@@ -1293,6 +1311,7 @@ function apptRow(a){
     <div class="info">
       <div class="nm">${esc(b.name)} ${gLabel(a.g)} <span class="badge b-gray">👥 ${a.n}</span>${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}</div>
       <div class="sub">${badgeFor(ms)} ${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
+      ${stageBar(b)?`<div class="sub">${stageBar(b)}</div>`:''}
     </div>
     <div class="acts">
       ${paxBtn(b)}
@@ -1428,7 +1447,7 @@ function renderTable(){
     <td data-l="النساء">${+b.women?`<span><b>${b.women}</b><span class="slot">${fmt12(b.womenSlot)}${otherDay(b,'w')}</span></span>`:'—'}</td>
     <td data-l="المبلغ"><span><b>${money(c.total,c.cur)}</b> ${curTag(c.cur)}${c.disc>0?`<span class="slot"><span class="badge b-disc">🎁 خصم ${money(c.disc,c.cur)}</span></span>`:''}</span></td>
     <td data-l="السداد"><span>${payBadge(b)}${c.rem>0?`<span class="slot">متبقي ${money(c.rem,c.cur)}</span>`:''}</span></td>
-    <td data-l="الحالة"><span><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${enteredPart(b)?`<span class="slot"><span class="badge b-amb">✓ دخل ${entered(b,'m')?'الرجال':'النساء'} • ${entered(b,'m')?'النساء':'الرجال'} لسه</span></span>`:''}</span></td>
+    <td data-l="الحالة"><span><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${stageBar(b)?`<span class="slot">${stageBar(b)}</span>`:''}${enteredPart(b)?`<span class="slot"><span class="badge b-amb">✓ دخل ${entered(b,'m')?'الرجال':'النساء'} • ${entered(b,'m')?'النساء':'الرجال'} لسه</span></span>`:''}</span></td>
     <td data-l="إجراءات"><div class="acts">
       ${paxBtn(b)}
       ${waBtn(b)}
@@ -1637,12 +1656,12 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderBankAlert(); renderBookQueue(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['fin','staff','log','bank'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['fin','staff','log','bank','appts'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   if(t==='fin' && !finUnlocked){
     if(FINPIN===undefined){ toast('⏳ لحظة… بيتأكد من قفل الحسابات'); return; }
     if(FINPIN){ askPin(); return; }
@@ -3234,7 +3253,7 @@ function bkRender(){
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل الحساب':'⬜ لسه'}</button></div>
       ${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`).join('');
-  $('#bkDoneBtn').textContent = b.booked ? '↩️ إلغاء «تم الحجز»' : `✅ تم الحجز${made<n?` (${made}/${n})`:''}`;
+  $('#bkDoneBtn').textContent = b.booked ? '↩️ إلغاء «تم حجز الموعد»' : `✅ تم حجز الموعد${made<n?` (${made}/${n})`:''}`;
   $('#bkDoneBtn').className = 'btn '+(b.booked?'sec':'pri');
 }
 async function copyText(t){
@@ -3262,6 +3281,93 @@ async function bkDone(){
   save(); closeOv('bkOv'); BKID=null; renderAll(); toast(`✅ تم الحجز — ${b.name}`);
   if(tgOn()) tgSend(`✅ <b>تم الحجز على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${n}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
+
+/* ========= 🚦 مراحل تنفيذ الحجز =========
+   1) 📤 رفع على نسك (b.uploaded) • 2) 📅 حجز الموعد (b.booked) • 3) ✔️ تأكيد الموعد — بيفتح قبل الموعد بـ 48 ساعة (b.conf[g])
+   4) 🖨 طباعة الباركود — بتفتح قبل الموعد بساعتين (b.bar[g]). المرحلة 3 و 4 لكل فئة لوحدها (رجال / نساء) لأن ممكن يكونوا في يومين مختلفين. */
+const CONF_H = 48, BAR_H = 2;
+const gDt = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return sl ? +new Date(gDate(b,g)+'T'+sl) : null; };
+const stGroups = b => groupsOf(b).filter(g=>gDt(b,g)!==null);
+const gDone = (b, k, g) => !!(b[k] && b[k][g]);
+function stages(b){
+  const gs=stGroups(b), part=k=>{ const d=gs.filter(g=>gDone(b,k,g)).length; return d===0 ? 0 : d===gs.length ? 2 : 1; };
+  return [
+    {k:'up', ic:'📤', l:'الرفع على نسك', s: b.uploaded ? 2 : 0},
+    {k:'bk', ic:'📅', l:'حجز الموعد', s: b.booked ? 2 : 0},
+    {k:'conf', ic:'✔️', l:'تأكيد الموعد', s: gs.length ? part('conf') : 0},
+    {k:'bar', ic:'🖨', l:'طباعة الباركود', s: gs.length ? part('bar') : 0},
+  ];
+}
+const opensText = ms => { const h=Math.ceil(ms/36e5); return h>=24 ? `بعد ${Math.floor(h/24)} يوم${h%24?` و${h%24} س`:''}` : `بعد ${h} س`; };
+/* شريط المراحل — بيظهر للموظف والمدير جنب كل حجز من النظام الجديد */
+function stageBar(b){
+  if(!paxN(b) || b.status==='cancelled') return '';
+  const S_=stages(b), cls=['b-gray','b-amb','b-green'];
+  const next=S_.find(x=>x.s<2); let hint='';
+  if(next && (next.k==='conf'||next.k==='bar') && b.booked){
+    const g=stGroups(b).find(g=>!gDone(b,next.k,g)), dt=g?gDt(b,g):null, open=dt-(next.k==='conf'?CONF_H:BAR_H)*36e5;
+    if(dt && open>Date.now()) hint=` <span class="hint">${next.l} ${opensText(open-Date.now())}</span>`;
+    else if(dt) hint=` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⏰ ${next.l} مطلوب دلوقتي</span>`;
+  }
+  return `<span class="stbar">${S_.map((x,i)=>`<span class="badge ${cls[x.s]}" title="${x.l}${x.s===1?' (جزء)':''}">${x.s===2?'✓':x.ic} ${x.l}</span>`).join('<span class="stsep">←</span>')}${hint}</span>`;
+}
+
+/* ===== 🎫 تبويب المواعيد المحجوزة (للمدير): تأكيد + طباعة باركود — محتاج الإيميل بس ===== */
+let apFilter='now';
+function apItems(){
+  const out=[], now=Date.now();
+  S.bookings.forEach(b=>{
+    if(!b.booked || b.status==='cancelled' || b.status==='done') return;
+    stGroups(b).forEach(g=>{ if(entered(b,g)) return; const dt=gDt(b,g); if(dt < now-3*36e5) return;
+      const ms=dt-now, cOpen=ms<=CONF_H*36e5, bOpen=ms<=BAR_H*36e5;
+      out.push({b, g, dt, ms, cOpen, bOpen, cDone:gDone(b,'conf',g), bDone:gDone(b,'bar',g)}); });
+  });
+  return out.sort((x,y)=>x.dt-y.dt);
+}
+const apNeed = a => (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
+function renderAppts(){
+  if(!isAdmin()) return;
+  const all=apItems(), need=all.filter(apNeed), nc=all.filter(a=>a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
+  $('#apDot').style.display = need.length ? 'grid' : 'none'; $('#apDot').textContent = need.length;
+  document.querySelectorAll('#apTabs button').forEach(x=>x.classList.toggle('on', x.dataset.f===apFilter));
+  $('#apNowN').textContent = need.length ? `(${need.length})` : ''; $('#apAllN').textContent = all.length ? `(${all.length})` : '';
+  $('#apHead').textContent = `${nc?`✔️ ${nc} محتاج تأكيد`:''}${nc&&nb?' • ':''}${nb?`🖨 ${nb} محتاج طباعة`:''}`;
+  const L = apFilter==='now' ? need : all;
+  $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, gl=a.g==='m'?'👨 رجال':'👩 نساء', n=+b[a.g==='m'?'men':'women'];
+    const cBtn = a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${a.g}')">✔️ اتأكد</button>`
+      : a.cOpen ? `<button class="btn pri sm" onclick="stMark('${b.id}','conf','${a.g}')">✔️ تأكيد الموعد</button>`
+      : `<button class="btn sec sm" disabled title="التأكيد بيفتح قبل الموعد بـ 48 ساعة">🔒 التأكيد ${opensText(a.ms-CONF_H*36e5)}</button>`;
+    const bBtn = a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${a.g}')">🖨 اتطبع</button>`
+      : a.bOpen ? `<button class="btn gold sm" onclick="stMark('${b.id}','bar','${a.g}')">🖨 طباعة الباركود</button>`
+      : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بساعتين">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
+    const urgent=apNeed(a);
+    return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${urgent?'var(--red)':a.cDone&&a.bDone?'var(--g)':'var(--blue)'}">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>
+        <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
+      <div class="apEm">${(b.pax||[]).filter(r=>r.email).map(r=>`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span>${r.name?`<span class="l">${esc(r.name)}</span>`:''}<span class="c">📋</span></button>`).join('')||'<span class="hint">مفيش إيميلات</span>'}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${cBtn}${bBtn}</div></div>`; }).join('')
+    : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
+}
+$('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
+async function apCopy(el, v){ if(await copyText(v)){ el.classList.add('done'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); } }
+function stMark(id, k, g){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
+  const on=gDone(b,k,g), lbl=k==='conf'?'تأكيد الموعد':'طباعة الباركود';
+  if(on){ if(!confirm(`إلغاء «${lbl}» لـ ${b.name}؟`)) return; b[k]={...(b[k]||{})}; delete b[k][g]; }
+  else {
+    if(k==='bar' && !gDone(b,'conf',g) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
+    b[k]={...(b[k]||{}), [g]:{at:Date.now(), by:myEmail()}};
+  }
+  save(); renderAll(); toast(on?`↩️ اتلغى ${lbl}`:`✓ ${lbl} — ${b.name}`);
+}
+function renderApAlert(){
+  if(!isAdmin()){ $('#apAlert').innerHTML=''; return; }
+  const all=apItems(), nc=all.filter(a=>a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
+  $('#apAlert').innerHTML = nc||nb ? `<div class="alertbar" style="background:#eaf1fd;border-color:#a9c3f3;color:#1d3f7a"><span class="ic">🎫</span><div>
+    ${nc?`<b>${nc} موعد محتاج تأكيد</b>`:''}${nc&&nb?' • ':''}${nb?`<b>${nb} باركود محتاج طباعة</b>`:''}
+    <button class="ibtn" style="margin-right:8px" onclick="apFilter='now';switchTab('appts')">افتح المواعيد</button></div></div>` : '';
+}
+setInterval(()=>{ if(isAdmin()){ renderApAlert(); if(currentTab()==='appts') renderAppts(); else { const n=apItems().filter(apNeed).length; $('#apDot').style.display=n?'grid':'none'; $('#apDot').textContent=n; } } }, 60000);
 
 /* ========= الإعدادات ========= */
 const parseSlots = s => [...new Set((s.match(/\d{1,2}:\d{2}/g)||[]).map(t=>{const[h,m]=t.split(':');return pad(+h%24)+':'+m;}))].sort((a,b)=>toMin(a)-toMin(b));
