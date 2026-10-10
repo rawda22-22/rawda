@@ -2991,20 +2991,55 @@ const NAT_EN = {EGYPT:'مصر',EGYPTIAN:'مصر',EGY:'مصر','SAUDI ARABIA':'ا
   'UNITED KINGDOM':'بريطانيا',BRITISH:'بريطانيا',GBR:'بريطانيا','UNITED STATES':'أمريكا',USA:'أمريكا',AMERICAN:'أمريكا',CANADA:'كندا',CAN:'كندا',FRANCE:'فرنسا',FRA:'فرنسا',GERMANY:'ألمانيا',DEU:'ألمانيا'};
 const natAr = s => { s=String(s||'').trim().toUpperCase().replace(/[^A-Z؀-ۿ ]/g,' ').replace(/\s+/g,' ').trim(); if(!s) return '';
   if(/[؀-ۿ]/.test(s)) return s; for(const k of Object.keys(NAT_EN).sort((a,b)=>b.length-a.length)) if(s===k || s.startsWith(k+' ') || s.includes(' '+k)) return NAT_EN[k]; return s; };
+/* رقم التحقق في سطر MRZ (معيار الجوازات الدولي) — بيأكد إن رقم الجواز اتقرا صح */
+const mrzCheck = s => { const w=[7,3,1]; let t=0; [...s].forEach((c,i)=>{ const v = c==='<' ? 0 : /\d/.test(c) ? +c : c.charCodeAt(0)-55; t+=v*w[i%3]; }); return t%10; };
+const mrzFix = s => s.replace(/[«‹]/g,'<').replace(/\s/g,'').toUpperCase();
+function parseMRZ(t){
+  // السطر اللي فيه: رقم الجواز (9) + رقم تحقق + الجنسية (3 حروف) + تاريخ الميلاد (6) …
+  const lines=t.split(/\n/).map(mrzFix).filter(x=>x.length>=28 && /<{2,}/.test(x));
+  for(const l of lines){
+    const m=l.match(/([A-Z0-9<]{9})([0-9O])([A-Z<]{3})([0-9O]{6})([0-9O])/);
+    if(!m) continue;
+    const doc=m[1], chk=+m[2].replace('O','0'), nat=m[3].replace(/</g,'');
+    const ok = mrzCheck(doc)===chk;
+    return {pass:doc.replace(/</g,''), nat, ok};
+  }
+  return null;
+}
 function parseVisa(raw){
   const t=String(raw||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toUpperCase();
   const r={visa:'', pass:'', nat:''};
-  let m = t.match(/(?:VISA\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*التأشيرة|رقم\s*التاشيرة)\s*[:：\-]?\s*([0-9]{7,12})/);
+  let m = t.match(/(?:VISA\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*التأشيرة|رقم\s*التاشيرة)\s*[:：\-]?\s*([0-9]{10})\b/);
   if(m) r.visa=m[1];
-  m = t.match(/(?:PASSPORT\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*الجواز|رقم\s*جواز\s*السفر)\s*[:：\-]?\s*([A-Z0-9]{5,12})/);
-  if(m) r.pass=m[1];
-  m = t.match(/(?:NATIONALITY|الجنسية)\s*[:：\-]?\s*([A-Z؀-ۿ][A-Z؀-ۿ ]{2,30})/);
-  if(m) r.nat=natAr(m[1].split(/\s{2,}|\n/)[0]);
-  // MRZ (لو موجود): السطر التاني فيه الجنسية بكود من 3 حروف
-  const mrz=t.split(/\n/).map(x=>x.replace(/\s/g,'')).filter(x=>/^[A-Z0-9<]{28,}$/.test(x) && x.includes('<'));
-  if(mrz.length>=2){ const l2=mrz[mrz.length-1]; const nat=l2.slice(10,13).replace(/</g,''); if(!r.nat && NAT_EN[nat]) r.nat=NAT_EN[nat]; }
-  if(!r.visa){ const v=t.match(/\b\d{10}\b/); if(v) r.visa=v[0]; }
-  if(!r.pass){ const p=t.match(/\b[A-Z]{1,2}\d{6,8}\b/); if(p) r.pass=p[0]; }
+  // احتياطي: رقم من 10 أرقام بيبدأ بـ 6 — بعيد عن سطور MRZ (عشان مايلقطش تاريخ الميلاد)
+  if(!r.visa){ const noMrz=t.split(/\n/).filter(x=>!x.includes('<')).join('\n'); const v=noMrz.match(/(?:^|[^0-9])(6\d{9})(?![0-9])/); if(v) r.visa=v[1]; }
+  const z=parseMRZ(t);
+  if(z && z.ok){ r.pass=z.pass; if(NAT_EN[z.nat]) r.nat=NAT_EN[z.nat]; }
+  if(!r.pass){ m = t.match(/(?:PASSPORT\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*جواز\s*السفر|رقم\s*الجواز)\s*[:：\-]?\s*([A-Z]{0,2}[0-9]{6,9})\b/); if(m) r.pass=m[1]; }
+  if(!r.pass){ const p=t.match(/\b[A-Z]{1,2}\d{7,8}\b/); if(p) r.pass=p[0]; }
+  if(!r.pass && z && /^[A-Z]{1,2}\d{6,8}$/.test(z.pass)) r.pass=z.pass;
+  if(!r.nat){ m = t.match(/NATIONALITY\s*[:：\-]?\s*([A-Z][A-Z ]{2,30})/); if(m) r.nat=natAr(m[1].trim()); }
+  if(!r.nat){ m = t.match(/([A-Z][A-Z ]{2,25})\s*-\s*[^\n]{0,40}NATIONALITY/); if(m && NAT_EN[m[1].trim()]) r.nat=NAT_EN[m[1].trim()]; }
+  if(!r.nat){ m = t.match(/الجنسية\s*[:：\-]?\s*([؀-ۿ][؀-ۿ ]{1,20})/); if(m) r.nat=m[1].trim(); }
+  if(!r.nat && z && NAT_EN[z.nat]) r.nat=NAT_EN[z.nat];
+  return r;
+}
+/* تجهيز صورة الموبايل قبل القراءة: تكبير + أبيض وأسود + تباين أعلى (والجزء السفلي لوحده عشان سطر MRZ) */
+async function prepImg(src, crop){
+  const bm = src instanceof HTMLCanvasElement ? src : await createImageBitmap(src);
+  const sy = crop ? Math.round(bm.height*0.6) : 0, sh = bm.height - sy;
+  const k = Math.min(3, Math.max(1, 2400/bm.width)), cv=document.createElement('canvas');
+  cv.width=Math.round(bm.width*k); cv.height=Math.round(sh*k);
+  const g=cv.getContext('2d'); g.imageSmoothingQuality='high'; g.drawImage(bm, 0, sy, bm.width, sh, 0, 0, cv.width, cv.height);
+  const d=g.getImageData(0,0,cv.width,cv.height), a=d.data;
+  for(let i=0;i<a.length;i+=4){ let v=0.299*a[i]+0.587*a[i+1]+0.114*a[i+2]; v=Math.max(0,Math.min(255,(v-140)*1.8+140)); a[i]=a[i+1]=a[i+2]=v; }
+  g.putImageData(d,0,0); return cv;
+}
+const mergeV = (a, b) => ({visa:a.visa||b.visa, pass:a.pass||b.pass, nat:a.nat||b.nat});
+async function ocrVisa(src){
+  let r=parseVisa(await ocr(await prepImg(src)));
+  if(!(r.visa && r.pass && r.nat)) r=mergeV(r, parseVisa(await ocr(await prepImg(src, true))));
+  if(!(r.visa && r.pass && r.nat)) r=mergeV(r, parseVisa(await ocr(src)));
   return r;
 }
 async function readVisaFile(f, onStep){
@@ -3017,13 +3052,14 @@ async function readVisaFile(f, onStep){
       if(text.replace(/\s/g,'').length<30){   // PDF متصوّر سكانر — نقراه كصورة
         onStep(`🔎 بيقرا صفحة ${p} كصورة…`);
         const vp=pg.getViewport({scale:2.2}), cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
-        await pg.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise; text=await ocr(cv);
+        await pg.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise;
+        const r=await ocrVisa(cv); if(r.visa||r.pass) out.push(r); continue;
       }
       const r=parseVisa(text); if(r.visa||r.pass) out.push(r);
     }
   } else {
     onStep('🔎 بيقرا الصورة…');
-    const r=parseVisa(await ocr(f)); if(r.visa||r.pass) out.push(r);
+    const r=await ocrVisa(f); if(r.visa||r.pass) out.push(r);
   }
   return out;
 }
