@@ -54,6 +54,26 @@ section.sec{display:none}section.sec.on{display:block;animation:fade .25s}
 .appt .sub{color:var(--mu);font-size:13px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .acts{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:520px){.appt{flex-wrap:wrap}.appt .acts{width:100%;justify-content:flex-end}}
+/* صف موعد مضغوط: رأس اليوم والتاريخ يمين • سطر بيانات • سطر مراحل + أزرار */
+.appt.ar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:stretch;padding:7px 10px;margin-bottom:6px}
+.ar .when{width:86px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;line-height:1.25;border-left:1px dashed var(--bd);padding-left:10px}
+.ar .when .dn{font-weight:800;font-size:14px;color:var(--gc)}
+.ar .when .dd{font-size:12px;font-weight:700;color:var(--tx)}
+.ar .when .tm{font-weight:800;font-size:16px;margin-top:2px}
+.ar .when .rel{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--gc);color:#fff;margin-bottom:2px}
+.ar .r1,.ar .r2{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
+.ar .r1 .nm{font-weight:800;font-size:15px;margin-left:2px}
+.ar .r2{margin-top:5px}
+.ar .r2 .acts{margin-right:auto;gap:4px}
+.ar .badge{padding:2px 7px;font-size:11px}
+.ar .ibtn{padding:3px 6px;font-size:12px;border-radius:7px;min-height:26px}
+.ar .btn.sm{padding:3px 8px;font-size:12px;min-height:26px}
+.stmini{display:inline-flex;align-items:center;gap:2px}
+.stmini i{font-style:normal;font-size:10px;min-width:20px;height:19px;padding:0 2px;display:inline-grid;place-items:center;border-radius:6px;background:#eef1ef;color:var(--mu);border:1px solid transparent}
+.stmini i.s1{background:#fff4dc;color:#8a5a00;border-color:#ecd49a}
+.stmini i.s2{background:#e3f4ec;color:var(--g);border-color:#9fd6bb}
+.stmini b{color:var(--mu);font-size:9px;font-weight:400}
+@media(max-width:520px){.ar .when{width:72px}.ar .r2 .acts{margin-right:0;width:100%;justify-content:flex-end}}
 .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
 .b-red{background:var(--red);color:#fff;animation:blink 1.4s infinite}
 @keyframes blink{50%{opacity:.65}}
@@ -1332,24 +1352,27 @@ function renderStats(){
     urg.slice(0,4).map(a=>`${esc(a.b.name)} (${a.g==='m'?'رجال':'نساء'} ${a.n}) — ${hm(a.dt)}، ${remText(a.dt-Date.now())}`).join(' • ')}${urg.length>4?' …':''}</div></div></div>` : '';
 }
 
+const dayName = d => new Date(d+'T00:00').toLocaleDateString('ar-u-nu-latn',{weekday:'long'});
+const dayDate = d => new Date(d+'T00:00').toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'long'});
 function apptRow(a){
   const ms=a.dt-Date.now(), l=level(ms), b=a.b, c=calc(b);
-  return `<div class="appt ${l}" style="--gc:${gColor(a.g)}">
-    <div class="time">${hm(a.dt)}<small>${fmtDate(a.date)}</small></div>
-    <div class="info">
-      <div class="nm">${esc(b.name)} ${gLabel(a.g)} <span class="badge b-gray">👥 ${a.n}</span>${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}</div>
-      <div class="sub">${badgeFor(ms)} ${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
-      ${stageBar(b)?`<div class="sub">${stageBar(b)}</div>`:''}
-    </div>
-    <div class="acts">
-      ${isAdmin() && acctDone(b) && !allBarred(b) && !gDone(b,'slotBk',a.g) ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')" title="الحساب اتعمل — افتح الأفراد وعلّم «اتحجز موعده»">📅 حجز الموعد</button>` : ''}
-      ${paxBtn(b)}
-      ${waBtn(b)}
-      <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
-      <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
-      ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
-      <button class="ibtn ok" onclick="markEntered('${b.id}','${a.g}')" title="تم دخول ${a.g==='m'?'الرجال':'النساء'}">✓</button>
-      <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
+  const rel = a.date===todayStr() ? 'اليوم' : a.date===dstr(new Date(Date.now()+864e5)) ? 'غداً' : '';
+  return `<div class="appt ar ${l}" style="--gc:${gColor(a.g)}">
+    <div class="when">${rel?`<span class="rel">${rel}</span>`:''}<span class="dn">${dayName(a.date)}</span><span class="dd">${dayDate(a.date)}</span><span class="tm">${hm(a.dt)}</span></div>
+    <div style="min-width:0">
+      <div class="r1"><span class="nm">${esc(b.name)}</span>${gLabel(a.g)}<span class="badge b-gray">👥 ${a.n}</span>${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}${badgeFor(ms)}${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
+      <div class="r2">${stageMini(b)}
+        <div class="acts">
+          ${isAdmin() && acctDone(b) && !allBarred(b) && !gDone(b,'slotBk',a.g) ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')" title="الحساب اتعمل — افتح الأفراد وعلّم «اتحجز موعده»">📅 حجز</button>` : ''}
+          ${paxBtn(b)}
+          ${b.phone?`<a class="ibtn wa" href="${waChat(b)}" target="_blank" rel="noopener" title="فتح محادثة العميل على واتساب">🟢</a>`:''}
+          <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
+          <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
+          ${c.rem>0?`<button class="ibtn money" onclick="openPay('${b.id}')" title="تسجيل دفعة">💵</button>`:''}
+          <button class="ibtn ok" onclick="markEntered('${b.id}','${a.g}')" title="تم دخول ${a.g==='m'?'الرجال':'النساء'}">✓</button>
+          <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
+        </div>
+      </div>
     </div>
   </div>`;
 }
@@ -3578,6 +3601,19 @@ function stageBar(b){
     else if(dt) hint=` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⏰ ${next.l} مطلوب دلوقتي</span>`;
   }
   return `<span class="stbar">${S_.map((x,i)=>`<span class="badge ${cls[x.s]}" title="${x.l}${x.s===1?' (جزء)':''}">${x.s===2?'✓':x.ic} ${x.l}</span>`).join('<span class="stsep">←</span>')}${hint}${nvN&&acctDone(b)?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvN} ممنوع</span>`:''}</span>`;
+}
+
+/* نسخة مضغوطة من شريط المراحل لصفوف المواعيد — أيقونات ملوّنة (رمادي = لسه • أصفر = جزء • أخضر = تم) واسم المرحلة بيظهر لما تقف عليها */
+function stageMini(b){
+  if(!paxN(b) || b.status==='cancelled') return '';
+  if(allBarred(b)) return `<span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ممنوع الزيارة</span>`;
+  const S_=stages(b), next=S_.find(x=>x.s<2), nvN=nvPax(b).length; let hint='';
+  if(next && (next.k==='conf'||next.k==='bar')){
+    const g=stGroups(b).find(g=>!gDone(b,next.k,g)), dt=g?gDt(b,g):null, open=dt-(next.k==='conf'?CONF_H:BAR_H)*36e5;
+    if(dt && open>Date.now()) hint=` <span class="hint" style="font-size:11px">${next.ic} ${opensText(open-Date.now())}</span>`;
+    else if(dt) hint=` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⏰ ${next.l} دلوقتي</span>`;
+  }
+  return `<span class="stmini" title="${S_.map(x=>`${x.s===2?'✓':x.s===1?'◐':'○'} ${x.l}`).join(' ← ')}">${S_.map(x=>`<i class="s${x.s}">${x.ic}</i>`).join('<b>‹</b>')}</span>${hint}${nvN&&acctDone(b)?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvN}</span>`:''}`;
 }
 
 /* ===== 🚫 تبويب «ممنوع الزيارة هذا العام» — الأفراد اللي اتعلّم عليهم «ليس له زيارة» بعد إنشاء الحسابات (الموظف بيشوف حجوزاته بس ومن غير إيميلات) ===== */
