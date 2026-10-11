@@ -54,6 +54,7 @@ section.sec{display:none}section.sec.on{display:block;animation:fade .25s}
 .appt .sub{color:var(--mu);font-size:13px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .acts{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:520px){.appt{flex-wrap:wrap}.appt .acts{width:100%;justify-content:flex-end}}
+.dsep{display:flex;align-items:center;gap:6px;margin:12px 2px 6px;font-size:13px;color:var(--tx);border-bottom:2px solid var(--bd);padding-bottom:4px}.dsep:first-child{margin-top:0}.dsep b{font-size:15px}.dsep span{margin-right:auto;color:var(--mu);font-size:12px}
 /* صف موعد مضغوط: رأس اليوم والتاريخ يمين • سطر بيانات • سطر مراحل + أزرار */
 .appt.ar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:stretch;padding:7px 10px;margin-bottom:6px}
 .ar .when{width:86px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;line-height:1.25;border-left:1px dashed var(--bd);padding-left:10px}
@@ -1380,8 +1381,15 @@ function renderUpcoming(){
   const list = appts().filter(a=>a.dt>Date.now()-36e5);
   const hid=Object.values(USERS).filter(u=>u.hideOps).map(u=>u.name||loginName(u.email));
   $('#upCount').innerHTML = (list.length ? `${list.length} موعد` : '') + (isAdmin() && hid.length ? ` <span class="badge b-gray" title="${esc(hid.join('، '))}">🙈 مخفي عملاء: ${esc(hid.join('، '))}</span>` : '');
-  $('#upcoming').innerHTML = list.length ? list.slice(0,30).map(apptRow).join('')
-    : `<div class="empty">لا توجد مواعيد قادمة<br><br><button class="btn pri" onclick="openForm()">＋ إضافة حجز</button></div>`;
+  /* كل المواعيد من غير حد أقصى (كان بيعرض أول 30 بس فالبعيدة كانت بتختفي) + فاصل لكل يوم */
+  const noSlot = S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && canSee(b) && !opsHidden(b)
+    && ((+b.men && !b.menSlot) || (+b.women && !b.womenSlot)));
+  let lastD='', html='';
+  list.forEach(a=>{ if(a.date!==lastD){ lastD=a.date; const n=list.filter(x=>x.date===a.date).length;
+      html+=`<div class="dsep"><b>${dayName(a.date)}</b> ${dayDate(a.date)}${a.date===todayStr()?' • اليوم':a.date===dstr(new Date(Date.now()+864e5))?' • غداً':''}<span>${n} موعد</span></div>`; }
+    html+=apptRow(a); });
+  if(noSlot.length) html+=`<div class="dsep" style="color:var(--red)"><b>⚠️ حجوزات من غير ساعة</b><span>${noSlot.length}</span></div>`+noSlot.map(b=>`<div class="appt" style="--gc:var(--red);margin-bottom:6px"><div class="info"><b>${esc(b.name)}</b> <span class="hint">${b.date?fmtDate(b.date,true):'من غير تاريخ'} • محتاج تحديد ساعة الموعد عشان يظهر في القائمة</span></div><div class="acts"><button class="ibtn" onclick="openForm('${b.id}')">✏️ تعديل</button></div></div>`).join('');
+  $('#upcoming').innerHTML = html || `<div class="empty">لا توجد مواعيد قادمة<br><br><button class="btn pri" onclick="openForm()">＋ إضافة حجز</button></div>`;
 }
 
 let lastGroups=[];
