@@ -403,6 +403,7 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="subtabs" id="dueTabs">
         <button data-d="all" class="on">كل المستحقات <span id="dueAllN"></span></button>
         <button data-d="late">🚨 متأخرون في السداد <span id="dueLateN"></span></button>
+        <button data-d="miss">⚠️ فات موعدهم ومدخلوش <span id="dueMissN"></span></button>
       </div>
       <div id="dueList"></div>
     </div>
@@ -1525,27 +1526,69 @@ function renderFinance(){
   renderDue();
 }
 
-/* ⏳ المستحقات + 🚨 المتأخرين في السداد: موعدهم بدأ أو فات أو دخلوا (حتى لو خلّصوا الزيارة) ولسه عليهم فلوس */
+/* ⏳ المستحقات
+   - الحجز الملغي أو «ممنوع الزيارة» بالكامل مالوش مستحقات
+   - الفئة اللي اتعلّم عليها «مدخلتش» (b.noShow[g]) بتتشال من المطلوب — والفئة اللي دخلت بس هي اللي بتتحاسب
+   🚨 متأخرون في السداد = اللي دخلوا فعلاً ولسه عليهم فلوس (على قد اللي دخل بس)
+   ⚠️ فات موعدهم ومدخلوش = موعدهم عدّى ومحدش علّم دخولهم — تختار: ✓ دخلوا / 🚫 مدخلوش / 🗑 حذف */
 let dueTab='all';
-const firstDt = b => Math.min(...groupsOf(b).map(g=>{ const sl=g==='m'?b.menSlot:b.womenSlot; return +new Date(gDate(b,g)+'T'+(sl||'00:00')); }));
-const isLate = b => b.status==='done' || groupsOf(b).some(g=>entered(b,g)) || firstDt(b) < Date.now();
+const noShow = (b, g) => !!(b.noShow && b.noShow[g]);
+const liveGroups = b => groupsOf(b).filter(g=>!noShow(b,g));          // الفئات اللي لسه مطلوب منها فلوس
+const dueCalc = b => portionCalc(b, liveGroups(b));
+const dueOn = b => b.status!=='cancelled' && !allBarred(b) && liveGroups(b).length>0;
+const gStart = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return +new Date(gDate(b,g)+'T'+(sl||'00:00')); };
+const firstDt = b => Math.min(...(liveGroups(b).length?liveGroups(b):groupsOf(b)).map(g=>gStart(b,g)));
+const missedGroups = b => b.status==='done' ? [] : liveGroups(b).filter(g=>!entered(b,g) && gStart(b,g) < Date.now());
+const lateRem = b => servedCalc(b).rem;                                  // المتبقي على اللي دخل بس
+const isLate = b => lateRem(b) > 0;
+const gName = g => g==='m'?'الرجال':'النساء';
 const lateText = b => { const d=Math.floor((Date.now()-firstDt(b))/864e5);
-  return b.status==='done' ? '✓ أتم الزيارة' : enteredPart(b) ? `✓ دخل ${entered(b,'m')?'الرجال':'النساء'}` : d>=1 ? `موعده فات من ${d} يوم` : 'موعده بدأ'; };
+  return b.status==='done' ? '✓ أتم الزيارة' : `✓ دخل ${servedGroups(b).map(gName).join(' و')}`; };
 function renderDue(){
-  const all=S.bookings.filter(b=>b.status!=='cancelled' && calc(b).rem>0), late=all.filter(isLate);
+  const all=S.bookings.filter(b=>dueOn(b) && dueCalc(b).rem>0),
+        late=S.bookings.filter(b=>dueOn(b) && isLate(b)),
+        miss=S.bookings.filter(b=>dueOn(b) && missedGroups(b).length);
   $('#dueAllN').textContent = all.length ? `(${all.length})` : '';
   $('#dueLateN').textContent = late.length ? `(${late.length})` : '';
+  $('#dueMissN').textContent = miss.length ? `(${miss.length})` : '';
   document.querySelectorAll('#dueTabs button').forEach(x=>x.classList.toggle('on', x.dataset.d===dueTab));
-  const due = (dueTab==='late' ? late.sort((a,b)=>firstDt(a)-firstDt(b)) : all.sort((a,b)=>a.date.localeCompare(b.date)));
-  $('#dueCount').textContent = due.length ? `${due.length} حجز • ≈ ${moneyB(sumB(due,c=>c.rem))}` : '';
-  $('#dueList').innerHTML = due.length ? due.map(b=>{ const c=calc(b), M=v=>money(v,c.cur), lt=isLate(b); return `<div class="appt ${lt?'urgent':''}" style="--gc:${lt?'var(--red)':'var(--amb)'}">
+  const due = dueTab==='late' ? late.sort((a,b)=>firstDt(a)-firstDt(b)) : dueTab==='miss' ? miss.sort((a,b)=>firstDt(a)-firstDt(b)) : all.sort((a,b)=>a.date.localeCompare(b.date));
+  const remOf = b => dueTab==='late' ? lateRem(b) : dueCalc(b).rem;
+  $('#dueCount').textContent = due.length ? `${due.length} حجز • ≈ ${moneyB(due.reduce((s,b)=>s+conv(remOf(b),b.currency,base()),0))}` : '';
+  const empty = {late:'🎉 مفيش متأخرين في السداد', miss:'🎉 كل اللي موعدهم فات اتسجّل وضعهم', all:'🎉 كل المبالغ محصّلة'}[dueTab];
+  $('#dueList').innerHTML = due.length ? due.map(b=>{ const c=dueCalc(b), M=v=>money(v,c.cur), lt=isLate(b), ms=missedGroups(b), d=Math.floor((Date.now()-firstDt(b))/864e5);
+    const tag = lt ? ` <span class="badge ${b.status==='done'?'b-gray':'b-amb'}">${lateText(b)}</span>` : '';
+    const mtag = ms.length ? ` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⚠️ ${ms.map(gName).join(' و')}: ${d>=1?`الموعد فات من ${d} يوم`:'الموعد بدأ'} ومتسجلش دخول</span>` : '';
+    const nsTag = groupsOf(b).filter(g=>noShow(b,g)).map(g=>` <span class="badge b-gray">🚫 ${gName(g)} مدخلوش</span>`).join('');
+    const missBtns = ms.map(g=>`<button class="ibtn ok" onclick="markEntered('${b.id}','${g}')" title="سجّل دخول ${gName(g)}">✓ ${ms.length>1||groupsOf(b).length>1?gName(g)+' ':''}دخلوا</button><button class="ibtn del" onclick="markNoShow('${b.id}','${g}')" title="${gName(g)} مدخلوش — يتشالوا من المستحقات">🚫 ${ms.length>1||groupsOf(b).length>1?gName(g)+' ':''}مدخلوش</button>`).join('');
+    return `<div class="appt ${lt||ms.length?'urgent':''}" style="--gc:${lt||ms.length?'var(--red)':'var(--amb)'}">
     <div class="time" style="font-size:14px">${fmtDate(b.date)}<small>${b.date}</small></div>
-    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} ${curTag(c.cur)}${lt?` <span class="badge ${b.status==='done'?'b-gray':'b-amb'}">${lateText(b)}</span>`:''}</div>
-      <div class="sub">👥 ${c.n} • الصافي ${M(c.total)} • مدفوع ${M(c.paid)} • <b style="color:var(--red)">متبقي ${M(c.rem)}</b>${b.createdBy?` • 👤 ${who(b.createdBy)}`:''}</div></div>
+    <div class="info"><div class="nm">${esc(b.name)} ${payBadge(b)} ${curTag(c.cur)}${tag}${mtag}${nsTag}</div>
+      <div class="sub">👥 ${c.n} • الصافي ${M(c.total)} • مدفوع ${M(c.paid)} • <b style="color:var(--red)">متبقي ${M(remOf(b))}</b>${b.createdBy?` • 👤 ${who(b.createdBy)}`:''}</div></div>
     <div class="acts">
+      ${missBtns}
       <button class="ibtn money" onclick="openPay('${b.id}')">💵 تحصيل</button>
       <button class="ibtn" onclick="sendWA('${b.id}')">💬 تذكير</button>
-    </div></div>`; }).join('') : `<div class="empty">${dueTab==='late'?'🎉 مفيش متأخرين في السداد':'🎉 كل المبالغ محصّلة'}</div>`;
+      <button class="ibtn" onclick="dueCancel('${b.id}')" title="الحجز كله اتلغى">❌ ملغي</button>
+      <button class="ibtn del admin-only" onclick="delBooking('${b.id}')" title="حذف">🗑</button>
+    </div></div>`; }).join('') : `<div class="empty">${empty}</div>`;
+}
+/* 🚫 فئة مدخلتش: بتتشال من المطلوب. لو كل الفئات اتحسمت: فيه حد دخل = «تم الدخول» • محدش دخل خالص = «ملغي» */
+function settleStatus(b){
+  const gs=groupsOf(b); if(!gs.length || !gs.every(g=>entered(b,g)||noShow(b,g))) return;
+  b.status = gs.some(g=>entered(b,g)) ? 'done' : 'cancelled';
+}
+function markNoShow(id, g){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  if(!confirm(`${gName(g)} في حجز «${b.name}» مدخلوش؟\nهيتشالوا من المستحقات ومن الحسابات.`)) return;
+  b.noShow={...(b.noShow||{}), [g]:true}; settleStatus(b);
+  save(); renderAll(); toast(b.status==='cancelled' ? `❌ ${b.name}: محدش دخل — الحجز بقى «ملغي»` : `🚫 ${gName(g)} مدخلوش — اتشالوا من المستحقات`);
+}
+function dueCancel(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  if(groupsOf(b).some(g=>entered(b,g))){ toast('فيه فئة دخلت فعلاً — استخدم «🚫 مدخلوش» للفئة التانية بس'); return; }
+  if(!confirm(`إلغاء حجز «${b.name}»؟ هيتشال من المستحقات.`)) return;
+  b.status='cancelled'; save(); renderAll(); toast('❌ اتلغى — واتشال من المستحقات');
 }
 $('#dueTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ dueTab=x.dataset.d; renderDue(); } });
 
@@ -1920,7 +1963,8 @@ const groupsOf = b => [+b.men&&'m', +b.women&&'w'].filter(Boolean);
 const enteredPart = b => b.status!=='done' && groupsOf(b).length>1 && groupsOf(b).some(g=>entered(b,g));
 function markEntered(id, g){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
-  const rest=groupsOf(b).filter(x=>x!==g && !entered(b,x)), lbl=g==='m'?'الرجال':'النساء';
+  const rest=groupsOf(b).filter(x=>x!==g && !entered(b,x) && !noShow(b,x)), lbl=g==='m'?'الرجال':'النساء';
+  if(b.noShow && b.noShow[g]){ const ns={...b.noShow}; delete ns[g]; b.noShow=ns; }
   if(!rest.length && calc(b).rem>0 && !confirm(`تنبيه: ${b.name} لم يسدد ${money(calc(b).rem,b.currency)} بعد. تسجيل الدخول على أي حال؟`)) return;
   b.entered={...(b.entered||{}), [g]:true};
   if(!rest.length){ b.status='done'; save(); renderAll(); toast('✓ تم الدخول — الحجز اكتمل'); return; }
