@@ -589,7 +589,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 <!-- 📲 شاشة النسخ السريع للحجز على المنصة -->
 <div class="overlay" id="bkOv">
   <div class="modal bkm" style="max-width:560px">
-    <h3>📲 إنشاء حساب على المنصة<button class="x" onclick="closeOv('bkOv');BKID=null">×</button></h3>
+    <h3>📲 إنشاء حساب على المنصة<button class="ibtn" style="margin-right:10px" onclick="editDate(BKID)" title="تعديل الحجز / الموعد">✏️ تعديل</button><button class="x" onclick="closeOv('bkOv');BKID=null">×</button></h3>
     <div id="bkHead" class="bill" style="margin-bottom:10px"></div>
     <div class="hint" style="display:block;margin-bottom:8px">المس أي خانة تتنسخ على طول ← الصقها في المنصة ← ارجع هنا للخانة اللي بعدها.</div>
     <div id="bkPeople"></div>
@@ -3288,16 +3288,25 @@ const bkB = () => S.bookings.find(x=>x.id===BKID);
 function renderBookQueue(){
   const card=$('#bkCard'); if(!card) return;
   if(!isAdmin()){ card.style.display='none'; return; }
-  const L=S.bookings.filter(needBook).sort((a,b)=>(nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
+  const L=S.bookings.filter(needBook).sort((a,b)=>apptPassed(a)-apptPassed(b) || (nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
   card.style.display = L.length ? '' : 'none';
   $('#bkCount').textContent = L.length ? `${L.length} حجز` : '';
-  $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length;
+  $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
+    if(gone) return `<div class="appt" style="--gc:var(--amb)">
+      <div class="time" style="font-size:20px">👥 ${n}</div>
+      <div class="info"><div class="nm">${esc(b.name)} <span class="badge b-amb">الموعد فات (${fmtDate(b.date)})</span></div>
+        <div class="sub"><span class="mu">حدّد موعد جديد عشان يكمل، أو سجّله ملغي</span></div></div>
+      <div class="acts"><button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button></div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
       <div class="info"><div class="nm">${esc(b.name)}${made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
-      <div class="acts"><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">📲 ابدأ</button></div></div>`; }).join('');
+      <div class="acts"><button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">📲 ابدأ</button></div></div>`; }).join('');
 }
+/* ⏰ كل مواعيد الحجز (اللي لسه مادخلتش) عدّت بأكتر من ساعة */
+const apptPassed = b => { const gs=groupsOf(b).filter(g=>!entered(b,g) && !noShow(b,g)); return gs.length>0 && gs.every(g=>gStart(b,g) < Date.now()-36e5); };
+/* ✏️ فتح الحجز للتعديل (من أي قائمة) — بيقفل أي نافذة مفتوحة الأول */
+function editDate(id){ document.querySelectorAll('.overlay.on').forEach(o=>o.classList.remove('on')); BKID=null; openForm(id); }
 function bkOpen(id){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
   BKID=id; b.pax=fixRows(b.pax, paxN(b)); bkRender(); $('#bkOv').classList.add('on');
@@ -3447,7 +3456,7 @@ function renderAppts(){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
         <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
       <div class="apEm">${(b.pax||[]).filter(r=>r.email && !r.nv).map(r=>`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span>${r.name?`<span class="l">${esc(r.name)}</span>`:''}<span class="c">📋</span></button>`).join('')||'<span class="hint">مفيش إيميلات</span>'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}</div></div>`; }).join('')
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button></div></div>`; }).join('')
     : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
 $('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
