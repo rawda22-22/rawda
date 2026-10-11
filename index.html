@@ -601,18 +601,29 @@ body:not(.cloud) .cloud-only{display:none!important}
   </div>
 </div>
 
+<!-- 📋 اختيار أفراد من شيت مجمّع -->
+<div class="overlay" id="pickOv" style="z-index:60">
+  <div class="modal" style="max-width:720px">
+    <h3>📋 اختار الأفراد من الشيت<button class="x" onclick="pickClose()">×</button></h3>
+    <div class="hint" id="pickInfo" style="display:block;margin-bottom:8px"></div>
+    <input id="pickQ" placeholder="ابحث باسم أو جواز أو تأشيرة" oninput="pickRender()" style="width:100%;padding:9px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit;margin-bottom:8px">
+    <div style="overflow-x:auto;max-height:55vh"><table class="curTable" id="pickTable"></table></div>
+    <div class="mfoot"><button class="btn pri" id="pickOk" onclick="pickApply()">✓ إضافة المختارين</button><button class="btn sec" onclick="pickClose()">إلغاء</button></div>
+  </div>
+</div>
+
 <!-- 👥 بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل) -->
 <div class="overlay" id="paxOv">
   <div class="modal" style="max-width:860px">
     <h3>👥 بيانات الأفراد<button class="x" onclick="paxClose()">×</button></h3>
     <div id="paxInfo" class="bill" style="margin-bottom:10px"></div>
     <div class="toolbar" style="margin-bottom:8px">
-      <label class="btn gold sm" style="cursor:pointer">📎 قراءة من التأشيرات (PDF أو صور)<input id="paxFiles" type="file" accept="application/pdf,image/*" multiple style="display:none"></label>
+      <label class="btn gold sm" style="cursor:pointer">📎 قراءة من التأشيرات أو شيت (Excel / PDF / صور)<input id="paxFiles" type="file" accept="application/pdf,image/*,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" multiple style="display:none"></label>
       <span class="hint" id="paxRead"></span>
     </div>
     <div style="overflow-x:auto"><table class="curTable" id="paxTable"></table></div>
     <datalist id="natList"></datalist>
-    <div class="hint" style="display:block;margin-top:6px">ارفع ملف التأشيرة (أو أكتر من ملف مرة واحدة) وهو بيملى أول صف فاضي لوحده — <b>راجع الأرقام قبل الحفظ</b> خصوصاً لو التأشيرة صورة.</div>
+    <div class="hint" style="display:block;margin-top:6px">ارفع ملف التأشيرة (أو أكتر من ملف مرة واحدة) وهو بيملى أول صف فاضي لوحده. ولو عندك <b>شيت Excel أو PDF مجمّع</b> فيه (الاسم • رقم الجواز • رقم التأشيرة أو رقم الحدود) ارفعه هنا: لو الاسم أو الجواز مكتوب في صف بيتملى فيه، ولو الشيت فيه ناس أكتر من الحجز هتختار منهم — <b>راجع الأرقام قبل الحفظ</b> خصوصاً لو التأشيرة صورة.</div>
     <div class="mfoot">
       <button class="btn pri" onclick="paxSave()">💾 حفظ</button>
       <button class="btn gold" id="paxUpBtn" onclick="paxUpload()">📤 تم الرفع</button>
@@ -3180,6 +3191,8 @@ async function readVisaFile(f, onStep){
     const lib=await pdfLib(), pdf=await lib.getDocument({data:await f.arrayBuffer()}).promise;
     for(let p=1;p<=pdf.numPages;p++){
       const pg=await pdf.getPage(p), tc=await pg.getTextContent();
+      const tbl=pdfTableRecs(tc.items);
+      if(tbl.length>=2){ out.push(...tbl); out.list=true; continue; }   // صفحة فيها جدول أسماء (شيت مطبوع PDF)
       let text=tc.items.map(it=>it.str+(it.hasEOL?'\n':' ')).join('');
       if(text.replace(/\s/g,'').length<30){   // PDF متصوّر سكانر — نقراه كصورة
         onStep(`🔎 بيقرا صفحة ${p} كصورة…`);
@@ -3195,25 +3208,150 @@ async function readVisaFile(f, onStep){
   }
   return out;
 }
+/* ===== 📊 قراءة شيت مجمّع (Excel / CSV / PDF جدول) ===== */
+const isSheet = f => /\.(xlsx|xls|csv)$/i.test(f.name) || /spreadsheet|ms-excel|text\/csv/.test(f.type);
+const digits = s => String(s??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+const cellTxt = v => typeof v==='number' ? (Number.isInteger(v)?String(v):String(Math.round(v))) : digits(v).trim();
+const cleanNo = v => cellTxt(v).toUpperCase().replace(/[\s\-\.]/g,'');
+const cleanName = v => cellTxt(v).replace(/\s+/g,' ').trim();
+const isLatinName = v => /^[A-Za-z][A-Za-z .'\-]{3,}$/.test(v) && v.trim().split(/\s+/).length>=2;
+const HDR = {
+  name:/^(الاسم|اسم|اسم المعتمر|اسم الحاج|اسم العميل|الاسم بالكامل|الاسم الكامل|الاسم بالانجليزي|الاسم بالإنجليزي|الاسم انجليزي|الاسم إنجليزي|name|full ?name|english name|name ?\(?en(glish)?\)?|passenger( name)?|pax( name)?)$/i,
+  pass:/(جواز|passport|pass ?no|pp ?no)/i,
+  visa:/(تأشير|تاشير|visa)/i,
+  border:/(حدود|border)/i,
+  nat:/(جنسي|nationality|nat\.?$|country)/i
+};
+const normH = h => cellTxt(h).replace(/[ً-ْـ]/g,'').replace(/[:#*\(\)]/g,' ').replace(/\s+/g,' ').trim();
+/* بيلاقي صف العناوين والأعمدة — ولو مفيش عناوين بيخمّن من شكل البيانات */
+function sheetCols(rows){
+  for(let h=0; h<Math.min(rows.length,15); h++){
+    const c={}; (rows[h]||[]).forEach((v,k)=>{ const t=normH(v); if(!t || t.length>40) return;
+      if(c.visa===undefined && HDR.visa.test(t) && !HDR.pass.test(t)) c.visa=k;
+      else if(c.border===undefined && HDR.border.test(t)) c.border=k;
+      else if(c.pass===undefined && HDR.pass.test(t)) c.pass=k;
+      else if(c.nat===undefined && HDR.nat.test(t)) c.nat=k;
+      else if(HDR.name.test(t)) (c.names=c.names||[]).push(k); });
+    if((c.pass!==undefined || c.visa!==undefined || c.border!==undefined) && (c.names || c.pass!==undefined)){ c.head=h; return c; }
+  }
+  // من غير عناوين: نشوف كل عمود فيه إيه
+  const c={head:-1, names:[]}, R=rows.slice(0,60), W=Math.max(0,...R.map(r=>r.length));
+  for(let k=0;k<W;k++){
+    const vals=R.map(r=>cellTxt(r[k])).filter(Boolean); if(vals.length<1) continue;
+    const share = re => vals.filter(v=>re.test(v.toUpperCase().replace(/\s/g,''))).length/vals.length;
+    if(c.visa===undefined && share(/^6\d{9}$/)>.6) c.visa=k;
+    else if(c.border===undefined && share(/^[34]\d{9}$/)>.6) c.border=k;
+    else if(c.pass===undefined && share(/^[A-Z]{1,2}\d{6,9}$|^\d{7,9}$/)>.6) c.pass=k;
+    else if(vals.filter(isLatinName).length/vals.length>.6 || vals.filter(v=>/^[؀-ۿ ]{5,}$/.test(v)&&v.includes(' ')).length/vals.length>.6) c.names.push(k);
+    else if(c.nat===undefined && vals.filter(v=>NAT_EN[v.toUpperCase()]||/^(مصر|مصري|السعودية|السودان|الأردن|سوريا|فلسطين|العراق|اليمن|ليبيا)/.test(v)).length/vals.length>.6) c.nat=k;
+  }
+  return (c.pass!==undefined || c.visa!==undefined || c.border!==undefined) ? c : null;
+}
+const NAT_ADJ={'مصري':'مصر','مصرية':'مصر','سعودي':'السعودية','سعودية':'السعودية','سوداني':'السودان','سودانية':'السودان','أردني':'الأردن','اردني':'الأردن','فلسطيني':'فلسطين','سوري':'سوريا','سورية':'سوريا','لبناني':'لبنان','عراقي':'العراق','يمني':'اليمن','ليبي':'ليبيا','تونسي':'تونس','جزائري':'الجزائر','مغربي':'المغرب','كويتي':'الكويت','إماراتي':'الإمارات','قطري':'قطر','بحريني':'البحرين','عماني':'عمان','باكستاني':'باكستان','هندي':'الهند','تركي':'تركيا'};
+const natFix = v => { v=String(v||'').trim(); if(!v) return ''; if(/[\u0600-\u06FF]/.test(v)) return NAT_ADJ[v]||v; return natAr(v); };
+function sheetRecs(rows){
+  const c=sheetCols(rows); if(!c) return [];
+  const out=[];
+  rows.slice(c.head+1).forEach(r=>{
+    const nm=(c.names||[]).map(k=>cleanName(r[k])).filter(Boolean);
+    const name = nm.find(isLatinName) || nm[0] || '';
+    const visa = c.visa!==undefined ? cleanNo(r[c.visa]) : '', border = c.border!==undefined ? cleanNo(r[c.border]) : '';
+    const pass = c.pass!==undefined ? cleanNo(r[c.pass]) : '';
+    const natRaw = c.nat!==undefined ? cleanName(r[c.nat]) : '';
+    const rec={ name: isLatinName(name)?name.toUpperCase():name, pass, visa: (/^\d{6,}$/.test(visa)?visa:'') || (/^\d{6,}$/.test(border)?border:''), nat: natFix(natRaw) };
+    if(rec.pass || rec.visa) out.push(rec);
+  });
+  return out;
+}
+async function readSheetFile(f){
+  const X=await loadXLSX(), wb=X.read(await f.arrayBuffer(), {type:'array'}), out=[];
+  wb.SheetNames.forEach(n=>{ const rows=X.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:''}); out.push(...sheetRecs(rows)); });
+  return out;
+}
+/* PDF فيه جدول (مش تأشيرة): بنجمّع الكلام سطر سطر حسب مكانه في الصفحة */
+function pdfTableRecs(items){
+  const L=[]; items.forEach(it=>{ if(!it.str || !it.str.trim()) return; const y=it.transform[5], x=it.transform[4];
+    let l=L.find(q=>Math.abs(q.y-y)<3); if(!l){ l={y, a:[]}; L.push(l); } l.a.push({x, s:it.str}); });
+  const out=[];
+  L.forEach(l=>{ const t=digits(l.a.sort((p,q)=>p.x-q.x).map(z=>z.s).join(' ')).toUpperCase();
+    const nums=(t.match(/\d+/g)||[]).filter(n=>n.length===10);
+    const visa=nums.find(n=>n[0]==='6') || nums.find(n=>/^[34]/.test(n)) || '';
+    let pass=(t.match(/\b[A-Z]{1,2}\d{6,9}\b/)||[])[0]||'';
+    if(!pass){ const p=(t.match(/\d+/g)||[]).find(n=>n.length>=7&&n.length<=9); if(p) pass=p; }
+    if(!(pass && visa)) return;
+    const name=(t.match(/[A-Z][A-Z'\-]+(?: [A-Z][A-Z'\-]+){1,6}/g)||[]).filter(x=>!/^(PASSPORT|VISA|BORDER|NAME|NATIONALITY)\b/.test(x)).sort((a,b)=>b.length-a.length)[0]||'';
+    const natW=Object.keys(NAT_EN).find(k=>k.length>3 && t.includes(k));
+    out.push({name, pass, visa, nat:natW?NAT_EN[natW]:''});
+  });
+  return out;
+}
+
+/* ===== ربط اللي اتقرا بصفوف الحجز ===== */
+const nmKey = s => normAr(String(s||'')).replace(/[^a-z0-9؀-ۿ]/g,'');
+function whereUsed(r){
+  for(const b of S.bookings){ if(b.id===PAXID || b.status==='cancelled') continue;
+    if((b.pax||[]).some(x=>x && ((r.pass && x.pass===r.pass) || (r.visa && x.visa===r.visa)))) return b; }
+  return null;
+}
+function fillRow(bb, k, r){ ['name','visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } }); }
+/* بيرجع {done, left}: done = اتحطوا في صفوف • left = محتاجين اختيار (الشيت أكبر من الحجز) */
+function placeRecs(recs, fromList){
+  const bb=paxB(); if(!bb) return {done:0, left:[]};
+  let done=0; const rest=[];
+  for(const r of recs){
+    // 1) نفس الجواز/التأشيرة موجود في الحجز → نكمّل الناقص بس
+    let k=bb.pax.findIndex(x=>(r.pass && x.pass===r.pass) || (r.visa && x.visa===r.visa));
+    if(k>=0){ const was=JSON.stringify(bb.pax[k]); fillRow(bb,k,r); if(JSON.stringify(bb.pax[k])!==was) done++; continue; }
+    // 2) نفس الاسم مكتوب في صف لسه مالوش أرقام
+    if(r.name){ k=bb.pax.findIndex(x=>x.name && !x.pass && !x.visa && nmKey(x.name)===nmKey(r.name)); if(k>=0){ fillRow(bb,k,r); done++; continue; } }
+    rest.push(r);
+  }
+  const free=bb.pax.filter(x=>!x.visa && !x.pass && !x.name).length;
+  if(!rest.length) return {done, left:[]};
+  if(!fromList || rest.length<=free){
+    for(const r of rest){ const k=bb.pax.findIndex(x=>!x.visa && !x.pass && !x.name); if(k<0){ toast('⚠️ مفيش صفوف فاضية — زوّد عدد الأفراد من تعديل الحجز'); break; } fillRow(bb,k,r); done++; }
+    return {done, left:[]};
+  }
+  return {done, left:rest};
+}
+
+/* ===== شاشة الاختيار لما الشيت فيه ناس أكتر من الحجز ===== */
+let PICK=[];
+function pickOpen(list){ PICK=list.map(r=>({...r, used:whereUsed(r), on:false})); $('#pickQ').value=''; pickRender(); $('#pickOv').classList.add('on'); }
+function pickClose(){ $('#pickOv').classList.remove('on'); PICK=[]; }
+function pickRender(){
+  const bb=paxB(); if(!bb) return; const free=bb.pax.filter(x=>!x.visa && !x.pass && !x.name).length, sel=PICK.filter(x=>x.on).length;
+  const q=nmKey($('#pickQ').value);
+  $('#pickInfo').innerHTML=`الشيت فيه <b>${PICK.length}</b> فرد مش موجودين في الحجز • الصفوف الفاضية: <b>${free}</b> • اخترت <b>${sel}</b>${sel>free?' <b style="color:var(--red)">— أكتر من الصفوف الفاضية</b>':''}`;
+  $('#pickTable').innerHTML=`<thead><tr><th></th><th>الاسم</th><th>الجواز</th><th>التأشيرة/الحدود</th><th>الجنسية</th></tr></thead><tbody>${PICK.map((r,i)=>({r,i})).filter(({r})=>!q||nmKey(r.name).includes(q)||nmKey(r.pass).includes(q)||(r.visa||'').includes(q)).map(({r,i})=>`<tr style="${r.used?'opacity:.55':''}">
+    <td><input type="checkbox" ${r.on?'checked':''} onchange="PICK[${i}].on=this.checked;pickRender()" style="width:20px;height:20px"></td>
+    <td>${esc(r.name||'—')}${r.used?`<div class="hint">مسجّل في حجز ${esc(r.used.name)}</div>`:''}</td><td dir="ltr">${esc(r.pass||'—')}</td><td dir="ltr">${esc(r.visa||'—')}</td><td>${esc(r.nat||'—')}</td></tr>`).join('')}</tbody>`;
+  $('#pickOk').textContent=`✓ إضافة ${sel||''} المختارين`;
+}
+function pickApply(){
+  const bb=paxB(); if(!bb) return pickClose();
+  const sel=PICK.filter(x=>x.on); if(!sel.length){ toast('اختار فرد واحد على الأقل'); return; }
+  let n=0; for(const r of sel){ const k=bb.pax.findIndex(x=>!x.visa && !x.pass && !x.name); if(k<0){ toast('⚠️ الصفوف خلصت — زوّد عدد الأفراد من تعديل الحجز'); break; } fillRow(bb,k,r); n++; }
+  pickClose(); if(n){ paxDirty=true; } paxRender();
+  $('#paxRead').innerHTML=`✅ اتضاف ${n} من الشيت — <b>راجع الخانات الصفرا</b> واحفظ`;
+}
+
 $('#paxFiles').addEventListener('change', async e=>{
   const files=[...e.target.files]; e.target.value=''; const b=paxB(); if(!b || !files.length) return;
-  paxCollect(); const st=$('#paxRead'); let found=0, fail=[];
+  paxCollect(); const st=$('#paxRead'); let found=0, fail=[], pick=[];
   for(const [i,f] of files.entries()){
     st.textContent=`⏳ ${i+1}/${files.length}: ${f.name}`;
     try{
-      const recs=await readVisaFile(f, s=>st.textContent=`⏳ ${i+1}/${files.length}: ${s}`);
+      let recs, list=false;
+      if(isSheet(f)){ recs=await readSheetFile(f); list=true; }
+      else { const R=await readVisaFile(f, s=>st.textContent=`⏳ ${i+1}/${files.length}: ${s}`); recs=R.recs||R; list=!!R.list; }
       if(!recs.length){ fail.push(f.name); continue; }
-      for(const r of recs){
-        const bb=paxB(); if(!bb) return;
-        if(bb.pax.some(x=>r.visa && x.visa===r.visa)){ continue; }   // التأشيرة دي متسجلة بالفعل
-        const k=bb.pax.findIndex(x=>!x.visa && !x.pass); if(k<0){ toast('⚠️ مفيش صفوف فاضية — زوّد عدد الأفراد من تعديل الحجز'); break; }
-        ['name','visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } });
-        found++;
-      }
+      const res=placeRecs(recs, list); found+=res.done; pick.push(...res.left);
     }catch(err){ console.error(err); fail.push(f.name); }
   }
   paxDirty = paxDirty || found>0; paxRender();
-  st.innerHTML = `${found?`✅ اتقرت ${found} تأشيرة — <b>راجع الخانات الصفرا</b> واحفظ`:'' }${fail.length?` <span style="color:var(--red)">• ماعرفتش أقرا: ${esc(fail.join('، '))}</span>`:''}`;
+  st.innerHTML = `${found?`✅ اتقرا ${found} فرد — <b>راجع الخانات الصفرا</b> واحفظ`:'' }${fail.length?` <span style="color:var(--red)">• ماعرفتش أقرا: ${esc(fail.join('، '))}</span>`:''}${!found&&!fail.length&&!pick.length?'كل اللي في الملف متسجل بالفعل في الحجز':''}`;
+  if(pick.length) pickOpen(pick);
 });
 
 /* ===== صفحة بنك الإيميلات (للمدير) ===== */
