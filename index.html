@@ -68,6 +68,10 @@ section.sec{display:none}section.sec.on{display:block;animation:fade .25s}
 .ibtn.ok{color:var(--g);border-color:#bfe0cf}.ibtn.del{color:var(--red);border-color:#f0c4c4}.ibtn.money{color:#8a5a00;border-color:#ecd49a;background:#fffaf0}
 .empty{text-align:center;color:var(--mu);padding:26px 10px}
 .group{border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff;border-top:4px solid var(--gc)}
+.gmini{width:100%;border-collapse:collapse;font-size:14px}
+.gmini th,.gmini td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:right;vertical-align:middle}
+.gmini th{font-size:12px;color:var(--mu);font-weight:700}
+.gmini .gcell{font-weight:700;white-space:nowrap;background:#fafafa}
 .group.frozen{background:#f7f5ff;border-color:#d7cff8;border-top-color:#5a3fc0}
 .group .gh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .group .gh .t{font-weight:800;font-size:15px;flex:1}
@@ -1365,7 +1369,15 @@ function renderGroups(){
   $('#grpHint').textContent = `نافذة التجميع: ${S.settings.groupMin} دقيقة`;
   const empty = '<div class="empty">لا توجد دفعات قادمة</div>';
   $('#groupsFull').innerHTML = lastGroups.length ? lastGroups.map(groupCard).join('') : empty;
-  $('#groupsMini').innerHTML = lastGroups.length ? lastGroups.slice(0,5).map(groupCard).join('') : empty;
+  $('#groupsMini').innerHTML = lastGroups.length ? groupsMiniTable(lastGroups.slice(0,5)) : empty;
+}
+/* جدول مبسط للوحة الرئيسية: الدفعة + الاسم + واتساب */
+function groupsMiniTable(gs){
+  const rows = gs.map(G=>{
+    const lbl = `${G.g==='m'?'رجال':'نساء'} • ${fmtDate(G.date)} • ${hm(G.start)}`;
+    return G.items.map((a,k)=>`<tr>${k===0?`<td rowspan="${G.items.length}" class="gcell" style="border-inline-start:4px solid ${gColor(G.g)}">${lbl}</td>`:''}<td>${esc(a.b.name)}</td><td>${waBtn(a.b)||'—'}</td></tr>`).join('');
+  }).join('');
+  return `<table class="gmini"><thead><tr><th>الدفعة</th><th>الاسم</th><th>واتساب</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function clearFilters(){ ['q','fDate','fStatus','fPay','fCur'].forEach(k=>$('#'+k).value=''); renderTable(); }
