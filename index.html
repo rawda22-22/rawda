@@ -3050,7 +3050,7 @@ function paxRender(){
   const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
   $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
     (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
-      <td>${r.email ? (adm ? `<span dir="ltr" style="font-size:13px">${esc(r.email)}</span>` : '<span class="badge b-green">✓ مربوط</span>') : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
+      <td>${r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>` : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
   $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
 }
 $('#paxTable').addEventListener('input', e=>{ if(e.target.classList.contains('px')){ paxDirty=true; e.target.style.background=''; } });
@@ -3463,7 +3463,7 @@ function renderNoVisit(){
         <span class="sp" style="flex:1"></span><span class="hint">${b.acct?.at?fmtDate(dstr(new Date(b.acct.at))):''}</span>
         ${isAdmin()?`<button class="ibtn" onclick="bkOpen('${b.id}')">📲 فتح الحجز</button>`:''}</div>
       <div style="display:grid;gap:6px;margin-top:8px">${P.map(r=>`<div class="pcard nv" style="margin:0;padding:8px;font-size:14px">
-        <b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${isAdmin()&&r.email?` • 📧 <span dir="ltr">${esc(r.email)}</span>`:''}</div>`).join('')}</div></div>`; }).join('');
+        <b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
   box.innerHTML = html || `<div class="empty">${q?'مفيش نتايج':'✅ مفيش حد ممنوع من الزيارة'}</div>`;
 }
 
