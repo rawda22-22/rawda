@@ -3294,15 +3294,20 @@ function renderBookQueue(){
   $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
     if(gone) return `<div class="appt" style="--gc:var(--amb)">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)} <span class="badge b-amb">الموعد فات (${fmtDate(b.date)})</span></div>
+      <div class="info"><div class="nm">${esc(b.name)} <span class="badge b-amb">الموعد فات</span></div>
+        <div class="sub">${bkMini(b)}</div>
         <div class="sub"><span class="mu">حدّد موعد جديد عشان يكمل، أو سجّله ملغي</span></div></div>
       <div class="acts"><button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button></div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
       <div class="info"><div class="nm">${esc(b.name)}${made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
+        <div class="sub">${bkMini(b)}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
       <div class="acts"><button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">📲 ابدأ</button></div></div>`; }).join('');
 }
+/* 📋 بيانات مصغّرة للحجز: 👨 رجال 2 • الخميس 15 أكتوبر • 9:00 ص */
+const bkMini = b => groupsOf(b).map(g=>{ const sl=g==='m'?b.menSlot:b.womenSlot;
+  return `<span class="badge ${g==='m'?'b-new':'b-amb'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${sl?` • ${fmt12(sl)}`:''}</span>`; }).join(' ');
 /* ⏰ كل مواعيد الحجز (اللي لسه مادخلتش) عدّت بأكتر من ساعة */
 const apptPassed = b => { const gs=groupsOf(b).filter(g=>!entered(b,g) && !noShow(b,g)); return gs.length>0 && gs.every(g=>gStart(b,g) < Date.now()-36e5); };
 /* ✏️ فتح الحجز للتعديل (من أي قائمة) — بيقفل أي نافذة مفتوحة الأول */
