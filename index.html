@@ -112,7 +112,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .pcard.made{background:#f1faf5;border-color:#9fd6bb}
 .pcard.nv{background:#fdf2f2;border-color:#efb9b9}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
-.pcard .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px}.pcard .ph .sp{flex:1}
+.pcard .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.pcard .ibtn.ok{background:#e3f4ec;color:var(--g);border-color:#9fd6bb}.pcard .ph .sp{flex:1}
 .cp{display:flex;align-items:center;gap:10px;width:100%;text-align:right;border:1.5px solid var(--bd);background:#f8faf9;border-radius:12px;padding:12px;margin-bottom:8px;font:inherit;cursor:pointer;min-height:54px}
 .cp .l{font-size:13px;color:var(--mu);white-space:nowrap;min-width:84px}.cp .v{flex:1;font-size:17px;font-weight:700;word-break:break-all}
 .cp .c{font-size:20px}.cp:active{transform:scale(.98)}
@@ -236,7 +236,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div id="apAlert"></div>
     <div id="bankAlert"></div>
     <div class="card" id="bkCard" style="display:none;border:2px solid var(--blue)">
-      <h2>📲 مطلوب إنشاء حساب على المنصة <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
+      <h2>📲 مطلوب على المنصة (حساب / موعد) <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
       <div id="bkList"></div>
     </div>
     <div id="alertBox"></div>
@@ -1331,7 +1331,7 @@ function apptRow(a){
       ${stageBar(b)?`<div class="sub">${stageBar(b)}</div>`:''}
     </div>
     <div class="acts">
-      ${isAdmin() && acctDone(b) && !allBarred(b) && !gDone(b,'slotBk',a.g) ? `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${a.g}')" title="الحساب اتعمل — علّم لما تحجز الموعد على المنصة">📅 تم حجز الموعد</button>` : ''}
+      ${isAdmin() && acctDone(b) && !allBarred(b) && !gDone(b,'slotBk',a.g) ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')" title="الحساب اتعمل — افتح الأفراد وعلّم «اتحجز موعده»">📅 حجز الموعد</button>` : ''}
       ${paxBtn(b)}
       ${waBtn(b)}
       <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
@@ -3301,6 +3301,17 @@ function stBadge(b){
   return `<span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>`;
 }
 const needBook = b => paxN(b)>0 && b.status!=='cancelled' && b.status!=='done' && !acctDone(b);
+/* الحساب اتعمل لكن الموعد لسه ماتحجزش (لكل الأفراد اللي ليهم زيارة) */
+const slotAll = b => { const gs=stGroups(b); return gs.length>0 && gs.every(g=>gDone(b,'slotBk',g)); };
+const needSlot = b => paxN(b)>0 && b.status!=='cancelled' && b.status!=='done' && acctDone(b) && !allBarred(b) && !slotAll(b);
+const bkdN = b => visitPax(b).filter(r=>r.bk).length;
+/* لما كل الأفراد اللي ليهم زيارة يتعلّم عليهم «اتحجز موعده» ← حجز الموعد يتسجل للحجز كله (والعكس) */
+function syncSlot(b){
+  const V=visitPax(b), all=V.length>0 && V.every(r=>r.bk), was=slotAll(b);
+  if(all && !was){ b.slotBk={}; stGroups(b).forEach(g=>b.slotBk[g]={at:Date.now(), by:myEmail()}); delete b.booked; if(b.status==='new') b.status='confirmed';
+    if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${V.length}\n${stGroups(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`).join('\n')}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e)); }
+  else if(!all && was){ b.slotBk={}; delete b.booked; if(b.status==='confirmed') b.status='new'; }
+}
 /* «ليس له زيارة» لكل فرد (r.nv) — بعد «تم إنشاء الحسابات» الفرد ده بيروح تبويب «ممنوع الزيارة هذا العام» واللي اتحجز لهم بس بيكملوا */
 const visitPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv);
 const nvPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv);
@@ -3310,7 +3321,7 @@ const bkB = () => S.bookings.find(x=>x.id===BKID);
 function renderBookQueue(){
   const card=$('#bkCard'); if(!card) return;
   if(!isAdmin()){ card.style.display='none'; return; }
-  const L=S.bookings.filter(needBook).sort((a,b)=>apptPassed(a)-apptPassed(b) || (nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
+  const L=S.bookings.filter(b=>needBook(b)||needSlot(b)).sort((a,b)=>needSlot(a)-needSlot(b) || apptPassed(a)-apptPassed(b) || (nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
   card.style.display = L.length ? '' : 'none';
   $('#bkCount').textContent = L.length ? `${L.length} حجز` : '';
   $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
@@ -3322,10 +3333,10 @@ function renderBookQueue(){
       <div class="acts"><button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button></div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)}${made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
+      <div class="info"><div class="nm">${esc(b.name)}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
         <div class="sub">${bkMini(b)}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
-      <div class="acts"><button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">📲 ابدأ</button></div></div>`; }).join('');
+      <div class="acts"><button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
 }
 /* 📋 بيانات مصغّرة للحجز: 👨 رجال 2 • الخميس 15 أكتوبر • 9:00 ص */
 const bkMini = b => groupsOf(b).map(g=>{ const sl=g==='m'?b.menSlot:b.womenSlot;
@@ -3350,6 +3361,7 @@ function bkRender(){
   $('#bkPeople').innerHTML = b.pax.map((r,i)=>`<div class="pcard ${r.nv?'nv':r.made?'made':''}">
       <div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل حسابه':'⬜ اتعمل حسابه'}</button>
+        <button type="button" class="ibtn ${r.bk?'ok':''}" onclick="bkSlot(${i})" ${r.nv?'disabled':''}>${r.bk?'✅ اتحجز موعده':'📅 اتحجز موعده'}</button>
         <button type="button" class="ibtn nv ${r.nv?'on':''}" onclick="bkNv(${i})">🚫 ليس له زيارة</button></div>
       ${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`).join('');
@@ -3368,12 +3380,19 @@ async function bkCopy(el){
 }
 function bkMade(i){
   const b=bkB(); if(!b || !b.pax[i]) return;
-  b.pax[i].made=!b.pax[i].made; if(b.pax[i].made) delete b.pax[i].nv; save(); bkRender(); renderBookQueue();
+  b.pax[i].made=!b.pax[i].made; if(b.pax[i].made) delete b.pax[i].nv; else delete b.pax[i].bk; if(acctDone(b)) syncSlot(b); save(); bkRender(); renderAll();
   if(b.pax[i].made){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
+}
+function bkSlot(i){
+  const b=bkB(); if(!b || !b.pax[i] || b.pax[i].nv) return;
+  const r=b.pax[i]; r.bk=!r.bk; if(r.bk) r.made=true;
+  if(acctDone(b)) syncSlot(b);
+  save(); bkRender(); renderAll();
+  if(r.bk){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
 function bkNv(i){
   const b=bkB(); if(!b || !b.pax[i]) return;
-  if(b.pax[i].nv) delete b.pax[i].nv; else { b.pax[i].nv=true; b.pax[i].made=false; }
+  if(b.pax[i].nv) delete b.pax[i].nv; else { b.pax[i].nv=true; b.pax[i].made=false; delete b.pax[i].bk; } if(acctDone(b)) syncSlot(b);
   save(); bkRender(); renderBookQueue(); renderNoVisit();
   if(b.pax[i].nv){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
@@ -3385,7 +3404,7 @@ async function bkDone(){
   if(made<n && !confirm(`علّمت على ${made} من ${n} بس. الباقيين هيتسجلوا «اتعمل حسابه» — تكمل؟`)) return;
   const nvN=b.pax.filter(r=>r.nv).length, vN=n-nvN;
   if(nvN && !confirm(vN ? `🚫 ${nvN} ليس لهم زيارة هيروحوا تبويب «ممنوع الزيارة هذا العام»\nو ${vN} بس هيكملوا للمواعيد. تمام؟` : `🚫 كل أفراد الحجز (${n}) ليس لهم زيارة — الحجز كله هيروح «ممنوع الزيارة هذا العام». تمام؟`)) return;
-  b.pax.forEach(r=>{ if(!r.nv) r.made=true; }); b.acct={at:Date.now(), by:myEmail()};
+  b.pax.forEach(r=>{ if(!r.nv) r.made=true; }); b.acct={at:Date.now(), by:myEmail()}; syncSlot(b);
   save(); closeOv('bkOv'); BKID=null; renderAll();
   toast(vN ? `✅ اتعملت الحسابات — ${b.name}${nvN?` • 🚫 ${nvN} ممنوع الزيارة`:''} • احجز الموعد من «المواعيد»` : `🚫 ${b.name} — الحجز كله اتنقل «ممنوع الزيارة هذا العام»`);
   if(tgOn()) tgSend(`✅ <b>تم إنشاء الحسابات على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${vN} ليهم زيارة (الموعد لسه ماتحجزش)${nvN?`\n🚫 ${nvN} ممنوع الزيارة هذا العام`:''}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
@@ -3494,12 +3513,12 @@ function stMark(id, k, g){
   if(on){ if(!confirm(`إلغاء «${lbl}» لـ ${b.name}؟`)) return;
     if(k==='slotBk' && b.booked){ delete b.booked; b.slotBk={...(b.slotBk||{})}; stGroups(b).filter(x=>x!==g).forEach(x=>b.slotBk[x]={at:Date.now(), by:myEmail()}); b.acct=b.acct||{at:Date.now(), by:myEmail()}; }
     b[k]={...(b[k]||{})}; delete b[k][g];
-    if(k==='slotBk' && b.status==='confirmed') b.status='new'; }
+    if(k==='slotBk'){ if(b.status==='confirmed') b.status='new'; (b.pax||[]).forEach(r=>delete r.bk); } }
   else {
     if(k==='bar' && !gDone(b,'conf',g) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
     b[k]={...(b[k]||{}), [g]:{at:Date.now(), by:myEmail()}};
     if(k==='slotBk'){
-      if(b.status==='new' && stGroups(b).every(x=>gDone(b,'slotBk',x))) b.status='confirmed';
+      if(stGroups(b).every(x=>gDone(b,'slotBk',x))){ if(b.status==='new') b.status='confirmed'; visitPax(b).forEach(r=>{ r.bk=true; r.made=true; }); }
       if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
     }
   }
