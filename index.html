@@ -504,7 +504,9 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="card">
       <h2>🔎 الإيميلات <span class="sp"></span>
         <input id="bankQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderBank()">
-        <select id="bankF" class="ibtn" onchange="renderBank()"><option value="free">المتاحة</option><option value="used">المستخدمة</option><option value="">الكل</option></select></h2>
+        <select id="bankF" class="ibtn" onchange="renderBank()"><option value="free">المتاحة</option><option value="used">المستخدمة</option><option value="">الكل</option></select>
+        <button class="ibtn" onclick="bankDupCheck()" title="يدوّر على أي إيميل متكرر في البنك أو في الحجوزات">🔍 فحص التكرار</button></h2>
+      <div id="bankDup"></div>
       <div style="overflow-x:auto"><table class="curTable" id="bankTable"></table></div>
     </div>
   </section>
@@ -3054,7 +3056,8 @@ async function allocEmails(b, quiet){
         const pax=fixRows(d.pax, n), need=pax.filter(r=>!r.email).length;
         if(!need) return {got:0, short:0, pax};
         const start=+m.next||0, total=+m.total||0, got=[]; let next=start;
-        while(got.length<need && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); if(es.exists() && es.data().email) got.push(es.data().email); }
+        const taken=paxEmailKeys(); pax.forEach(r=>{ if(r.email) taken.add(gKey(r.email)); });
+        while(got.length<need && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); const em=es.exists() && es.data().email; if(em && !taken.has(gKey(em))){ got.push(em); taken.add(gKey(em)); } }
         if(next===start) return {got:0, short:need, pax};
         let k=0; pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
         t.update(mref, {next});
@@ -3065,7 +3068,8 @@ async function allocEmails(b, quiet){
     } else {
       const B=localBank(); b.pax=fixRows(b.pax, paxN(b));
       const need=b.pax.filter(r=>!r.email).length, before=B.total-B.next, got=[];
-      while(got.length<need && B.next<B.total){ B.next++; const x=B.list.find(e=>e.seq===B.next); if(x) got.push(x.email); }
+      const taken=paxEmailKeys();
+      while(got.length<need && B.next<B.total){ B.next++; const x=B.list.find(e=>e.seq===B.next); if(x && !taken.has(gKey(x.email))){ got.push(x.email); taken.add(gKey(x.email)); } }
       let k=0; b.pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
       res={got:got.length, short:need-got.length, before, after:B.total-B.next, low:bankLowN()};
       if(got.length) save();
@@ -3430,10 +3434,14 @@ function renderBank(){
       <td>${isUsed?'':`<button class="ibtn del" onclick="bankDel(${x.seq})" title="حذف من البنك">🗑</button>`}</td></tr>`; }).join('')}</tbody>${rows.length>300?`<tfoot><tr><td colspan="4">… وكمان ${rows.length-300} — استخدم البحث</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
 }
+/* جيميل بيتجاهل النقط وأي حاجة بعد + — فـ ali.ahmed و aliahmed و ali+1 كلهم نفس الصندوق */
+const gKey = e => { e=String(e||'').trim().toLowerCase().replace(/@googlemail\.com$/,'@gmail.com'); const [u,d]=e.split('@'); return d==='gmail.com' ? u.split('+')[0].replace(/\./g,'')+'@gmail.com' : e; };
+/* كل الإيميلات اللي اتسحبت لأفراد في الحجوزات */
+const paxEmailKeys = () => { const k=new Set(); S.bookings.forEach(b=>(b.pax||[]).forEach(r=>{ if(r && r.email) k.add(gKey(r.email)); })); return k; };
 function parseEmails(txt){
   const all=(String(txt).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(x=>x.toLowerCase());
-  const have=new Set(bankList().map(x=>x.email)), seen=new Set(), ok=[]; let dup=0, notG=0;
-  all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; return; } if(have.has(e)||seen.has(e)){ dup++; return; } seen.add(e); ok.push(e); });
+  const have=new Set([...bankList().map(x=>gKey(x.email)), ...paxEmailKeys()]), seen=new Set(), ok=[]; let dup=0, notG=0;
+  all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; return; } const k=gKey(e); if(have.has(k)||seen.has(k)){ dup++; return; } seen.add(k); ok.push(e); });
   return {ok, dup, notG};
 }
 $('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').value);
@@ -3460,6 +3468,22 @@ async function bankAdd(){
     $('#bankIn').value=''; $('#bankInInfo').textContent=''; toast(`✅ اتضاف ${r.ok.length} إيميل للبنك`); renderAll();
     setTimeout(fillAllMissing, 1500);
   }catch(e){ cloudErr(e); toast('⚠️ الإضافة فشلت — اتأكد إن قواعد Firestore اتنشرت'); }
+}
+/* 🔍 فحص التكرار: البنك + كل الإيميلات اللي في الحجوزات (مع اعتبار نقط جيميل و +) */
+function bankDupCheck(){
+  if(!isAdmin()) return;
+  const next=+bankMeta().next||0, G=new Map(), add=(k,x)=>{ if(!G.has(k)) G.set(k,[]); G.get(k).push(x); };
+  bankList().forEach(x=>add(gKey(x.email), {t:'bank', email:x.email, seq:x.seq, used:x.seq<=next}));
+  S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r && r.email) add(gKey(r.email), {t:'pax', email:r.email, b, i}); }));
+  // الإيميل المسحوب بيظهر مرتين طبيعي (مرة في البنك ومرة في الحجز) — التكرار الحقيقي: أكتر من صف في البنك، أو أكتر من فرد بنفس الإيميل
+  const D=[...G.entries()].filter(([k,L])=>L.filter(x=>x.t==='bank').length>1 || L.filter(x=>x.t==='pax').length>1);
+  const box=$('#bankDup');
+  if(!D.length){ box.innerHTML='<div class="alert" style="background:#eef8f3;border:1px solid #9fd6bb;border-radius:10px;padding:10px;margin-bottom:10px">✅ مفيش ولا إيميل متكرر — لا في البنك ولا في الحجوزات</div>'; toast('✅ مفيش تكرار'); return; }
+  box.innerHTML = `<div style="background:#fdf2f2;border:1px solid #efb9b9;border-radius:10px;padding:10px;margin-bottom:10px">
+    <b style="color:var(--red)">⚠️ لقيت ${D.length} إيميل متكرر</b> <button class="ibtn" style="margin-right:8px" onclick="$('#bankDup').innerHTML=''">إخفاء</button>
+    ${D.map(([k,L])=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #efb9b9"><b dir="ltr">${esc(k)}</b>${L.map(x=>x.t==='bank'
+      ? `<div class="hint" style="display:block">📧 في البنك #${x.seq}: <span dir="ltr">${esc(x.email)}</span> — ${x.used?'🔥 اتسحب':`✅ متاح <button class="ibtn del" onclick="bankDel(${x.seq}).then(()=>setTimeout(bankDupCheck,800))" title="حذف النسخة دي من البنك">🗑 حذف</button>`}</div>`
+      : `<div class="hint" style="display:block">👤 في حجز <b>${esc(x.b.name)}</b> — فرد ${x.i+1}${x.b.pax[x.i].name?` (${esc(x.b.pax[x.i].name)})`:''}: <span dir="ltr">${esc(x.email)}</span></div>`).join('')}</div>`).join('')}</div>`;
 }
 async function bankSetLow(){
   const v=Math.max(0, Math.round(+$('#bankLow').value||0));
