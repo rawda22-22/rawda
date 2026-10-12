@@ -3434,8 +3434,8 @@ function renderBank(){
       <td>${isUsed?'':`<button class="ibtn del" onclick="bankDel(${x.seq})" title="حذف من البنك">🗑</button>`}</td></tr>`; }).join('')}</tbody>${rows.length>300?`<tfoot><tr><td colspan="4">… وكمان ${rows.length-300} — استخدم البحث</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
 }
-/* جيميل بيتجاهل النقط وأي حاجة بعد + — فـ ali.ahmed و aliahmed و ali+1 كلهم نفس الصندوق */
-const gKey = e => { e=String(e||'').trim().toLowerCase().replace(/@googlemail\.com$/,'@gmail.com'); const [u,d]=e.split('@'); return d==='gmail.com' ? u.split('+')[0].replace(/\./g,'')+'@gmail.com' : e; };
+/* التكرار = نفس الإيميل حرف بحرف (من غير فرق كابيتال/سمول) — النقط بتتحسب: ali.ahmed و aliahmed إيميلين مختلفين */
+const gKey = e => String(e||'').trim().toLowerCase();
 /* كل الإيميلات اللي اتسحبت لأفراد في الحجوزات */
 const paxEmailKeys = () => { const k=new Set(); S.bookings.forEach(b=>(b.pax||[]).forEach(r=>{ if(r && r.email) k.add(gKey(r.email)); })); return k; };
 function parseEmails(txt){
@@ -3469,7 +3469,7 @@ async function bankAdd(){
     setTimeout(fillAllMissing, 1500);
   }catch(e){ cloudErr(e); toast('⚠️ الإضافة فشلت — اتأكد إن قواعد Firestore اتنشرت'); }
 }
-/* 🔍 فحص التكرار: البنك + كل الإيميلات اللي في الحجوزات (مع اعتبار نقط جيميل و +) */
+/* 🔍 فحص التكرار: البنك + كل الإيميلات اللي في الحجوزات (نفس الإيميل بالظبط) */
 function bankDupCheck(){
   if(!isAdmin()) return;
   const next=+bankMeta().next||0, G=new Map(), add=(k,x)=>{ if(!G.has(k)) G.set(k,[]); G.get(k).push(x); };
