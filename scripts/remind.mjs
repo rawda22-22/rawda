@@ -148,9 +148,9 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
 
 
 /* ===== 🚦 تنبيهات مراحل الحجز على المنصة (النظام الجديد بس — الحجوزات من 10 أكتوبر 2026) =====
-   ✔️ تأكيد الموعد بيفتح قبل الموعد بـ 48 ساعة • 🖨 طباعة الباركود قبل الموعد بساعتين */
+   ✔️ تأكيد الموعد بيفتح قبل الموعد بـ 48 ساعة • 🖨 الاستعداد لطباعة الباركود قبل الموعد بـ 3 ساعات */
 export const PAX_FROM = 1791579600000;
-export const CONF_MIN = 48 * 60, BAR_MIN = 120;
+export const CONF_MIN = 48 * 60, BAR_MIN = 180;
 const paxOn = (b) => (+b.createdAt || 0) >= PAX_FROM || (Array.isArray(b.pax) && b.pax.some((r) => r && (r.email || r.visa || r.pass)));
 const grpBooked = (b, g) => !!(b.booked || (b.slotBk && b.slotBk[g]));
 export function stageAlerts(bookings, now, tz) {
@@ -173,11 +173,12 @@ export function stageAlerts(bookings, now, tz) {
 export function stageMessage(r, empName) {
   const b = r.b;
   const day = new Date(r.date + 'T12:00:00Z').toLocaleDateString('ar-u-nu-latn', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
-  const head = { conf: '✔️ <b>وقت تأكيد الموعد</b>', bar: '🖨 <b>اطبع الباركود</b>', nobk: '⚠️ <b>الموعد قرّب ولسه ماتحجزش على المنصة!</b>' }[r.kind];
+  const head = { conf: '✔️ <b>وقت تأكيد الموعد</b>', bar: '🖨 <b>استعد لطباعة الباركود</b>', nobk: '⚠️ <b>الموعد قرّب ولسه ماتحجزش على المنصة!</b>' }[r.kind];
   if (r.kind === 'nobk' && !(b.acct || b.booked)) return [head, '', `👤 ${h(b.name)}`, '❗ لسه حتى ماتعملهوش حساب', `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`, '', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`].join('\n');
   const L = [head, '', `👤 ${h(b.name)}`, `${r.g === 'm' ? '🧔 رجال' : '🧕 نساء'} (${r.n}) — ${day} • ${fmt12(r.slot)}`, `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`];
+  if (r.kind === 'bar') L.push('', '📧 الإيميلات موجودة على المنصة في تبويب «🖨 طباعة الباركود»');
   const em = (Array.isArray(b.pax) ? b.pax : []).filter((x) => x && x.email);
-  if (r.kind !== 'nobk' && em.length) { L.push(''); em.forEach((x, i) => L.push(`${i + 1}) <code>${h(x.email)}</code>`)); }
+  if (r.kind === 'conf' && em.length) { L.push(''); em.forEach((x, i) => L.push(`${i + 1}) <code>${h(x.email)}</code>`)); }
   L.push('', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`);
   return L.join('\n');
 }

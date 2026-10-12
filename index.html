@@ -244,6 +244,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="list">📋 الحجوزات</button>
   <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
+  <button data-t="bar">🖨 طباعة الباركود <span class="dot" id="barDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="nv">🚫 ممنوع الزيارة <span class="dot" id="nvDot" style="display:none;background:var(--red)"></span></button>
   <button data-t="appts" class="admin-only">🎫 المواعيد <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
   <button data-t="bank" class="admin-only">📧 بنك الإيميلات <span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
@@ -454,6 +455,15 @@ body:not(.cloud) .cloud-only{display:none!important}
   </section>
 
   <!-- 🎫 المواعيد المحجوزة -->
+  <!-- 🖨 طباعة الباركود -->
+  <section class="sec" id="sec-bar">
+    <div class="card">
+      <h2>🖨 طباعة الباركود <span class="sp"></span><span class="hint" id="barHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">الحجز بيظهر هنا قبل الموعد بـ 3 ساعات بس • اضغط على الحجز يفتح جدول بالأسماء والإيميلات — المس الإيميل يتنسخ.</div>
+      <div id="barList"></div>
+    </div>
+  </section>
+
   <!-- 🚫 ممنوع الزيارة هذا العام -->
   <section class="sec" id="sec-nv">
     <div class="card">
@@ -467,7 +477,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <section class="sec" id="sec-appts">
     <div class="card">
       <h2>🎫 المواعيد (بعد إنشاء الحساب) <span class="sp"></span><span class="hint" id="apHead"></span></h2>
-      <div class="hint" style="display:block;margin-bottom:8px">هنا الحجوزات اللي اتعملها حساب • 📅 <b>احجز الموعد</b> وبعدين ✔️ <b>تأكيد الموعد</b> بيفتح قبل الموعد بـ 48 ساعة • 🖨 <b>طباعة الباركود</b> بتفتح قبل الموعد بساعتين. المس الإيميل يتنسخ وادخل بيه على المنصة.</div>
+      <div class="hint" style="display:block;margin-bottom:8px">هنا الحجوزات اللي اتعملها حساب • 📅 <b>احجز الموعد</b> وبعدين ✔️ <b>تأكيد الموعد</b> بيفتح قبل الموعد بـ 48 ساعة • 🖨 <b>طباعة الباركود</b> بتفتح قبل الموعد بـ 3 ساعات. المس الإيميل يتنسخ وادخل بيه على المنصة.</div>
       <div class="subtabs" id="apTabs">
         <button data-f="now" class="on">⏰ مطلوب دلوقتي <span id="apNowN"></span></button>
         <button data-f="all">كل المواعيد الجاية <span id="apAllN"></span></button>
@@ -619,6 +629,14 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="hint" style="display:block;margin-bottom:8px">المس أي خانة تتنسخ على طول ← الصقها في المنصة ← ارجع هنا للخانة اللي بعدها.</div>
     <div id="bkPeople"></div>
     <div class="bkfoot"><button class="btn pri" id="bkDoneBtn" onclick="bkDone()" style="width:100%;font-size:17px;padding:14px">✅ تم إنشاء الحسابات</button></div>
+  </div>
+</div>
+
+<!-- 🖨 جدول إيميلات طباعة الباركود -->
+<div class="overlay" id="barOv">
+  <div class="modal" style="max-width:560px">
+    <h3 id="barTitle">🖨 طباعة الباركود<button class="x" onclick="closeOv('barOv')">×</button></h3>
+    <div id="barBody"></div>
   </div>
 </div>
 
@@ -1767,7 +1785,7 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderNoVisit(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
@@ -3581,8 +3599,8 @@ async function bkDone(){
 
 /* ========= 🚦 مراحل تنفيذ الحجز =========
    1) 👤 إنشاء حساب على المنصة (b.acct) • 2) 📅 حجز الموعد لكل فئة (b.slotBk[g] — أو b.booked القديمة) • 3) ✔️ تأكيد الموعد — بيفتح قبل الموعد بـ 48 ساعة (b.conf[g])
-   4) 🖨 طباعة الباركود — بتفتح قبل الموعد بساعتين (b.bar[g]). المرحلة 3 و 4 لكل فئة لوحدها (رجال / نساء) لأن ممكن يكونوا في يومين مختلفين. */
-const CONF_H = 48, BAR_H = 2;
+   4) 🖨 طباعة الباركود — بتفتح قبل الموعد بـ 3 ساعات (b.bar[g]). المرحلة 3 و 4 لكل فئة لوحدها (رجال / نساء) لأن ممكن يكونوا في يومين مختلفين. */
+const CONF_H = 48, BAR_H = 3;
 const gDt = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return sl ? +new Date(gDate(b,g)+'T'+sl) : null; };
 const stGroups = b => groupsOf(b).filter(g=>gDt(b,g)!==null);
 const gDone = (b, k, g) => k==='slotBk' ? !!((b.slotBk && b.slotBk[g]) || b.booked) : !!(b[k] && b[k][g]);
@@ -3649,6 +3667,42 @@ function renderNoVisit(){
   box.innerHTML = html || `<div class="empty">${q?'مفيش نتايج':'✅ مفيش حد ممنوع من الزيارة'}</div>`;
 }
 
+/* ===== 🖨 تبويب «طباعة الباركود» — للكل: الحجز بيظهر قبل الموعد بـ 3 ساعات بس، والموظف بيشوف حجوزاته هو بس (canSee) =====
+   بيفضل ظاهر لحد ساعة بعد الموعد أو لحد ما الفئة تدخل */
+function barItems(){
+  const out=[], now=Date.now();
+  S.bookings.forEach(b=>{
+    if(!canSee(b) || !paxN(b) || !acctDone(b) || b.status==='cancelled' || b.status==='done' || allBarred(b)) return;
+    stGroups(b).forEach(g=>{ if(entered(b,g)) return; const dt=gDt(b,g), ms=dt-now;
+      if(ms<=BAR_H*36e5 && ms>-36e5) out.push({b, g, dt, ms}); });
+  });
+  return out.sort((x,y)=>x.dt-y.dt);
+}
+function renderBar(){
+  const box=$('#barList'); if(!box) return;
+  const L=barItems();
+  $('#barDot').style.display = L.length ? 'grid' : 'none'; $('#barDot').textContent = L.length;
+  $('#barHead').textContent = L.length ? `${L.length} حجز` : '';
+  box.innerHTML = L.length ? L.map(a=>{ const b=a.b, n=visitPax(b).filter(r=>r.email).length;
+    return `<button type="button" class="card" onclick="barOpen('${b.id}','${a.g}')" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;text-align:right;font:inherit;cursor:pointer;padding:12px;margin-bottom:10px;border-right:5px solid ${a.ms<0?'var(--red)':'var(--amb)'}">
+      <b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${a.g==='m'?'👨 رجال':'👩 نساء'} ${+b[a.g==='m'?'men':'women']}</span> <span class="badge b-gray">📧 ${n}</span>
+      ${isAdmin()&&b.createdBy?`<span class="hint">👤 ${who(b.createdBy)}</span>`:''}
+      <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</button>`; }).join('')
+    : '<div class="empty">مفيش حجوزات للطباعة دلوقتي — الحجز بيظهر هنا قبل موعده بـ 3 ساعات</div>';
+}
+function barOpen(id, g){
+  const b=S.bookings.find(x=>x.id===id);
+  if(!b || !canSee(b)){ toast('⛔ الحجز ده مش بتاعك'); return; }
+  const dt=gDt(b,g); if(!dt || dt-Date.now()>BAR_H*36e5){ toast('🔒 الطباعة بتفتح قبل الموعد بـ 3 ساعات'); renderBar(); return; }
+  const P=visitPax(b).filter(r=>r.email);
+  $('#barTitle').firstChild.textContent = '🖨 '+(b.name||'');
+  $('#barBody').innerHTML = P.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:right;padding:6px">#</th><th style="text-align:right;padding:6px">اسم العميل</th><th style="text-align:right;padding:6px">البريد الإلكتروني</th></tr></thead><tbody>
+    ${P.map((r,i)=>`<tr style="border-top:1px solid var(--bd)"><td style="padding:6px">${i+1}</td><td style="padding:6px">${esc(r.name||'—')}</td>
+      <td style="padding:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty">مفيش إيميلات في الحجز ده</div>';
+  $('#barOv').classList.add('on');
+}
+
 /* ===== 🎫 تبويب المواعيد المحجوزة (للمدير): تأكيد + طباعة باركود — محتاج الإيميل بس ===== */
 let apFilter='now';
 function apItems(){
@@ -3678,7 +3732,7 @@ function renderAppts(){
       : `<button class="btn sec sm" disabled title="التأكيد بيفتح قبل الموعد بـ 48 ساعة">🔒 التأكيد ${opensText(a.ms-CONF_H*36e5)}</button>`;
     const bBtn = a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${a.g}')">🖨 اتطبع</button>`
       : a.bOpen ? `<button class="btn gold sm" onclick="stMark('${b.id}','bar','${a.g}')">🖨 طباعة الباركود</button>`
-      : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بساعتين">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
+      : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بـ 3 ساعات">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
     const urgent=apNeed(a);
     return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${urgent?'var(--red)':a.cDone&&a.bDone?'var(--g)':'var(--blue)'}">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
