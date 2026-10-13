@@ -1329,7 +1329,7 @@ let PRINT_ID = new URLSearchParams(location.search).get('print');
 function printFromUrl(){
   if(!PRINT_ID || !S.bookings.some(x=>x.id===PRINT_ID)) return;
   const id=PRINT_ID; PRINT_ID=null;
-  try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  try{ history.replaceState(history.state,'',location.pathname); }catch(e){}
   printBooking(id);
 }
 
@@ -1801,8 +1801,48 @@ function switchTab(t){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
   window.scrollTo({top:0,behavior:'smooth'});
+  navSync();
 }
 $('#tabs').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) switchTab(b.dataset.t); });
+
+/* ========= زرار الرجوع: يرجع خطوة جوه الموقع بدل ما يخرج منه =========
+   كل فتح لنافذة أو تغيير تبويب بيتسجل خطوة؛ الرجوع يقفل آخر نافذة أو يرجع للتبويب اللي قبله.
+   ولو مفيش حاجة يرجعلها: تنبيه، والضغطة التانية بس هي اللي تخرج. */
+let navApplying=false, navExitAt=0;
+const navSnap = () => ({ nav:1, tab: currentTab()||'dash', ovs: [...document.querySelectorAll('.overlay.on')].map(o=>o.id) });
+const navSame = (a,b) => a && b && a.tab===b.tab && a.ovs.join()===b.ovs.join();
+function navSync(){
+  if(navApplying) return;
+  const cur=navSnap(), st=history.state;
+  if(!st || !st.nav) return;
+  if(navSame(st,cur)) return;
+  const opened = cur.ovs.some(id=>!st.ovs.includes(id));
+  if(opened || st.tab!==cur.tab) history.pushState(cur,'');   // خطوة جديدة
+  else history.replaceState(cur,'');                           // نافذة اتقفلت من زرارها
+}
+function navApply(t){
+  navApplying=true;
+  try{
+    [...document.querySelectorAll('.overlay.on')].reverse().forEach(o=>{
+      if(!t.ovs.includes(o.id)) o.classList.remove('on');   // نموذج الحجز بيفضل محفوظ كمسودة
+    });
+    if(currentTab()!==t.tab) switchTab(t.tab);
+  }finally{ setTimeout(()=>{ navApplying=false; navSync(); },0); }
+}
+window.addEventListener('popstate', e=>{
+  const st=e.state;
+  if(st && st.nav){
+    if(navSame(st,navSnap())){ history.back(); return; }   // خطوة قديمة ملهاش لازمة — عدّيها
+    navApply(st); return;
+  }
+  /* وصلنا لأول الموقع */
+  if(Date.now()-navExitAt < 2500){ history.back(); return; }
+  navExitAt=Date.now();
+  history.pushState(navSnap(),'');
+  toast('↩️ دوس رجوع تاني عشان تخرج من الموقع');
+});
+try{ history.replaceState({root:1},''); history.pushState(navSnap(),''); }catch(e){}
+new MutationObserver(()=>navSync()).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
 
 /* ========= النوافذ ========= */
 function closeOv(id){ $('#'+id).classList.remove('on'); if(id==='formOv') clearDraft(); }
