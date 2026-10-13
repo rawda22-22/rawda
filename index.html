@@ -246,7 +246,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="staff" class="admin-only cloud-only">👥 الموظفين</button>
   <button data-t="bar">🖨 طباعة الباركود <span class="dot" id="barDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="nv">🚫 ممنوع الزيارة <span class="dot" id="nvDot" style="display:none;background:var(--red)"></span></button>
-  <button data-t="appts" class="admin-only">🎫 المواعيد <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
+  <button data-t="appts">🎫 المواعيد <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
   <button data-t="bank" class="admin-only">📧 بنك الإيميلات <span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="log" class="admin-only cloud-only">📜 سجل الموظف</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
@@ -1793,7 +1793,7 @@ function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderB
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['fin','staff','log','bank','appts'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['fin','staff','log','bank'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   if(t==='fin' && !finUnlocked){
     if(FINPIN===undefined){ toast('⏳ لحظة… بيتأكد من قفل الحسابات'); return; }
     if(FINPIN){ askPin(); return; }
@@ -3789,7 +3789,7 @@ let apFilter='now';
 function apItems(){
   const out=[], now=Date.now();
   S.bookings.forEach(b=>{
-    if(!acctDone(b) || b.status==='cancelled' || b.status==='done' || allBarred(b)) return;
+    if(!canSee(b) || !acctDone(b) || b.status==='cancelled' || b.status==='done' || allBarred(b)) return;
     stGroups(b).forEach(g=>{ if(entered(b,g)) return; const dt=gDt(b,g); if(dt < now-3*36e5) return;
       const ms=dt-now, cOpen=ms<=CONF_H*36e5, bOpen=ms<=BAR_H*36e5;
       out.push({b, g, dt, ms, cOpen, bOpen, sDone:gDone(b,'slotBk',g), cDone:gDone(b,'conf',g), bDone:gDone(b,'bar',g)}); });
@@ -3798,7 +3798,7 @@ function apItems(){
 }
 const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
 function renderAppts(){
-  if(!isAdmin()) return;
+  const adm=isAdmin();
   const all=apItems(), need=all.filter(apNeed), ns=all.filter(a=>!a.sDone).length, nc=all.filter(a=>a.sDone&&a.cOpen&&!a.cDone).length, nb=all.filter(a=>a.bOpen&&!a.bDone).length;
   $('#apDot').style.display = need.length ? 'grid' : 'none'; $('#apDot').textContent = need.length;
   document.querySelectorAll('#apTabs button').forEach(x=>x.classList.toggle('on', x.dataset.f===apFilter));
@@ -3806,12 +3806,12 @@ function renderAppts(){
   $('#apHead').textContent = [ns&&`📅 ${ns} محتاج حجز موعد`, nc&&`✔️ ${nc} محتاج تأكيد`, nb&&`🖨 ${nb} محتاج طباعة`].filter(Boolean).join(' • ');
   const L = apFilter==='now' ? need : all;
   $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, gl=a.g==='m'?'👨 رجال':'👩 نساء', n=+b[a.g==='m'?'men':'women'];
-    const sBtn = a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 اتحجز</button>`
+    const sBtn = !adm ? (a.sDone ? `<span class="badge b-green">📅 الموعد اتحجز</span>` : `<span class="badge b-amb">📅 الموعد لسه ماتحجزش</span>`) : a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 اتحجز</button>`
       : `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 تم حجز الموعد</button>`;
     const cBtn = !a.sDone ? `<button class="btn sec sm" disabled>🔒 التأكيد بعد حجز الموعد</button>` : a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${a.g}')">✔️ اتأكد</button>`
       : a.cOpen ? `<button class="btn pri sm" onclick="stMark('${b.id}','conf','${a.g}')">✔️ تأكيد الموعد</button>`
       : `<button class="btn sec sm" disabled title="التأكيد بيفتح قبل الموعد بـ 48 ساعة">🔒 التأكيد ${opensText(a.ms-CONF_H*36e5)}</button>`;
-    const bBtn = a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${a.g}')">🖨 اتطبع</button>`
+    const bBtn = !adm ? (a.bDone ? `<span class="badge b-green">🖨 اتطبع</span>` : '') : a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${a.g}')">🖨 اتطبع</button>`
       : a.bOpen ? `<button class="btn gold sm" onclick="stMark('${b.id}','bar','${a.g}')">🖨 طباعة الباركود</button>`
       : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بـ 3 ساعات">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
     const urgent=apNeed(a);
@@ -3819,13 +3819,14 @@ function renderAppts(){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
         <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
       <div class="apEm">${(b.pax||[]).filter(r=>r.email && !r.nv).map(r=>`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span>${r.name?`<span class="l">${esc(r.name)}</span>`:''}<span class="c">📋</span></button>`).join('')||'<span class="hint">مفيش إيميلات</span>'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button></div></div>`; }).join('')
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
     : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
 $('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
 async function apCopy(el, v){ if(await copyText(v)){ el.classList.add('done'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); } }
 function stMark(id, k, g){
-  const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  if(!isAdmin() && !(k==='conf' && canSee(b))){ toast('⛔ الخطوة دي للمدير بس'); return; }
   const on=gDone(b,k,g), lbl={slotBk:'حجز الموعد', conf:'تأكيد الموعد', bar:'طباعة الباركود'}[k];
   if(on){ if(!confirm(`إلغاء «${lbl}» لـ ${b.name}؟`)) return;
     if(k==='slotBk' && b.booked){ delete b.booked; b.slotBk={...(b.slotBk||{})}; stGroups(b).filter(x=>x!==g).forEach(x=>b.slotBk[x]={at:Date.now(), by:myEmail()}); b.acct=b.acct||{at:Date.now(), by:myEmail()}; }
@@ -3834,12 +3835,25 @@ function stMark(id, k, g){
   else {
     if(k==='bar' && !gDone(b,'conf',g) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
     b[k]={...(b[k]||{}), [g]:{at:Date.now(), by:myEmail()}};
+    if(k==='conf' && tgOn()) tgConf(b, g);
     if(k==='slotBk'){
       if(stGroups(b).every(x=>gDone(b,'slotBk',x))){ if(b.status==='new') b.status='confirmed'; visitPax(b).forEach(r=>{ r.bk=true; r.made=true; }); }
       if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
     }
   }
   save(); renderAll(); toast(on?`↩️ اتلغى ${lbl}`:`✓ ${lbl} — ${b.name}`);
+}
+/* ✔️ رسالة تليجرام عند «تأكيد الموعد»: الأسماء والإيميلات (اللي ليهم زيارة بس) عشان الموظف يدخل يأكد على المنصة */
+function tgConf(b, g){
+  const P=visitPax(b).filter(r=>r.email), emp=b.createdBy?empName(b.createdBy):'';
+  const L=['✔️ <b>تأكيد الموعد</b>', '', `👤 ${tgEsc(b.name)}`,
+    `${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']}) — ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`];
+  if(P.length){ L.push(''); P.forEach((r,i)=>L.push(`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`)); }
+  else L.push('', '⚠️ مفيش إيميلات في الحجز ده');
+  L.push('');
+  if(emp) L.push(`👨‍💼 الموظف المسؤول: ${tgEsc(emp)}`);
+  if(user?.email) L.push(`بواسطة: ${byName()}`);
+  tgSend(L.join('\n')).then(()=>toast('📨 الأسماء والإيميلات اتبعتت على تليجرام')).catch(e=>{ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); });
 }
 function renderApAlert(){
   if(!isAdmin()){ $('#apAlert').innerHTML=''; return; }
@@ -3848,7 +3862,7 @@ function renderApAlert(){
     ${[ns&&`<b>${ns} موعد محتاج حجز</b>`, nc&&`<b>${nc} موعد محتاج تأكيد</b>`, nb&&`<b>${nb} باركود محتاج طباعة</b>`].filter(Boolean).join(' • ')}
     <button class="ibtn" style="margin-right:8px" onclick="apFilter='now';switchTab('appts')">افتح المواعيد</button></div></div>` : '';
 }
-setInterval(()=>{ if(isAdmin()){ renderApAlert(); if(currentTab()==='appts') renderAppts(); else { const n=apItems().filter(apNeed).length; $('#apDot').style.display=n?'grid':'none'; $('#apDot').textContent=n; } } }, 60000);
+setInterval(()=>{ if(isAdmin()) renderApAlert(); if(currentTab()==='appts') renderAppts(); else { const n=apItems().filter(apNeed).length; $('#apDot').style.display=n?'grid':'none'; $('#apDot').textContent=n; } }, 60000);
 
 /* ========= الإعدادات ========= */
 const parseSlots = s => [...new Set((s.match(/\d{1,2}:\d{2}/g)||[]).map(t=>{const[h,m]=t.split(':');return pad(+h%24)+':'+m;}))].sort((a,b)=>toMin(a)-toMin(b));
