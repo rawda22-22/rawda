@@ -639,6 +639,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <div class="modal" style="max-width:560px">
     <h3 id="barTitle">🖨 طباعة الباركود<button class="x" onclick="closeOv('barOv')">×</button></h3>
     <div id="barBody"></div>
+    <div style="margin-top:12px;text-align:center"><button type="button" class="btn sm" id="barTgBtn" onclick="barTg()">📨 ابعت الأسماء والإيميلات على تليجرام</button></div>
   </div>
 </div>
 
@@ -3764,7 +3765,23 @@ function barOpen(id, g){
     ${P.map((r,i)=>`<tr style="border-top:1px solid var(--bd)"><td style="padding:6px">${i+1}</td><td style="padding:6px">${esc(r.name||'—')}</td>
       <td style="padding:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">مفيش إيميلات في الحجز ده</div>';
+  BARCUR={id, g};
   $('#barOv').classList.add('on');
+}
+let BARCUR=null;
+async function barTg(){
+  const b=BARCUR && S.bookings.find(x=>x.id===BARCUR.id); if(!b) return;
+  if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل'); return; }
+  const g=BARCUR.g, P=visitPax(b).filter(r=>r.email);
+  if(!P.length){ toast('مفيش إيميلات في الحجز ده'); return; }
+  const L=['🖨 <b>استعد لطباعة الباركود</b>', '', `👤 ${tgEsc(b.name)}`,
+    `${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']}) — ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`, '',
+    ...P.map((r,i)=>`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`)];
+  if(user?.email) L.push('', `بعتها: ${byName()}`);
+  const btn=$('#barTgBtn'); btn.disabled=true;
+  try{ await tgSend(L.join('\n')); toast('📨 اتبعتت على تليجرام'); }
+  catch(e){ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); }
+  finally{ btn.disabled=false; }
 }
 
 /* ===== 🎫 تبويب المواعيد المحجوزة (للمدير): تأكيد + طباعة باركود — محتاج الإيميل بس ===== */
