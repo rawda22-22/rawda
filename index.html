@@ -3806,6 +3806,17 @@ function apItems(){
   });
   return out.sort((x,y)=>x.dt-y.dt);
 }
+/* 👥 أفراد الحجز في تبويب المواعيد — نفس كروت «إنشاء الحسابات»: كل خانة بتتنسخ بلمسة (اللي ليهم زيارة بس) */
+const AP_OPEN=new Set();
+function apPeople(b, key){
+  const V=visitPax(b);
+  if(!V.length) return '<div class="hint" style="margin-top:8px">مفيش أفراد ليهم زيارة</div>';
+  const row = (lbl,v,ltr) => v ? `<button type="button" class="cp" data-v="${esc(v)}" onclick="apCopy(this,this.dataset.v)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
+    : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
+  return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض</summary><div style="margin-top:8px">${
+    V.map((r,i)=>`<div class="pcard"><div class="ph"><b>فرد ${i+1}</b></div>
+      ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
+}
 const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
 function renderAppts(){
   const adm=isAdmin();
@@ -3828,7 +3839,7 @@ function renderAppts(){
     return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${urgent?'var(--red)':a.cDone&&a.bDone?'var(--g)':'var(--blue)'}">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
         <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
-      <div class="apEm">${(b.pax||[]).filter(r=>r.email && !r.nv).map(r=>`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span>${r.name?`<span class="l">${esc(r.name)}</span>`:''}<span class="c">📋</span></button>`).join('')||'<span class="hint">مفيش إيميلات</span>'}</div>
+      ${apPeople(b, b.id+a.g)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${a.g}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
     : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
