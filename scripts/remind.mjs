@@ -176,9 +176,13 @@ export function stageMessage(r, empName) {
   const head = { conf: '✔️ <b>وقت تأكيد الموعد</b>', bar: '🖨 <b>استعد لطباعة الباركود</b>', nobk: '⚠️ <b>الموعد قرّب ولسه ماتحجزش على المنصة!</b>' }[r.kind];
   if (r.kind === 'nobk' && !(b.acct || b.booked)) return [head, '', `👤 ${h(b.name)}`, '❗ لسه حتى ماتعملهوش حساب', `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`, '', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`].join('\n');
   const L = [head, '', `👤 ${h(b.name)}`, `${r.g === 'm' ? '🧔 رجال' : '🧕 نساء'} (${r.n}) — ${day} • ${fmt12(r.slot)}`, `⏰ الموعد بعد <b>${leftText(r.ms)}</b>`];
-  if (r.kind === 'bar') L.push('', '📧 الإيميلات موجودة على المنصة في تبويب «🖨 طباعة الباركود»');
-  const em = (Array.isArray(b.pax) ? b.pax : []).filter((x) => x && x.email);
-  if (r.kind === 'conf' && em.length) { L.push(''); em.forEach((x, i) => L.push(`${i + 1}) <code>${h(x.email)}</code>`)); }
+  // اللي ليهم زيارة بس (من غير «ليس له زيارة») — الاسم + الإيميل
+  const paxN = (+b.men || 0) + (+b.women || 0);
+  const em = (Array.isArray(b.pax) ? b.pax : []).slice(0, paxN || undefined).filter((x) => x && x.email && !x.nv);
+  if ((r.kind === 'conf' || r.kind === 'bar') && em.length) {
+    L.push('');
+    em.forEach((x, i) => L.push(`${i + 1}) ${x.name ? `<b>${h(x.name)}</b>` : '—'}\n     📧 <code>${h(x.email)}</code>`));
+  }
   L.push('', `👨‍💼 الموظف المسؤول: ${h(empName || 'غير معروف')}`);
   return L.join('\n');
 }
