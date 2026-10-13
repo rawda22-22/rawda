@@ -3146,23 +3146,35 @@ function paxOpen(id){
   paxRender(); $('#paxOv').classList.add('on');
   if(paxMissing(b)>0) Promise.resolve(save()).then(()=>allocEmails(b)).then(()=>{ if(PAXID===id){ paxCollect(); const bb=paxB(); if(bb) bb.pax=fixRows(bb.pax, paxN(bb)); paxRender(); } });
 }
+/* 👨/👩 نوع كل فرد من أول إدخال البيانات — لو الحجز رجال بس أو نساء بس بيتحدد لوحده */
+function sxCell(b, r, i){
+  const both=(+b.men||0)>0 && (+b.women||0)>0, g=paxSx(b,r);
+  if(!both) return `<span class="badge b-gray">${g==='m'?'👨 رجل':'👩 امرأة'}</span>`;
+  return `<select class="px" data-i="${i}" data-k="sx" style="padding:7px;border:1px solid var(--bd);border-radius:8px;background:${g==='m'?'#eef5ff':'#fdf0f6'}"><option value="m" ${g==='m'?'selected':''}>👨 رجل</option><option value="w" ${g==='w'?'selected':''}>👩 امرأة</option></select>`;
+}
+function sxWarn(b){
+  if(!((+b.men||0)>0 && (+b.women||0)>0)) return '';
+  const P=(b.pax||[]).slice(0,paxN(b)), m=P.filter(r=>paxSx(b,r)==='m').length, w=P.length-m;
+  return m===+b.men ? '' : `<div style="display:block;color:var(--red);font-weight:700;margin-top:4px">⚠️ النوع مش مطابق للحجز: محدد ${m} رجال و ${w} نساء — والحجز ${+b.men} رجال و ${+b.women} نساء</div>`;
+}
 function paxRender(){
   const b=paxB(); if(!b) return;
   const n=paxN(b), d=paxDone(b), miss=paxMissing(b), adm=isAdmin();
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'} ${b[g==='m'?'men':'women']} — ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#paxInfo').innerHTML = `<b>${esc(b.name)}</b> <span dir="ltr">${esc(b.phone||'')}</span> <span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${b.uploaded?` <span class="badge b-green">📤 اترفع ${new Date(b.uploaded.at).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span>`:''}
     <div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' • ')}</div>
-    <div style="margin-top:4px;display:block">مكتمل <b>${d}</b> من <b>${n}</b>${miss?` • <b style="color:var(--red)">⚠️ ${miss} من غير إيميل</b>`:' • ✅ كل الأفراد ليهم إيميل'}</div>`;
+    ${sxWarn(b)}<div style="margin-top:4px;display:block">مكتمل <b>${d}</b> من <b>${n}</b>${miss?` • <b style="color:var(--red)">⚠️ ${miss} من غير إيميل</b>`:' • ✅ كل الأفراد ليهم إيميل'}</div>`;
   const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
-  $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
-    (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
+  $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>النوع</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
+    (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${sxCell(b,r,i)}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
       <td>${r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>` : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
   $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
 }
+$('#paxTable').addEventListener('change', e=>{ if(e.target.dataset.k==='sx'){ paxDirty=true; paxCollect(); paxRender(); } });
 $('#paxTable').addEventListener('input', e=>{ if(e.target.classList.contains('px')){ paxDirty=true; e.target.style.background=''; } });
 function paxCollect(){
   const b=paxB(); if(!b) return;
-  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
+  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='sx'){ if(r.sx!==v && r.eh && !slotsOf(v).includes(r.eh)) delete r.eh; r.sx=v; return; } if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
 }
 function paxSave(close=true){
   const b=paxB(); if(!b) return;
@@ -3852,7 +3864,7 @@ function ehSel(b, r){
   const i=b.pax.indexOf(r), g=paxSx(b,r), O=slotsOf(g).slice();
   if(r.eh && !O.includes(r.eh)) O.unshift(r.eh);
   const both=(+b.men||0)>0 && (+b.women||0)>0;
-  const sx = both ? `<select class="ibtn" title="رجل / امرأة" onchange="apSx('${b.id}',${i},this.value)"><option value="m" ${g==='m'?'selected':''}>👨 رجل</option><option value="w" ${g==='w'?'selected':''}>👩 امرأة</option></select>` : '';
+  const sx = both ? `<span class="badge b-gray">${g==='m'?'👨':'👩'}</span>` : '';
   return sx + `<select class="ibtn ${r.eh?'ok':''}" title="ساعة الدخول" onchange="apEh('${b.id}',${i},this.value)"><option value="">🕐 ساعة الدخول</option>${O.map(t=>`<option value="${t}" ${r.eh===t?'selected':''}>🕐 ${fmt12(t)}</option>`).join('')}</select>`;
 }
 function apPeople(b, key){
