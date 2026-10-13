@@ -3823,18 +3823,37 @@ function apCf(id, i){
   save(); renderAll();
   if(b.pax[i].cf && d===V.length) toast('🎉 كل الأفراد اتأكدوا — دوس «✔️ تأكيد الموعد» للحجز');
 }
-/* 🕐 ساعة الدخول لكل فرد (r.eh = 'HH:00') — اختيار من قائمة، والأفراد بيترتبوا تلقائياً من المبكر للمتأخر */
-const EH_OPTS = Array.from({length:24},(_,h)=>pad(h)+':00');
+/* 🕐 ساعة الدخول لكل فرد (r.eh = 'HH:MM') — اختيار من أوقات الرجال أو النساء (من الإعدادات، مقسمة حسب «تقسيم الساعة»)
+   والأفراد بيترتبوا تلقائياً من المبكر للمتأخر */
+/* نوع الفرد: لو الحجز رجال بس أو نساء بس ← تلقائي؛ لو الاتنين ← r.sx، والافتراضي أول (عدد الرجال) أفراد رجال والباقي نساء */
+function paxSx(b, r){
+  const m=+b.men||0, w=+b.women||0;
+  if(!w) return 'm'; if(!m) return 'w';
+  return r.sx || ((b.pax||[]).indexOf(r) < m ? 'm' : 'w');
+}
+function apSx(id, i, v){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !canSee(b) || !b.pax || !b.pax[i]) return;
+  const r=b.pax[i]; r.sx=v;
+  if(r.eh && !slotsOf(v).includes(r.eh)) delete r.eh;   // الساعة القديمة مش من أوقات النوع الجديد
+  save(); renderAll();
+}
 function apEh(id, i, v){
   const b=S.bookings.find(x=>x.id===id); if(!b || !canSee(b) || !b.pax || !b.pax[i]) return;
   if(v) b.pax[i].eh=v; else delete b.pax[i].eh;
   save(); renderAll();
 }
-/* الترتيب بيبدأ من ساعة موعد الحجز (عشان لو الدخول بعد نص الليل ييجي في الآخر مش في الأول) — اللي من غير ساعة في الآخر */
+/* الترتيب بيبدأ من ساعة موعد الحجز (عشان الدخول بعد نص الليل ييجي في الآخر) — اللي من غير ساعة في الآخر */
 function ehSorted(b, P){
-  const base = Math.min(...[b.menSlot,b.womenSlot].filter(Boolean).map(t=>+t.split(':')[0]), 24) % 24;
-  const k = r => r.eh ? (+r.eh.split(':')[0] - base + 24) % 24 : 99;
+  const bs=[b.menSlot,b.womenSlot].filter(Boolean).map(toMin), base=bs.length?Math.floor(Math.min(...bs)/60)*60:0;
+  const k = r => r.eh ? (toMin(r.eh) - base + 1440) % 1440 : 1e9;
   return P.map((r,i)=>[r,i]).sort((x,y)=>k(x[0])-k(y[0]) || x[1]-y[1]).map(x=>x[0]);
+}
+function ehSel(b, r){
+  const i=b.pax.indexOf(r), g=paxSx(b,r), O=slotsOf(g).slice();
+  if(r.eh && !O.includes(r.eh)) O.unshift(r.eh);
+  const both=(+b.men||0)>0 && (+b.women||0)>0;
+  const sx = both ? `<select class="ibtn" title="رجل / امرأة" onchange="apSx('${b.id}',${i},this.value)"><option value="m" ${g==='m'?'selected':''}>👨 رجل</option><option value="w" ${g==='w'?'selected':''}>👩 امرأة</option></select>` : '';
+  return sx + `<select class="ibtn ${r.eh?'ok':''}" title="ساعة الدخول" onchange="apEh('${b.id}',${i},this.value)"><option value="">🕐 ساعة الدخول</option>${O.map(t=>`<option value="${t}" ${r.eh===t?'selected':''}>🕐 ${fmt12(t)}</option>`).join('')}</select>`;
 }
 function apPeople(b, key){
   const V=ehSorted(b, visitPax(b));
@@ -3845,7 +3864,7 @@ function apPeople(b, key){
   return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
     V.map((r,i)=>`<div class="pcard ${r.cf?'made':''}"><div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
       <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
-      <select class="ibtn ${r.eh?'ok':''}" title="ساعة الدخول" onchange="apEh('${b.id}',${b.pax.indexOf(r)},this.value)"><option value="">🕐 ساعة الدخول</option>${EH_OPTS.map(t=>`<option value="${t}" ${r.eh===t?'selected':''}>🕐 ${fmt12(t)}</option>`).join('')}</select></div>
+      ${ehSel(b,r)}</div>
       ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
 }
 const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
