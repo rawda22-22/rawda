@@ -3819,7 +3819,7 @@ function renderAppts(){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
         <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
       <div class="apEm">${(b.pax||[]).filter(r=>r.email && !r.nv).map(r=>`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span>${r.name?`<span class="l">${esc(r.name)}</span>`:''}<span class="c">📋</span></button>`).join('')||'<span class="hint">مفيش إيميلات</span>'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${a.g}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
     : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
 $('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
@@ -3851,10 +3851,16 @@ function confNowTg(b, gs){
   const P=paxTgLines(b);
   return '\n\n✔️ <b>الموعد فاضل عليه أقل من 48 ساعة — التأكيد متاح دلوقتي</b>' + (P.length ? '\n'+P.join('\n') : '\n⚠️ مفيش إيميلات في الحجز ده');
 }
+function apTg(id, g, btn){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !canSee(b)) return;
+  if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل'); return; }
+  if(btn){ btn.disabled=true; setTimeout(()=>btn.disabled=false, 3000); }
+  tgConf(b, g, '📨 <b>الأسماء والإيميلات</b>');
+}
 /* ✔️ رسالة تليجرام عند «تأكيد الموعد»: الأسماء والإيميلات (اللي ليهم زيارة بس) عشان الموظف يدخل يأكد على المنصة */
-function tgConf(b, g){
+function tgConf(b, g, title='✔️ <b>تأكيد الموعد</b>'){
   const P=visitPax(b).filter(r=>r.email), emp=b.createdBy?empName(b.createdBy):'';
-  const L=['✔️ <b>تأكيد الموعد</b>', '', `👤 ${tgEsc(b.name)}`,
+  const L=[title, '', `👤 ${tgEsc(b.name)}`,
     `${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']}) — ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`];
   if(P.length){ L.push(''); P.forEach((r,i)=>L.push(`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`)); }
   else L.push('', '⚠️ مفيش إيميلات في الحجز ده');
