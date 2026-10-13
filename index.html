@@ -3864,7 +3864,7 @@ function ehSel(b, r){
   const i=b.pax.indexOf(r), g=paxSx(b,r), O=slotsOf(g).slice();
   if(r.eh && !O.includes(r.eh)) O.unshift(r.eh);
   const both=(+b.men||0)>0 && (+b.women||0)>0;
-  const sx = both ? `<span class="badge b-gray">${g==='m'?'👨':'👩'}</span>` : '';
+  const sx = both ? `<button type="button" class="ibtn" title="اضغط للتبديل رجل / امرأة" onclick="apSx('${b.id}',${i},'${g==='m'?'w':'m'}')">${g==='m'?'👨 رجل':'👩 امرأة'} ⇄</button>` : '';
   return sx + `<select class="ibtn ${r.eh?'ok':''}" title="ساعة الدخول" onchange="apEh('${b.id}',${i},this.value)"><option value="">🕐 ساعة الدخول</option>${O.map(t=>`<option value="${t}" ${r.eh===t?'selected':''}>🕐 ${fmt12(t)}</option>`).join('')}</select>`;
 }
 function apPeople(b, key){
