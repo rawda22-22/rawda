@@ -3823,15 +3823,29 @@ function apCf(id, i){
   save(); renderAll();
   if(b.pax[i].cf && d===V.length) toast('🎉 كل الأفراد اتأكدوا — دوس «✔️ تأكيد الموعد» للحجز');
 }
+/* 🕐 ساعة الدخول لكل فرد (r.eh = 'HH:00') — اختيار من قائمة، والأفراد بيترتبوا تلقائياً من المبكر للمتأخر */
+const EH_OPTS = Array.from({length:24},(_,h)=>pad(h)+':00');
+function apEh(id, i, v){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !canSee(b) || !b.pax || !b.pax[i]) return;
+  if(v) b.pax[i].eh=v; else delete b.pax[i].eh;
+  save(); renderAll();
+}
+/* الترتيب بيبدأ من ساعة موعد الحجز (عشان لو الدخول بعد نص الليل ييجي في الآخر مش في الأول) — اللي من غير ساعة في الآخر */
+function ehSorted(b, P){
+  const base = Math.min(...[b.menSlot,b.womenSlot].filter(Boolean).map(t=>+t.split(':')[0]), 24) % 24;
+  const k = r => r.eh ? (+r.eh.split(':')[0] - base + 24) % 24 : 99;
+  return P.map((r,i)=>[r,i]).sort((x,y)=>k(x[0])-k(y[0]) || x[1]-y[1]).map(x=>x[0]);
+}
 function apPeople(b, key){
-  const V=visitPax(b);
+  const V=ehSorted(b, visitPax(b));
   if(!V.length) return '<div class="hint" style="margin-top:8px">مفيش أفراد ليهم زيارة</div>';
   const row = (lbl,v,ltr) => v ? `<button type="button" class="cp" data-v="${esc(v)}" onclick="apCopy(this,this.dataset.v)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
   const cf=V.filter(r=>r.cf).length;
   return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
     V.map((r,i)=>`<div class="pcard ${r.cf?'made':''}"><div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
-      <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button></div>
+      <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
+      <select class="ibtn ${r.eh?'ok':''}" title="ساعة الدخول" onchange="apEh('${b.id}',${b.pax.indexOf(r)},this.value)"><option value="">🕐 ساعة الدخول</option>${EH_OPTS.map(t=>`<option value="${t}" ${r.eh===t?'selected':''}>🕐 ${fmt12(t)}</option>`).join('')}</select></div>
       ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
 }
 const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
@@ -3906,9 +3920,9 @@ function apTg(id, g, btn){
 /* ✔️ رسالة تليجرام عند «تأكيد الموعد»: الأسماء والإيميلات (اللي ليهم زيارة بس) عشان الموظف يدخل يأكد على المنصة */
 function tgConf(b, gArg, title='✔️ <b>تأكيد الموعد</b>'){
   const gs=Array.isArray(gArg)?gArg:String(gArg).split(',').filter(Boolean);
-  const P=visitPax(b).filter(r=>r.email), emp=b.createdBy?empName(b.createdBy):'';
+  const P=ehSorted(b, visitPax(b)).filter(r=>r.email), emp=b.createdBy?empName(b.createdBy):'';
   const L=[title, '', `👤 ${tgEsc(b.name)}`, gsLine(b, gs)];
-  if(P.length){ L.push(''); P.forEach((r,i)=>L.push(`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`)); }
+  if(P.length){ L.push(''); P.forEach((r,i)=>L.push(`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}${r.eh?` • 🕐 ${fmt12(r.eh)}`:''}\n     📧 <code>${tgEsc(r.email)}</code>`)); }
   else L.push('', '⚠️ مفيش إيميلات في الحجز ده');
   L.push('');
   if(emp) L.push(`👨‍💼 الموظف المسؤول: ${tgEsc(emp)}`);
