@@ -3804,7 +3804,14 @@ function apItems(){
       const ms=dt-now, cOpen=ms<=CONF_H*36e5, bOpen=ms<=BAR_H*36e5;
       out.push({b, g, dt, ms, cOpen, bOpen, sDone:gDone(b,'slotBk',g), cDone:gDone(b,'conf',g), bDone:gDone(b,'bar',g)}); });
   });
-  return out.sort((x,y)=>x.dt-y.dt);
+  /* الرجال والنساء في نفس الحجز ← سطر واحد */
+  const M={};
+  out.forEach(a=>{ const m=M[a.b.id];
+    if(!m){ M[a.b.id]={...a, gs:[a.g]}; return; }
+    m.gs.push(a.g); m.dt=Math.min(m.dt,a.dt); m.ms=Math.min(m.ms,a.ms);
+    m.sDone=m.sDone&&a.sDone; m.cDone=m.cDone&&a.cDone; m.bDone=m.bDone&&a.bDone;
+    m.cOpen=m.cOpen||a.cOpen; m.bOpen=m.bOpen||a.bOpen; });
+  return Object.values(M).sort((x,y)=>x.dt-y.dt);
 }
 /* 👥 أفراد الحجز في تبويب المواعيد — نفس كروت «إنشاء الحسابات»: كل خانة بتتنسخ بلمسة (اللي ليهم زيارة بس) */
 const AP_OPEN=new Set();
@@ -3826,40 +3833,48 @@ function renderAppts(){
   $('#apNowN').textContent = need.length ? `(${need.length})` : ''; $('#apAllN').textContent = all.length ? `(${all.length})` : '';
   $('#apHead').textContent = [ns&&`📅 ${ns} محتاج حجز موعد`, nc&&`✔️ ${nc} محتاج تأكيد`, nb&&`🖨 ${nb} محتاج طباعة`].filter(Boolean).join(' • ');
   const L = apFilter==='now' ? need : all;
-  $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, gl=a.g==='m'?'👨 رجال':'👩 نساء', n=+b[a.g==='m'?'men':'women'];
-    const sBtn = !adm ? (a.sDone ? `<span class="badge b-green">📅 الموعد اتحجز</span>` : `<span class="badge b-amb">📅 الموعد لسه ماتحجزش</span>`) : a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 اتحجز</button>`
-      : `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${a.g}')">📅 تم حجز الموعد</button>`;
-    const cBtn = !a.sDone ? `<button class="btn sec sm" disabled>🔒 التأكيد بعد حجز الموعد</button>` : a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${a.g}')">✔️ اتأكد</button>`
-      : a.cOpen ? `<button class="btn pri sm" onclick="stMark('${b.id}','conf','${a.g}')">✔️ تأكيد الموعد</button>`
+  $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, G=a.gs.join(',');
+    const sBtn = !adm ? (a.sDone ? `<span class="badge b-green">📅 الموعد اتحجز</span>` : `<span class="badge b-amb">📅 الموعد لسه ماتحجزش</span>`) : a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${G}')">📅 اتحجز</button>`
+      : `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${G}')">📅 تم حجز الموعد</button>`;
+    const cBtn = !a.sDone ? `<button class="btn sec sm" disabled>🔒 التأكيد بعد حجز الموعد</button>` : a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${G}')">✔️ اتأكد</button>`
+      : a.cOpen ? `<button class="btn pri sm" onclick="stMark('${b.id}','conf','${G}')">✔️ تأكيد الموعد</button>`
       : `<button class="btn sec sm" disabled title="التأكيد بيفتح قبل الموعد بـ 48 ساعة">🔒 التأكيد ${opensText(a.ms-CONF_H*36e5)}</button>`;
-    const bBtn = !adm ? (a.bDone ? `<span class="badge b-green">🖨 اتطبع</span>` : '') : a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${a.g}')">🖨 اتطبع</button>`
-      : a.bOpen ? `<button class="btn gold sm" onclick="stMark('${b.id}','bar','${a.g}')">🖨 طباعة الباركود</button>`
+    const bBtn = !adm ? (a.bDone ? `<span class="badge b-green">🖨 اتطبع</span>` : '') : a.bDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','bar','${G}')">🖨 اتطبع</button>`
+      : a.bOpen ? `<button class="btn gold sm" onclick="stMark('${b.id}','bar','${G}')">🖨 طباعة الباركود</button>`
       : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بـ 3 ساعات">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
     const urgent=apNeed(a);
     return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${urgent?'var(--red)':a.cDone&&a.bDone?'var(--g)':'var(--blue)'}">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${gl} ${n}</span>${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
-        <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</div>
-      ${apPeople(b, b.id+a.g)}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${a.g}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> ${a.gs.map(g=>`<span class="badge b-gray">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}</span>`).join(' ')}${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
+        <span class="sp" style="flex:1"></span>${apWhen(b,a.gs)} ${badgeFor(a.ms)}</div>
+      ${apPeople(b, b.id)}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${G}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
     : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
 $('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
 async function apCopy(el, v){ if(await copyText(v)){ el.classList.add('done'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); } }
-function stMark(id, k, g){
+/* gArg: فئة واحدة 'm' / 'w' أو الاتنين 'm,w' (الحجز سطر واحد في المواعيد) */
+const apWhen = (b, gs) => { const t=g=>`<b>${fmt12(g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,g))}</span>`;
+  return gs.length>1 && gDt(b,'m')===gDt(b,'w') ? t(gs[0]) : gs.map(g=>(gs.length>1?(g==='m'?'👨 ':'👩 '):'')+t(g)).join(' • '); };
+const gsLine = (b, gs) => gs.map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`).join('\n');
+function stMark(id, k, gArg){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
   if(!isAdmin() && !(k==='conf' && canSee(b))){ toast('⛔ الخطوة دي للمدير بس'); return; }
-  const on=gDone(b,k,g), lbl={slotBk:'حجز الموعد', conf:'تأكيد الموعد', bar:'طباعة الباركود'}[k];
+  const gs=String(gArg).split(',').filter(Boolean), lbl={slotBk:'حجز الموعد', conf:'تأكيد الموعد', bar:'طباعة الباركود'}[k];
+  const on=gs.every(g=>gDone(b,k,g));
   if(on){ if(!confirm(`إلغاء «${lbl}» لـ ${b.name}؟`)) return;
-    if(k==='slotBk' && b.booked){ delete b.booked; b.slotBk={...(b.slotBk||{})}; stGroups(b).filter(x=>x!==g).forEach(x=>b.slotBk[x]={at:Date.now(), by:myEmail()}); b.acct=b.acct||{at:Date.now(), by:myEmail()}; }
-    b[k]={...(b[k]||{})}; delete b[k][g];
+    if(k==='slotBk' && b.booked){ delete b.booked; b.slotBk={...(b.slotBk||{})}; stGroups(b).filter(x=>!gs.includes(x)).forEach(x=>b.slotBk[x]={at:Date.now(), by:myEmail()}); b.acct=b.acct||{at:Date.now(), by:myEmail()}; }
+    b[k]={...(b[k]||{})}; gs.forEach(g=>delete b[k][g]);
     if(k==='slotBk'){ if(b.status==='confirmed') b.status='new'; (b.pax||[]).forEach(r=>delete r.bk); } }
   else {
-    if(k==='bar' && !gDone(b,'conf',g) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
-    b[k]={...(b[k]||{}), [g]:{at:Date.now(), by:myEmail()}};
-    if(k==='conf' && tgOn()) tgConf(b, g);
+    const now=Date.now(), H={conf:CONF_H, bar:BAR_H}[k];
+    const T=gs.filter(g=>!gDone(b,k,g) && (!H || gDt(b,g)-now<=H*36e5));
+    if(!T.length){ toast('🔒 لسه مافتحتش'); return; }
+    if(k==='bar' && T.some(g=>!gDone(b,'conf',g)) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
+    b[k]={...(b[k]||{})}; T.forEach(g=>b[k][g]={at:Date.now(), by:myEmail()});
+    if(k==='conf' && tgOn()) tgConf(b, T);
     if(k==='slotBk'){
       if(stGroups(b).every(x=>gDone(b,'slotBk',x))){ if(b.status==='new') b.status='confirmed'; visitPax(b).forEach(r=>{ r.bk=true; r.made=true; }); }
-      if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${confNowTg(b, [g])}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+      if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)}\n${gsLine(b,T)}${confNowTg(b, T)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
     }
   }
   save(); renderAll(); toast(on?`↩️ اتلغى ${lbl}`:`✓ ${lbl} — ${b.name}`);
@@ -3879,10 +3894,10 @@ function apTg(id, g, btn){
   tgConf(b, g, '📨 <b>الأسماء والإيميلات</b>');
 }
 /* ✔️ رسالة تليجرام عند «تأكيد الموعد»: الأسماء والإيميلات (اللي ليهم زيارة بس) عشان الموظف يدخل يأكد على المنصة */
-function tgConf(b, g, title='✔️ <b>تأكيد الموعد</b>'){
+function tgConf(b, gArg, title='✔️ <b>تأكيد الموعد</b>'){
+  const gs=Array.isArray(gArg)?gArg:String(gArg).split(',').filter(Boolean);
   const P=visitPax(b).filter(r=>r.email), emp=b.createdBy?empName(b.createdBy):'';
-  const L=[title, '', `👤 ${tgEsc(b.name)}`,
-    `${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']}) — ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`];
+  const L=[title, '', `👤 ${tgEsc(b.name)}`, gsLine(b, gs)];
   if(P.length){ L.push(''); P.forEach((r,i)=>L.push(`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`)); }
   else L.push('', '⚠️ مفيش إيميلات في الحجز ده');
   L.push('');
