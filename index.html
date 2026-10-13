@@ -3815,13 +3815,23 @@ function apItems(){
 }
 /* 👥 أفراد الحجز في تبويب المواعيد — نفس كروت «إنشاء الحسابات»: كل خانة بتتنسخ بلمسة (اللي ليهم زيارة بس) */
 const AP_OPEN=new Set();
+/* ✔️ علامة تأكيد لكل فرد — بتتحفظ، فلو قفلت ورجعت تعرف مين لسه */
+function apCf(id, i){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !canSee(b) || !b.pax || !b.pax[i]) return;
+  b.pax[i].cf = !b.pax[i].cf;
+  const V=visitPax(b), d=V.filter(r=>r.cf).length;
+  save(); renderAll();
+  if(b.pax[i].cf && d===V.length) toast('🎉 كل الأفراد اتأكدوا — دوس «✔️ تأكيد الموعد» للحجز');
+}
 function apPeople(b, key){
   const V=visitPax(b);
   if(!V.length) return '<div class="hint" style="margin-top:8px">مفيش أفراد ليهم زيارة</div>';
   const row = (lbl,v,ltr) => v ? `<button type="button" class="cp" data-v="${esc(v)}" onclick="apCopy(this,this.dataset.v)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
-  return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض</summary><div style="margin-top:8px">${
-    V.map((r,i)=>`<div class="pcard"><div class="ph"><b>فرد ${i+1}</b></div>
+  const cf=V.filter(r=>r.cf).length;
+  return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
+    V.map((r,i)=>`<div class="pcard ${r.cf?'made':''}"><div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
+      <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button></div>
       ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
 }
 const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
