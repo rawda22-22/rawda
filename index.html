@@ -639,7 +639,8 @@ body:not(.cloud) .cloud-only{display:none!important}
   <div class="modal" style="max-width:560px">
     <h3 id="barTitle">🖨 طباعة الباركود<button class="x" onclick="closeOv('barOv')">×</button></h3>
     <div id="barBody"></div>
-    <div style="margin-top:12px;text-align:center"><button type="button" class="btn sm" id="barTgBtn" onclick="barTg()">📨 ابعت الأسماء والإيميلات على تليجرام</button></div>
+    <div style="margin-top:12px;text-align:center"><button type="button" class="btn sm" id="barTgBtn" onclick="barTg()">📨 ابعت الأسماء والإيميلات على تليجرام</button>
+      <button type="button" class="btn pri sm" onclick="barDone()" style="margin-right:6px">✅ تم الطباعة</button></div>
   </div>
 </div>
 
@@ -3738,7 +3739,7 @@ function barItems(){
   const out=[], now=Date.now();
   S.bookings.forEach(b=>{
     if(!canSee(b) || !paxN(b) || !acctDone(b) || b.status==='cancelled' || b.status==='done' || allBarred(b)) return;
-    stGroups(b).forEach(g=>{ if(entered(b,g)) return; const dt=gDt(b,g), ms=dt-now;
+    stGroups(b).forEach(g=>{ if(entered(b,g) || gDone(b,'bar',g)) return; const dt=gDt(b,g), ms=dt-now;
       if(ms<=BAR_H*36e5 && ms>-36e5) out.push({b, g, dt, ms}); });
   });
   return out.sort((x,y)=>x.dt-y.dt);
@@ -3769,6 +3770,15 @@ function barOpen(id, g){
   $('#barOv').classList.add('on');
 }
 let BARCUR=null;
+/* ✅ تم الطباعة: بيسجل الطباعة للفئة دي (رجال / نساء) فالحجز يختفي من تبويب الطباعة */
+function barDone(){
+  const b=BARCUR && S.bookings.find(x=>x.id===BARCUR.id); if(!b || !canSee(b)) return;
+  const g=BARCUR.g;
+  if(!confirm(`تأكيد إن الباركود اتطبع لـ ${b.name} (${g==='m'?'رجال':'نساء'})؟`)) return;
+  b.bar={...(b.bar||{}), [g]:{at:Date.now(), by:myEmail()}};
+  save(); closeOv('barOv'); renderAll(); toast(`🖨 ✓ اتطبع — ${b.name}`);
+  if(tgOn()) tgSend(`🖨 <b>تم طباعة الباركود</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']})\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+}
 async function barTg(){
   const b=BARCUR && S.bookings.find(x=>x.id===BARCUR.id); if(!b) return;
   if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل'); return; }
