@@ -3561,7 +3561,7 @@ const bkdN = b => visitPax(b).filter(r=>r.bk).length;
 function syncSlot(b){
   const V=visitPax(b), all=V.length>0 && V.every(r=>r.bk), was=slotAll(b);
   if(all && !was){ b.slotBk={}; stGroups(b).forEach(g=>b.slotBk[g]={at:Date.now(), by:myEmail()}); delete b.booked; if(b.status==='new') b.status='confirmed';
-    if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${V.length}\n${stGroups(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`).join('\n')}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e)); }
+    if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${V.length}\n${stGroups(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`).join('\n')}${confNowTg(b, stGroups(b))}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e)); }
   else if(!all && was){ b.slotBk={}; delete b.booked; if(b.status==='confirmed') b.status='new'; }
 }
 /* «ليس له زيارة» لكل فرد (r.nv) — بعد «تم إنشاء الحسابات» الفرد ده بيروح تبويب «ممنوع الزيارة هذا العام» واللي اتحجز لهم بس بيكملوا */
@@ -3838,10 +3838,18 @@ function stMark(id, k, g){
     if(k==='conf' && tgOn()) tgConf(b, g);
     if(k==='slotBk'){
       if(stGroups(b).every(x=>gDone(b,'slotBk',x))){ if(b.status==='new') b.status='confirmed'; visitPax(b).forEach(r=>{ r.bk=true; r.made=true; }); }
-      if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+      if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${confNowTg(b, [g])}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
     }
   }
   save(); renderAll(); toast(on?`↩️ اتلغى ${lbl}`:`✓ ${lbl} — ${b.name}`);
+}
+/* لو الموعد فاضل عليه أقل من 48 ساعة وقت «تم حجز الموعد» ← التأكيد متاح على طول، فالرسالة بتنزل فيها الأسماء والإيميلات */
+const paxTgLines = b => visitPax(b).filter(r=>r.email).map((r,i)=>`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`);
+function confNowTg(b, gs){
+  const now=Date.now(), open=gs.some(g=>{ const dt=gDt(b,g); return dt && dt-now<=CONF_H*36e5 && dt>now; });
+  if(!open) return '';
+  const P=paxTgLines(b);
+  return '\n\n✔️ <b>الموعد فاضل عليه أقل من 48 ساعة — التأكيد متاح دلوقتي</b>' + (P.length ? '\n'+P.join('\n') : '\n⚠️ مفيش إيميلات في الحجز ده');
 }
 /* ✔️ رسالة تليجرام عند «تأكيد الموعد»: الأسماء والإيميلات (اللي ليهم زيارة بس) عشان الموظف يدخل يأكد على المنصة */
 function tgConf(b, g){
