@@ -133,6 +133,9 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .pcard.made{background:#f1faf5;border-color:#9fd6bb}
 .pcard.nv{background:#fdf2f2;border-color:#efb9b9}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
+.pcard.lead{border:2px solid #d9a400;box-shadow:0 0 0 3px #fff4cc}
+.ibtn.ld{color:#8a5a00;border-color:#ecd49a}.ibtn.ld.on{background:#d9a400;color:#fff;border-color:#d9a400}
+.ldsel{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #ecd49a;border-radius:10px;background:#fffaf0;color:#8a5a00;max-width:100%}
 .pcard .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.pcard .ibtn.ok{background:#e3f4ec;color:var(--g);border-color:#9fd6bb}.pcard .ph .sp{flex:1}
 .cp{display:flex;align-items:center;gap:10px;width:100%;text-align:right;border:1.5px solid var(--bd);background:#f8faf9;border-radius:12px;padding:12px;margin-bottom:8px;font:inherit;cursor:pointer;min-height:54px}
 .cp .l{font-size:13px;color:var(--mu);white-space:nowrap;min-width:84px}.cp .v{flex:1;font-size:17px;font-weight:700;word-break:break-all}
@@ -3581,6 +3584,27 @@ function syncSlot(b){
 const visitPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv);
 const nvPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv);
 const allBarred = b => paxN(b)>0 && acctDone(b) && !visitPax(b).length;
+/* 👑 قائد المجموعة — r.lead=true للقائد • r.ldr = رقم (index) القائد اللي الفرد تابع له
+   بيتحدد من «إنشاء الحسابات» وبيظهر كمان في أفراد الحجز في «المواعيد» عشان محدش ينسى مين القائد */
+const paxLbl = (b,i) => { const r=(b.pax||[])[i]; return r ? (r.name ? r.name : `فرد ${i+1}`) : ''; };
+const leadIdx = b => (b.pax||[]).slice(0, paxN(b)).map((r,i)=>r.lead?i:-1).filter(i=>i>=0);
+const ldrOf = (b,r) => { const L=leadIdx(b); return (r && !r.lead && L.includes(r.ldr)) ? r.ldr : (r && !r.lead && L.length===1 ? L[0] : -1); };
+function ldSummary(b){
+  const L=leadIdx(b); if(!L.length) return '';
+  return L.map(li=>{ const n=(b.pax||[]).slice(0,paxN(b)).filter(r=>!r.lead && ldrOf(b,r)===li).length;
+    return `<span class="badge" style="background:#fff4cc;color:#8a5a00">👑 ${esc(paxLbl(b,li))}${n?` • معاه ${n}`:''}</span>`; }).join(' ');
+}
+function bkLead(i){
+  const b=bkB(); if(!b || !b.pax[i]) return; const r=b.pax[i];
+  if(r.lead){ delete r.lead; b.pax.forEach(x=>{ if(x.ldr===i) delete x.ldr; }); }
+  else { r.lead=true; delete r.ldr; }
+  save(); bkRender(); renderAll();
+}
+function bkLdr(i, v){
+  const b=bkB(); if(!b || !b.pax[i]) return;
+  if(v===''){ delete b.pax[i].ldr; } else b.pax[i].ldr=+v;
+  save(); bkRender(); renderAll();
+}
 let BKID=null;
 const bkB = () => S.bookings.find(x=>x.id===BKID);
 function renderBookQueue(){
@@ -3620,15 +3644,19 @@ function bkRender(){
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length, nvN=b.pax.filter(r=>r.nv).length;
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
-    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>`;
+    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${leadIdx(b).length?`<div style="margin-top:6px">${ldSummary(b)}</div>`:''}`;
+  const LI=leadIdx(b);
+  const ldPick = (r,i) => r.lead || !LI.length ? '' : `<div style="margin:-2px 0 8px"><select class="ldsel" onchange="bkLdr(${i},this.value)">
+      <option value="">👑 تابع لقائد: —</option>${LI.map(li=>`<option value="${li}" ${ldrOf(b,r)===li?'selected':''}>👑 تابع لـ ${esc(paxLbl(b,li))}</option>`).join('')}</select></div>`;
   const row = (i,k,lbl,v,ltr) => v ? `<button type="button" class="cp" data-i="${i}" data-k="${k}" onclick="bkCopy(this)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
-  $('#bkPeople').innerHTML = b.pax.map((r,i)=>`<div class="pcard ${r.nv?'nv':r.made?'made':''}">
-      <div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
+  $('#bkPeople').innerHTML = b.pax.map((r,i)=>`<div class="pcard ${r.nv?'nv':r.made?'made':''} ${r.lead?'lead':''}">
+      <div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}</b><span class="sp"></span>
+        <button type="button" class="ibtn ld ${r.lead?'on':''}" onclick="bkLead(${i})" title="اختار الفرد ده قائد لمجموعة">👑 قائد</button>
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل حسابه':'⬜ اتعمل حسابه'}</button>
         <button type="button" class="ibtn ${r.bk?'ok':''}" onclick="bkSlot(${i})" ${r.nv?'disabled':''}>${r.bk?'✅ اتحجز موعده':'📅 اتحجز موعده'}</button>
         <button type="button" class="ibtn nv ${r.nv?'on':''}" onclick="bkNv(${i})">🚫 ليس له زيارة</button></div>
-      ${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
+      ${ldPick(r,i)}${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`).join('');
   $('#bkDoneBtn').textContent = acctDone(b) ? '↩️ إلغاء «تم إنشاء الحسابات»' : `✅ تم إنشاء الحسابات${made<n?` (${made}/${n})`:''}`;
   $('#bkDoneBtn').className = 'btn '+(acctDone(b)?'sec':'pri');
@@ -3874,7 +3902,8 @@ function apPeople(b, key){
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
   const cf=V.filter(r=>r.cf).length;
   return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
-    V.map((r,i)=>`<div class="pcard ${r.cf?'made':''}"><div class="ph"><b>فرد ${i+1}</b><span class="sp"></span>
+    (leadIdx(b).length?`<div style="margin-bottom:8px">${ldSummary(b)}</div>`:'')+
+    V.map((r,i)=>`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
       <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
       ${ehSel(b,r)}</div>
       ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
