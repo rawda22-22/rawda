@@ -136,6 +136,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .pcard.lead{border:2px solid #d9a400;box-shadow:0 0 0 3px #fff4cc}
 .ibtn.ld{color:#8a5a00;border-color:#ecd49a}.ibtn.ld.on{background:#d9a400;color:#fff;border-color:#d9a400}
 .ldsel{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #ecd49a;border-radius:10px;background:#fffaf0;color:#8a5a00;max-width:100%}
+.emptag{font-size:11px;font-weight:500;color:var(--mu,#6b7a72);white-space:nowrap}
 .pcard .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.pcard .ibtn.ok{background:#e3f4ec;color:var(--g);border-color:#9fd6bb}.pcard .ph .sp{flex:1}
 .cp{display:flex;align-items:center;gap:10px;width:100%;text-align:right;border:1.5px solid var(--bd);background:#f8faf9;border-radius:12px;padding:12px;margin-bottom:8px;font:inherit;cursor:pointer;min-height:54px}
 .cp .l{font-size:13px;color:var(--mu);white-space:nowrap;min-width:84px}.cp .v{flex:1;font-size:17px;font-weight:700;word-break:break-all}
@@ -1343,6 +1344,8 @@ const gLabel = g => g==='m' ? '<span class="badge b-men">🧔 رجال</span>' :
 const gColor = g => g==='m' ? 'var(--blue)' : 'var(--pink)';
 const hm = d => fmt12(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
 const who = e => e ? esc(empName(e)) : '';
+/* 👨‍💼 اسم الموظف صاحب الحجز بخط صغير — بيظهر جنب اسم العميل في كل المراحل */
+const empTag = b => b && b.createdBy ? ` <span class="emptag">👨‍💼 ${esc(empName(b.createdBy))}</span>` : '';
 function badgeFor(ms){
   const l=level(ms);
   if(l==='urgent') return `<span class="badge b-red">🔔 ${remText(ms)}</span>`;
@@ -1386,7 +1389,7 @@ function apptRow(a){
   return `<div class="appt ar ${l}" style="--gc:${gColor(a.g)}">
     <div class="when">${rel?`<span class="rel">${rel}</span>`:''}<span class="dn">${dayName(a.date)}</span><span class="dd">${dayDate(a.date)}</span><span class="tm">${hm(a.dt)}</span></div>
     <div style="min-width:0">
-      <div class="r1"><span class="nm">${esc(b.name)}</span>${gLabel(a.g)}<span class="badge b-gray">👥 ${a.n}</span>${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}${badgeFor(ms)}${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
+      <div class="r1"><span class="nm">${esc(b.name)}</span>${empTag(b)}${gLabel(a.g)}<span class="badge b-gray">👥 ${a.n}</span>${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}${badgeFor(ms)}${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
       <div class="r2">${stageMini(b)}
         <div class="acts">
           ${isAdmin() && acctDone(b) && !allBarred(b) && !gDone(b,'slotBk',a.g) ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')" title="الحساب اتعمل — افتح الأفراد وعلّم «اتحجز موعده»">📅 حجز</button>` : ''}
@@ -3616,13 +3619,13 @@ function renderBookQueue(){
   $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
     if(gone) return `<div class="appt" style="--gc:var(--amb)">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)} <span class="badge b-amb">الموعد فات</span></div>
+      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)} <span class="badge b-amb">الموعد فات</span></div>
         <div class="sub">${bkMini(b)}</div>
         <div class="sub"><span class="mu">حدّد موعد جديد عشان يكمل، أو سجّله ملغي</span></div></div>
       <div class="acts"><button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button></div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
+      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
         <div class="sub">${bkMini(b)}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
       <div class="acts"><button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
@@ -3643,7 +3646,7 @@ function bkRender(){
   const b=bkB(); if(!b) return;
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length, nvN=b.pax.filter(r=>r.nv).length;
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
-  $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
+  $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${leadIdx(b).length?`<div style="margin-top:6px">${ldSummary(b)}</div>`:''}`;
   const LI=leadIdx(b);
   const ldPick = (r,i) => r.lead || !LI.length ? '' : `<div style="margin:-2px 0 8px"><select class="ldsel" onchange="bkLdr(${i},this.value)">
@@ -3761,7 +3764,7 @@ function renderNoVisit(){
   const html = L.map(b=>{ const P=nvPax(b).filter(r=>hit(b,r)); if(!P.length) return '';
     const v=visitPax(b).length;
     return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid var(--red)">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)}
         ${b.phone?`<span class="hint" dir="ltr">${esc(b.phone)}</span>`:''}
         <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} من ${paxN(b)}</span>
         ${v?`<span class="badge b-green">✓ ${v} مكمّلين للزيارة</span>`:'<span class="badge b-gray">الحجز كله ممنوع</span>'}
@@ -3791,7 +3794,7 @@ function renderBar(){
   $('#barHead').textContent = L.length ? `${L.length} حجز` : '';
   box.innerHTML = L.length ? L.map(a=>{ const b=a.b, n=visitPax(b).filter(r=>r.email).length;
     return `<button type="button" class="card" onclick="barOpen('${b.id}','${a.g}')" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;text-align:right;font:inherit;cursor:pointer;padding:12px;margin-bottom:10px;border-right:5px solid ${a.ms<0?'var(--red)':'var(--amb)'}">
-      <b style="font-size:16px">${esc(b.name)}</b> <span class="badge b-gray">${a.g==='m'?'👨 رجال':'👩 نساء'} ${+b[a.g==='m'?'men':'women']}</span> <span class="badge b-gray">📧 ${n}</span>
+      <b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} <span class="badge b-gray">${a.g==='m'?'👨 رجال':'👩 نساء'} ${+b[a.g==='m'?'men':'women']}</span> <span class="badge b-gray">📧 ${n}</span>
       ${isAdmin()&&b.createdBy?`<span class="hint">👤 ${who(b.createdBy)}</span>`:''}
       <span class="sp" style="flex:1"></span><b>${fmt12(a.g==='m'?b.menSlot:b.womenSlot)}</b> <span class="hint">${fmtDate(gDate(b,a.g))}</span> ${badgeFor(a.ms)}</button>`; }).join('')
     : '<div class="empty">مفيش حجوزات للطباعة دلوقتي — الحجز بيظهر هنا قبل موعده بـ 3 ساعات</div>';
@@ -3928,7 +3931,7 @@ function renderAppts(){
       : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بـ 3 ساعات">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
     const urgent=apNeed(a);
     return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${urgent?'var(--red)':a.cDone&&a.bDone?'var(--g)':'var(--blue)'}">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b> ${a.gs.map(g=>`<span class="badge b-gray">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}</span>`).join(' ')}${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} ${a.gs.map(g=>`<span class="badge b-gray">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}</span>`).join(' ')}${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
         <span class="sp" style="flex:1"></span>${apWhen(b,a.gs)} ${badgeFor(a.ms)}</div>
       ${apPeople(b, b.id)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${G}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
