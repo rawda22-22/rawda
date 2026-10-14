@@ -486,6 +486,7 @@ body:not(.cloud) .cloud-only{display:none!important}
         <button data-f="now" class="on">⏰ مطلوب دلوقتي <span id="apNowN"></span></button>
         <button data-f="all">كل المواعيد الجاية <span id="apAllN"></span></button>
       </div>
+      <input id="apQ" type="search" placeholder="🔍 بحث بالاسم / الإيميل / الجواز / التأشيرة / التليفون / الموظف" style="width:100%;margin:8px 0 10px" oninput="renderAppts()">
       <div id="apList"></div>
     </div>
   </section>
@@ -3919,7 +3920,10 @@ function renderAppts(){
   document.querySelectorAll('#apTabs button').forEach(x=>x.classList.toggle('on', x.dataset.f===apFilter));
   $('#apNowN').textContent = need.length ? `(${need.length})` : ''; $('#apAllN').textContent = all.length ? `(${all.length})` : '';
   $('#apHead').textContent = [ns&&`📅 ${ns} محتاج حجز موعد`, nc&&`✔️ ${nc} محتاج تأكيد`, nb&&`🖨 ${nb} محتاج طباعة`].filter(Boolean).join(' • ');
-  const L = apFilter==='now' ? need : all;
+  /* 🔍 البحث بيدوّر في كل المواعيد (مش المطلوب دلوقتي بس) */
+  const q=normAr(($('#apQ')?.value||'').trim());
+  const apHit = a => { const b=a.b; return normAr([b.name, b.phone, b.createdBy, b.createdBy&&empName(b.createdBy), ...(b.pax||[]).flatMap(r=>[r.name, r.email, r.pass, r.visa, r.nat])].filter(Boolean).join(' | ')).includes(q); };
+  const L = q ? all.filter(apHit) : apFilter==='now' ? need : all;
   $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, G=a.gs.join(',');
     const sBtn = !adm ? (a.sDone ? `<span class="badge b-green">📅 الموعد اتحجز</span>` : `<span class="badge b-amb">📅 الموعد لسه ماتحجزش</span>`) : a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${G}')">📅 اتحجز</button>`
       : `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${G}')">📅 تم حجز الموعد</button>`;
@@ -3935,7 +3939,7 @@ function renderAppts(){
         <span class="sp" style="flex:1"></span>${apWhen(b,a.gs)} ${badgeFor(a.ms)}</div>
       ${apPeople(b, b.id)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${G}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
-    : `<div class="empty">${apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
+    : `<div class="empty">${q?'🔍 مفيش نتيجة للبحث ده':apFilter==='now'?'🎉 مفيش حاجة مطلوبة دلوقتي':'مفيش مواعيد محجوزة جاية'}</div>`;
 }
 $('#apTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ apFilter=x.dataset.f; renderAppts(); } });
 async function apCopy(el, v){ if(await copyText(v)){ el.classList.add('done'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); } }
