@@ -251,6 +251,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="bar">🖨 طباعة الباركود <span class="dot" id="barDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="nv">🚫 ممنوع الزيارة <span class="dot" id="nvDot" style="display:none;background:var(--red)"></span></button>
   <button data-t="appts">🎫 المواعيد <span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
+  <button data-t="past">🗄 الحجوزات المنتهية <span class="dot" id="pastDot" style="display:none;background:var(--amb)" title="مواعيد فاتت ولسه ماتقفلتش"></span></button>
   <button data-t="bank" class="admin-only">📧 بنك الإيميلات <span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="log" class="admin-only cloud-only">📜 سجل الموظف</button>
   <button data-t="settings" class="admin-only">⚙️ الإعدادات</button>
@@ -465,6 +466,22 @@ body:not(.cloud) .cloud-only{display:none!important}
       <h2>🖨 طباعة الباركود <span class="sp"></span><span class="hint" id="barHead"></span></h2>
       <div class="hint" style="display:block;margin-bottom:8px">الحجز بيظهر هنا قبل الموعد بـ 3 ساعات بس • اضغط على الحجز يفتح جدول بالأسماء والإيميلات — المس الإيميل يتنسخ.</div>
       <div id="barList"></div>
+    </div>
+  </section>
+
+  <!-- 🗄 الحجوزات المنتهية (مرجع) -->
+  <section class="sec" id="sec-past">
+    <div class="card">
+      <h2>🗄 الحجوزات المنتهية <span class="sp"></span><span class="hint" id="pastHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">مرجع لكل حجز خلص: اللي دخلوا، اللي اتلغوا، واللي موعدهم فات. الحجز اللي موعده فات ومحدش قفله بيظهر بعلامة ⏰ عشان تعلّم عليه «تم الدخول» أو «ملغي» أو تعدّل موعده.</div>
+      <div class="subtabs" id="pastTabs">
+        <button data-f="all" class="on">الكل <span id="pastAllN"></span></button>
+        <button data-f="open">⏰ فات ومتقفلش <span id="pastOpenN"></span></button>
+        <button data-f="done">✓ تم الدخول <span id="pastDoneN"></span></button>
+        <button data-f="cancelled">ملغي <span id="pastCanN"></span></button>
+      </div>
+      <input id="pastQ" type="search" placeholder="🔍 بحث بالاسم / التليفون / الإيميل / الجواز / التأشيرة / الموظف" style="width:100%;margin:8px 0 10px" oninput="PAST_N=40;renderPast()">
+      <div id="pastList"></div>
     </div>
   </section>
 
@@ -1796,7 +1813,7 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
@@ -3776,6 +3793,41 @@ function renderNoVisit(){
         <b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
   box.innerHTML = html || `<div class="empty">${q?'مفيش نتايج':'✅ مفيش حد ممنوع من الزيارة'}</div>`;
 }
+
+/* ===== 🗄 تبويب «الحجوزات المنتهية» — مرجع: اتلغى، دخل، أو كل مواعيده فاتت بأكتر من 3 ساعات (والموظف بيشوف حجوزاته بس) ===== */
+let pastFilter='all', PAST_N=40;
+const lastDt = b => Math.max(...groupsOf(b).map(g=>gStart(b,g)), +new Date((b.date||'1970-01-01')+'T00:00'));
+const pastOpen = b => b.status!=='done' && b.status!=='cancelled' && groupsOf(b).length>0 && groupsOf(b).every(g=>entered(b,g) || noShow(b,g) || gStart(b,g) < Date.now()-3*36e5);
+const bkFinished = b => b.status==='done' || b.status==='cancelled' || pastOpen(b);
+function renderPast(){
+  const box=$('#pastList'); if(!box) return;
+  const all=S.bookings.filter(b=>canSee(b) && bkFinished(b)).sort((a,b)=>lastDt(b)-lastDt(a));
+  const nOpen=all.filter(pastOpen).length, nDone=all.filter(b=>b.status==='done').length, nCan=all.filter(b=>b.status==='cancelled').length;
+  $('#pastAllN').textContent=all.length?`(${all.length})`:''; $('#pastOpenN').textContent=nOpen?`(${nOpen})`:''; $('#pastDoneN').textContent=nDone?`(${nDone})`:''; $('#pastCanN').textContent=nCan?`(${nCan})`:'';
+  $('#pastHead').textContent = all.length ? `${all.length} حجز` : '';
+  $('#pastDot').style.display = nOpen ? 'grid' : 'none'; $('#pastDot').textContent = nOpen;
+  document.querySelectorAll('#pastTabs button').forEach(x=>x.classList.toggle('on', x.dataset.f===pastFilter));
+  const q=normAr(($('#pastQ').value||'').trim());
+  const hit = b => !q || normAr([b.name, b.phone, b.notes, b.createdBy, b.createdBy&&empName(b.createdBy), ...(b.pax||[]).flatMap(r=>[r.name, r.email, r.pass, r.visa, r.nat])].filter(Boolean).join(' | ')).includes(q);
+  const L=all.filter(b=>(pastFilter==='all' || (pastFilter==='open'?pastOpen(b):b.status===pastFilter)) && hit(b));
+  const adm=isAdmin();
+  const cp = (lbl,v,ltr) => v ? `<button type="button" class="cp" onclick="apCopy(this,'${esc(v)}')"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>` : '';
+  const people = b => { const P=(b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa); if(!P.length) return '';
+    return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 الأفراد (${P.length})</summary><div style="margin-top:8px">${P.map((r,i)=>`<div class="pcard ${r.nv?'nv':''} ${r.lead?'lead':''}" style="padding:8px"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}${r.nv?' <span style="color:var(--red)">🚫 ليس له زيارة</span>':''}</b></div>
+      ${cp('👤 الاسم',r.name)}${cp('📧 الإيميل',r.email,true)}${cp('📄 التأشيرة',r.visa,true)}${cp('🛂 الجواز',r.pass,true)}${cp('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`; };
+  const html = L.slice(0,PAST_N).map(b=>{ const open=pastOpen(b), col=open?'var(--amb)':b.status==='done'?'var(--g)':'#9aa5a0';
+    const when = groupsOf(b).map(g=>`<span class="badge ${g==='m'?'b-new':'b-amb'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}${entered(b,g)?' ✓':noShow(b,g)?' 🚫':''}</span>`).join(' ');
+    const st = open ? '<span class="badge b-amb">⏰ الموعد فات ومتقفلش</span>' : `<span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>`;
+    return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${col}">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} ${st}
+        ${b.phone?`<span class="hint" dir="ltr">${esc(b.phone)}</span>`:''}<span class="sp" style="flex:1"></span>${when}</div>
+      ${b.notes?`<div class="hint" style="display:block;margin-top:6px">📝 ${esc(b.notes)}</div>`:''}
+      ${people(b)}
+      ${adm?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${open?`<button class="btn pri sm" onclick="setStatus('${b.id}','done')">✓ تم الدخول</button><button class="btn sec sm" onclick="dueCancel('${b.id}')">ملغي</button>`:''}<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ فتح / تعديل الحجز</button></div>`:''}</div>`; }).join('');
+  box.innerHTML = (html || `<div class="empty">${q?'🔍 مفيش نتيجة للبحث ده':'مفيش حجوزات هنا'}</div>`)
+    + (L.length>PAST_N ? `<button class="btn sec" style="width:100%" onclick="PAST_N+=40;renderPast()">عرض المزيد (${L.length-PAST_N} باقيين)</button>` : '');
+}
+$('#pastTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ pastFilter=x.dataset.f; PAST_N=40; renderPast(); } });
 
 /* ===== 🖨 تبويب «طباعة الباركود» — للكل: الحجز بيظهر قبل الموعد بـ 3 ساعات بس، والموظف بيشوف حجوزاته هو بس (canSee) =====
    بيفضل ظاهر لحد ساعة بعد الموعد أو لحد ما الفئة تدخل */
