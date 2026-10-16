@@ -3636,11 +3636,22 @@ const allBarred = b => paxN(b)>0 && acctDone(b) && !visitPax(b).length;
    بيتحدد من «إنشاء الحسابات» وبيظهر كمان في أفراد الحجز في «المواعيد» عشان محدش ينسى مين القائد */
 const paxLbl = (b,i) => { const r=(b.pax||[])[i]; return r ? (r.name ? r.name : `فرد ${i+1}`) : ''; };
 const leadIdx = b => (b.pax||[]).slice(0, paxN(b)).map((r,i)=>r.lead?i:-1).filter(i=>i>=0);
-const ldrOf = (b,r) => { const L=leadIdx(b); return (r && !r.lead && L.includes(r.ldr)) ? r.ldr : (r && !r.lead && L.length===1 ? L[0] : -1); };
+/* القائد ميقدرش يكون تحته أكتر من 4 أفراد (LEAD_MAX).
+   الفرد بيتبع القائد اللي اتحدد له • الأفراد اللي من غير اختيار بيتوزعوا لوحدهم على القادة بالترتيب (رجال ثم سيدات) — كل قائد لحد ما يكمل 4 */
+const LEAD_MAX = 4;
+function ldMap(b){
+  const P=(b.pax||[]).slice(0, paxN(b)), L=leadIdx(b), M=new Map(), cnt={};
+  L.forEach(li=>cnt[li]=0);
+  P.forEach(r=>{ if(!r.lead && L.includes(r.ldr) && cnt[r.ldr]<LEAD_MAX){ M.set(r, r.ldr); cnt[r.ldr]++; } });
+  sxSort(b, P).forEach(r=>{ if(r.lead || M.has(r) || L.includes(r.ldr)) return; const li=L.find(x=>cnt[x]<LEAD_MAX); if(li!==undefined){ M.set(r, li); cnt[li]++; } });
+  return {M, cnt, free: P.filter(r=>!r.lead && !M.has(r)).length};
+}
+const ldrOf = (b,r) => { const x=ldMap(b).M.get(r); return x===undefined ? -1 : x; };
 function ldSummary(b){
   const L=leadIdx(b); if(!L.length) return '';
-  return L.map(li=>{ const n=(b.pax||[]).slice(0,paxN(b)).filter(r=>!r.lead && ldrOf(b,r)===li).length;
-    return `<span class="badge" style="background:#fff4cc;color:#8a5a00">👑 ${esc(paxLbl(b,li))}${n?` • معاه ${n}`:''}</span>`; }).join(' ');
+  const {cnt, free}=ldMap(b);
+  return L.map(li=>`<span class="badge" style="background:#fff4cc;color:#8a5a00">👑 ${esc(paxLbl(b,li))} • معاه ${cnt[li]}/${LEAD_MAX}</span>`).join(' ')
+    + (free ? ` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⚠️ ${free} من غير قائد — القائد بياخد ${LEAD_MAX} بالكتير، حدّد قائد تاني</span>` : '');
 }
 function bkLead(i){
   const b=bkB(); if(!b || !b.pax[i]) return; const r=b.pax[i];
@@ -3650,7 +3661,10 @@ function bkLead(i){
 }
 function bkLdr(i, v){
   const b=bkB(); if(!b || !b.pax[i]) return;
-  if(v===''){ delete b.pax[i].ldr; } else b.pax[i].ldr=+v;
+  if(v===''){ delete b.pax[i].ldr; }
+  else { const li=+v, {cnt}=ldMap(b);
+    if(ldrOf(b,b.pax[i])!==li && cnt[li]>=LEAD_MAX){ toast(`⛔ ${paxLbl(b,li)} معاه ${LEAD_MAX} أفراد خلاص — القائد ميقدرش ياخد أكتر من ${LEAD_MAX}`); bkRender(); return; }
+    b.pax[i].ldr=li; }
   save(); bkRender(); renderAll();
 }
 /* 📲 «مطلوب على المنصة» بيعرض الحجز بس لما: بيانات كل الأفراد كاملة (الاسم + التأشيرة + الجواز + الجنسية — الإيميل بيتسحب من البنك لوحده)
@@ -3702,9 +3716,9 @@ function bkRender(){
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${leadIdx(b).length?`<div style="margin-top:6px">${ldSummary(b)}</div>`:''}`;
-  const LI=leadIdx(b);
+  const LI=leadIdx(b), LM=ldMap(b);
   const ldPick = (r,i) => r.lead || !LI.length ? '' : `<div style="margin:-2px 0 8px"><select class="ldsel" onchange="bkLdr(${i},this.value)">
-      <option value="">👑 تابع لقائد: —</option>${LI.map(li=>`<option value="${li}" ${ldrOf(b,r)===li?'selected':''}>👑 تابع لـ ${esc(paxLbl(b,li))}</option>`).join('')}</select></div>`;
+      <option value="">👑 تابع لقائد: —</option>${LI.map(li=>{ const me=ldrOf(b,r)===li, full=!me && LM.cnt[li]>=LEAD_MAX; return `<option value="${li}" ${me?'selected':''} ${full?'disabled':''}>👑 تابع لـ ${esc(paxLbl(b,li))} (${LM.cnt[li]}/${LEAD_MAX}${full?' — كامل':''})</option>`; }).join('')}</select></div>`;
   const row = (i,k,lbl,v,ltr) => v ? `<button type="button" class="cp" data-i="${i}" data-k="${k}" onclick="bkCopy(this)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
   const ORD=sxSort(b, b.pax);
