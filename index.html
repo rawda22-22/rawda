@@ -3221,7 +3221,7 @@ async function paxUpload(){
   if(!tgOn()){ toast('📤 اتسجل «تم الرفع» — تليجرام مش متفعّل فمفيش رسالة اتبعتت'); return; }
   const gl = g => +bb[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'}: <b>${bb[g==='m'?'men':'women']}</b> — ${fmtDate(gDate(bb,g))} ${fmt12(g==='m'?bb.menSlot:bb.womenSlot)}` : '';
   const head=['📤 <b>تم الرفع</b>', '', `👤 العميل: <b>${tgEsc(bb.name)}</b>`, ...[gl('m'),gl('w')].filter(Boolean), ''];
-  const rows=bb.pax.map((r,i)=>`${i+1}) ${r.name?`<code>${tgEsc(r.name)}</code>\n     📧 `:''}<code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
+  const rows=sxSort(bb, bb.pax).map((r,i)=>`${i+1}) ${r.name?`<code>${tgEsc(r.name)}</code>\n     📧 `:''}<code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
   const foot = user?.email ? ['', `سجّله: ${byName()}`] : [];
   const msgs=[]; let cur=head.join('\n');
   rows.forEach(x=>{ if((cur+'\n'+x).length>3800){ msgs.push(cur); cur='📤 <b>تكملة</b> — '+tgEsc(bb.name); } cur+='\n'+x; });
@@ -3602,8 +3602,13 @@ function syncSlot(b){
   else if(!all && was){ b.slotBk={}; delete b.booked; if(b.status==='confirmed') b.status='new'; }
 }
 /* «ليس له زيارة» لكل فرد (r.nv) — بعد «تم إنشاء الحسابات» الفرد ده بيروح تبويب «ممنوع الزيارة هذا العام» واللي اتحجز لهم بس بيكملوا */
-const visitPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv);
-const nvPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv);
+/* 👨👩 ترتيب الأفراد جوه الحجز: الرجال ورا بعض الأول وبعدين السيدات (من غير ما يتغير ترتيبهم الأصلي جوه كل فئة) */
+const sxSort = (b, P) => P.map((r,i)=>[r,i]).sort((x,y)=>(paxSx(b,x[0])==='m'?0:1)-(paxSx(b,y[0])==='m'?0:1) || x[1]-y[1]).map(x=>x[0]);
+const visitPax = b => sxSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv));
+const nvPax = b => sxSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv));
+/* عنوان فاصل «👨 الرجال» / «👩 السيدات» قبل أول فرد من كل فئة (لو الحجز فيه الاتنين) */
+const sxHead = (b, P, k) => { const both=(+b.men||0)>0 && (+b.women||0)>0; if(!both) return ''; const g=paxSx(b,P[k]);
+  return (k===0 || paxSx(b,P[k-1])!==g) ? `<div style="font-weight:800;margin:${k?'12px':'0'} 0 6px;color:${g==='m'?'var(--blue)':'var(--pink)'}">${g==='m'?'👨 الرجال':'👩 السيدات'} (${P.filter(r=>paxSx(b,r)===g).length})</div>` : ''; };
 const allBarred = b => paxN(b)>0 && acctDone(b) && !visitPax(b).length;
 /* 👑 قائد المجموعة — r.lead=true للقائد • r.ldr = رقم (index) القائد اللي الفرد تابع له
    بيتحدد من «إنشاء الحسابات» وبيظهر كمان في أفراد الحجز في «المواعيد» عشان محدش ينسى مين القائد */
@@ -3671,14 +3676,15 @@ function bkRender(){
       <option value="">👑 تابع لقائد: —</option>${LI.map(li=>`<option value="${li}" ${ldrOf(b,r)===li?'selected':''}>👑 تابع لـ ${esc(paxLbl(b,li))}</option>`).join('')}</select></div>`;
   const row = (i,k,lbl,v,ltr) => v ? `<button type="button" class="cp" data-i="${i}" data-k="${k}" onclick="bkCopy(this)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
-  $('#bkPeople').innerHTML = b.pax.map((r,i)=>`<div class="pcard ${r.nv?'nv':r.made?'made':''} ${r.lead?'lead':''}">
-      <div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}</b><span class="sp"></span>
+  const ORD=sxSort(b, b.pax);
+  $('#bkPeople').innerHTML = ORD.map((r,k)=>{ const i=b.pax.indexOf(r); return sxHead(b,ORD,k)+`<div class="pcard ${r.nv?'nv':r.made?'made':''} ${r.lead?'lead':''}" data-i="${i}">
+      <div class="ph"><b>فرد ${k+1}${(+b.men||0)>0&&(+b.women||0)>0?(paxSx(b,r)==='m'?' 👨':' 👩'):''}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}</b><span class="sp"></span>
         <button type="button" class="ibtn ld ${r.lead?'on':''}" onclick="bkLead(${i})" title="اختار الفرد ده قائد لمجموعة">👑 قائد</button>
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل حسابه':'⬜ اتعمل حسابه'}</button>
         <button type="button" class="ibtn ${r.bk?'ok':''}" onclick="bkSlot(${i})" ${r.nv?'disabled':''}>${r.bk?'✅ اتحجز موعده':'📅 اتحجز موعده'}</button>
         <button type="button" class="ibtn nv ${r.nv?'on':''}" onclick="bkNv(${i})">🚫 ليس له زيارة</button></div>
       ${ldPick(r,i)}${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
-    </div>`).join('');
+    </div>`; }).join('');
   $('#bkDoneBtn').textContent = acctDone(b) ? '↩️ إلغاء «تم إنشاء الحسابات»' : `✅ تم إنشاء الحسابات${made<n?` (${made}/${n})`:''}`;
   $('#bkDoneBtn').className = 'btn '+(acctDone(b)?'sec':'pri');
 }
@@ -3692,23 +3698,25 @@ async function bkCopy(el){
   if(await copyText(v)){ document.querySelectorAll('#bkPeople .cp.just').forEach(x=>x.classList.remove('just')); el.classList.add('done','just'); el.querySelector('.c').textContent='✓'; if(navigator.vibrate) navigator.vibrate(30); toast('📋 اتنسخ: '+v); }
   else toast('⚠️ النسخ ماشتغلش — اضغط على الكلام كتير وانسخه');
 }
+/* الكارت اللي بعد الفرد ده في الشاشة (بعد الترتيب رجال ثم سيدات) */
+const bkNext = i => { const C=[...document.querySelectorAll('#bkPeople .pcard')], k=C.findIndex(c=>+c.dataset.i===i); return k>=0 ? C[k+1] : null; };
 function bkMade(i){
   const b=bkB(); if(!b || !b.pax[i]) return;
   b.pax[i].made=!b.pax[i].made; if(b.pax[i].made) delete b.pax[i].nv; else delete b.pax[i].bk; if(acctDone(b)) syncSlot(b); save(); bkRender(); renderAll();
-  if(b.pax[i].made){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
+  if(b.pax[i].made){ const next=bkNext(i); if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
 function bkSlot(i){
   const b=bkB(); if(!b || !b.pax[i] || b.pax[i].nv) return;
   const r=b.pax[i]; r.bk=!r.bk; if(r.bk) r.made=true;
   if(acctDone(b)) syncSlot(b);
   save(); bkRender(); renderAll();
-  if(r.bk){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
+  if(r.bk){ const next=bkNext(i); if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
 function bkNv(i){
   const b=bkB(); if(!b || !b.pax[i]) return;
   if(b.pax[i].nv) delete b.pax[i].nv; else { b.pax[i].nv=true; b.pax[i].made=false; delete b.pax[i].bk; } if(acctDone(b)) syncSlot(b);
   save(); bkRender(); renderBookQueue(); renderNoVisit();
-  if(b.pax[i].nv){ const next=document.querySelectorAll('#bkPeople .pcard')[i+1]; if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
+  if(b.pax[i].nv){ const next=bkNext(i); if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
 async function bkDone(){
   const b=bkB(); if(!b) return;
@@ -3812,7 +3820,7 @@ function renderPast(){
   const L=all.filter(b=>(pastFilter==='all' || (pastFilter==='open'?pastOpen(b):b.status===pastFilter)) && hit(b));
   const adm=isAdmin();
   const cp = (lbl,v,ltr) => v ? `<button type="button" class="cp" onclick="apCopy(this,'${esc(v)}')"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>` : '';
-  const people = b => { const P=(b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa); if(!P.length) return '';
+  const people = b => { const P=sxSort(b, (b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa)); if(!P.length) return '';
     return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 الأفراد (${P.length})</summary><div style="margin-top:8px">${P.map((r,i)=>`<div class="pcard ${r.nv?'nv':''} ${r.lead?'lead':''}" style="padding:8px"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}${r.nv?' <span style="color:var(--red)">🚫 ليس له زيارة</span>':''}</b></div>
       ${cp('👤 الاسم',r.name)}${cp('📧 الإيميل',r.email,true)}${cp('📄 التأشيرة',r.visa,true)}${cp('🛂 الجواز',r.pass,true)}${cp('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`; };
   const html = L.slice(0,PAST_N).map(b=>{ const open=pastOpen(b), col=open?'var(--amb)':b.status==='done'?'var(--g)':'#9aa5a0';
@@ -3942,7 +3950,8 @@ function apEh(id, i, v){
 function ehSorted(b, P){
   const bs=[b.menSlot,b.womenSlot].filter(Boolean).map(toMin), base=bs.length?Math.floor(Math.min(...bs)/60)*60:0;
   const k = r => r.eh ? (toMin(r.eh) - base + 1440) % 1440 : 1e9;
-  return P.map((r,i)=>[r,i]).sort((x,y)=>k(x[0])-k(y[0]) || x[1]-y[1]).map(x=>x[0]);
+  const s = r => paxSx(b,r)==='m' ? 0 : 1;
+  return P.map((r,i)=>[r,i]).sort((x,y)=>s(x[0])-s(y[0]) || k(x[0])-k(y[0]) || x[1]-y[1]).map(x=>x[0]);
 }
 function ehSel(b, r){
   const i=b.pax.indexOf(r), g=paxSx(b,r), O=slotsOf(g).slice();
@@ -3959,7 +3968,7 @@ function apPeople(b, key){
   const cf=V.filter(r=>r.cf).length;
   return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
     (leadIdx(b).length?`<div style="margin-bottom:8px">${ldSummary(b)}</div>`:'')+
-    V.map((r,i)=>`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
+    V.map((r,i)=>sxHead(b,V,i)+`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
       <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
       ${ehSel(b,r)}</div>
       ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
