@@ -3709,7 +3709,9 @@ function bkLdr(i, v){
 /* 📲 «مطلوب على المنصة» بيعرض الحجز بس لما: بيانات كل الأفراد كاملة (الاسم + التأشيرة + الجواز + الجنسية — الإيميل بيتسحب من البنك لوحده)
    وأول موعد فاضل عليه أقل من 10 أيام (أو فات). الباقي بيتعد تحت القايمة عشان مايتنسيش. */
 const BK_WIN_D = 10;
-const paxReady = b => { const n=paxN(b), P=(b.pax||[]).slice(0,n); return n>0 && P.length>=n && P.every(r=>r && r.name && r.visa && r.pass && r.nat); };
+/* البيانات كاملة = نفس معيار «بيانات الأفراد»: التأشيرة + الجواز + الجنسية لكل فرد (الاسم مش شرط) — أو الحجز اتعلّم «📤 تم الرفع» */
+const paxReady = b => { const n=paxN(b), P=(b.pax||[]).slice(0,n); return n>0 && (!!b.uploaded || (P.length>=n && P.every(r=>r && r.visa && r.pass && r.nat))); };
+const paxReadyN = b => (b.pax||[]).slice(0,paxN(b)).filter(r=>r && r.visa && r.pass && r.nat).length;
 const firstAppt = b => { const gs=groupsOf(b).filter(g=>!entered(b,g) && !noShow(b,g)); return gs.length ? Math.min(...gs.map(g=>gStart(b,g))) : null; };
 const inBkWin = b => { const t=firstAppt(b); return t!==null && t-Date.now() <= BK_WIN_D*864e5; };
 let BKID=null;
@@ -3735,7 +3737,7 @@ function renderBookQueue(){
       <div class="acts"><button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button><button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
   const W=S.bookings.filter(b=>needBook(b) && !paxReady(b)), F=S.bookings.filter(b=>((needBook(b) && paxReady(b)) || needSlot(b)) && !inBkWin(b));
   if(W.length || F.length){ card.style.display='';
-    $('#bkList').insertAdjacentHTML('beforeend', `<div class="hint" style="display:block;margin-top:8px">${W.length?`📝 ${W.length} حجز لسه بياناته ناقصة (مش هيظهر هنا غير لما تكمل)`:''}${W.length&&F.length?' • ':''}${F.length?`⏳ ${F.length} حجز موعده بعد أكتر من ${BK_WIN_D} أيام`:''} — كلهم ظاهرين في «🧭 لوحة التشغيل»</div>`); }
+    $('#bkList').insertAdjacentHTML('beforeend', `<div class="hint" style="display:block;margin-top:8px">${W.length?`📝 بياناته ناقصة (مش هيظهر هنا غير لما تكمل): ${W.map(b=>`<a href="#" onclick="event.preventDefault();paxOpen('${b.id}')">${esc(b.name)} (${paxReadyN(b)}/${paxN(b)})</a>`).join(' • ')}`:''}${W.length&&F.length?' • ':''}${F.length?`⏳ ${F.length} حجز موعده بعد أكتر من ${BK_WIN_D} أيام`:''} — كلهم ظاهرين في «🧭 لوحة التشغيل»</div>`); }
 }
 /* 📋 بيانات مصغّرة للحجز: 👨 رجال 2 • الخميس 15 أكتوبر • 9:00 ص */
 const bkMini = b => groupsOf(b).map(g=>{ const sl=g==='m'?b.menSlot:b.womenSlot;
@@ -3916,7 +3918,7 @@ function opItem(b){
   const ago = ms => { const hh=Math.round(ms/H); return hh<24 ? `${Math.max(1,hh)} ساعة` : `${Math.round(hh/24)} يوم`; };
   let lv='later', why='';
   if(left < -H){ lv='late'; why = st==='enter' ? `⏰ الموعد فات من ${ago(-left)} — علّم «دخلوا» أو «مدخلوش»` : `⏰ الموعد فات من ${ago(-left)} والحجز لسه في «${OP_ST.find(x=>x.k===st).l}»`; }
-  else if(st==='acct' && !paxReady(b)){ lv = left<=BK_WIN_D*24*H ? 'now' : 'later'; why=`📝 البيانات لسه ناقصة (${(b.pax||[]).slice(0,paxN(b)).filter(r=>r&&r.name&&r.visa&&r.pass&&r.nat).length}/${paxN(b)}) — الموعد ${remText(left)}`; }
+  else if(st==='acct' && !paxReady(b)){ lv = left<=BK_WIN_D*24*H ? 'now' : 'later'; why=`📝 البيانات لسه ناقصة (${paxReadyN(b)}/${paxN(b)}) — الموعد ${remText(left)}`; }
   else if((st==='acct' || st==='slot') && left>BK_WIN_D*24*H){ lv='later'; why=`⏳ هيظهر في «مطلوب على المنصة» قبل الموعد بـ ${BK_WIN_D} أيام (${opensText(left-BK_WIN_D*24*H)})`; }
   else if(st==='acct' || st==='slot'){ if(left<=BK_WIN_D*24*H){ lv='now'; why=`⚠️ الموعد ${remText(left)} ولسه ${st==='acct'?'الحسابات ماتعملتش':'الموعد ماتحجزش'}`; } else if(left<=4*24*H){ lv='soon'; why=`الموعد ${remText(left)}`; } }
   else if(st==='conf'){ if(left<=CONF_H*H){ lv='now'; why='✔️ التأكيد مفتوح — أكّد دلوقتي'; } else { lv=left<=4*24*H?'soon':'later'; why=`التأكيد بيفتح ${opensText(left-CONF_H*H)}`; } }
