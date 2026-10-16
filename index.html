@@ -133,6 +133,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .pcard.made{background:#f1faf5;border-color:#9fd6bb}
 .pcard.nv{background:#fdf2f2;border-color:#efb9b9}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
+.ldpan>summary::-webkit-details-marker{display:none}
 .pcard.lead{border:2px solid #d9a400;box-shadow:0 0 0 3px #fff4cc}
 .ibtn.ld{color:#8a5a00;border-color:#ecd49a}.ibtn.ld.on{background:#d9a400;color:#fff;border-color:#d9a400}
 .ldsel{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #ecd49a;border-radius:10px;background:#fffaf0;color:#8a5a00;max-width:100%}
@@ -3243,7 +3244,7 @@ async function paxUpload(){
   if(!tgOn()){ toast('📤 اتسجل «تم الرفع» — تليجرام مش متفعّل فمفيش رسالة اتبعتت'); return; }
   const gl = g => +bb[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'}: <b>${bb[g==='m'?'men':'women']}</b> — ${fmtDate(gDate(bb,g))} ${fmt12(g==='m'?bb.menSlot:bb.womenSlot)}` : '';
   const head=['📤 <b>تم الرفع</b>', '', `👤 العميل: <b>${tgEsc(bb.name)}</b>`, ...[gl('m'),gl('w')].filter(Boolean), ''];
-  const rows=sxSort(bb, bb.pax).map((r,i)=>`${i+1}) ${r.name?`<code>${tgEsc(r.name)}</code>\n     📧 `:''}<code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
+  const rows=grpSort(bb, bb.pax).map((r,i)=>`${i+1}) ${r.name?`<code>${tgEsc(r.name)}</code>\n     📧 `:''}<code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
   const foot = user?.email ? ['', `سجّله: ${byName()}`] : [];
   const msgs=[]; let cur=head.join('\n');
   rows.forEach(x=>{ if((cur+'\n'+x).length>3800){ msgs.push(cur); cur='📤 <b>تكملة</b> — '+tgEsc(bb.name); } cur+='\n'+x; });
@@ -3626,8 +3627,33 @@ function syncSlot(b){
 /* «ليس له زيارة» لكل فرد (r.nv) — بعد «تم إنشاء الحسابات» الفرد ده بيروح تبويب «ممنوع الزيارة هذا العام» واللي اتحجز لهم بس بيكملوا */
 /* 👨👩 ترتيب الأفراد جوه الحجز: الرجال ورا بعض الأول وبعدين السيدات (من غير ما يتغير ترتيبهم الأصلي جوه كل فئة) */
 const sxSort = (b, P) => P.map((r,i)=>[r,i]).sort((x,y)=>(paxSx(b,x[0])==='m'?0:1)-(paxSx(b,y[0])==='m'?0:1) || x[1]-y[1]).map(x=>x[0]);
-const visitPax = b => sxSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv));
-const nvPax = b => sxSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv));
+const visitPax = b => grpSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv));
+const nvPax = b => grpSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv));
+/* 👑 لو فيه قادة: كل قائد وتحته التابعين له، وبعدهم اللي مش تابعين لحد (وجوه كل جزء الرجال قبل السيدات) */
+function grpSort(b, P){
+  const base=sxSort(b, P); if(!(b.pax||[]).some(r=>r && r.lead)) return base;
+  const out=[], used=new Set();
+  base.filter(r=>r.lead).forEach(L=>{ const li=b.pax.indexOf(L); out.push(L); used.add(L);
+    base.filter(r=>!r.lead && ldrOf(b,r)===li).forEach(r=>{ out.push(r); used.add(r); }); });
+  base.forEach(r=>{ if(!used.has(r)) out.push(r); });
+  return out;
+}
+/* عنوان فاصل: «👑 مجموعة فلان» قبل كل قائد و«بدون قائد» قبل الباقيين — ولو مفيش قادة: «👨 الرجال» / «👩 السيدات» */
+function grpHead(b, P, k){
+  if(!(b.pax||[]).some(r=>r && r.lead)) return sxHead(b, P, k);
+  const r=P[k], li=b.pax.indexOf(r), top=k?'14px':'0';
+  if(r.lead){ const n=P.filter(x=>!x.lead && ldrOf(b,x)===li).length;
+    return `<div style="font-weight:800;margin:${top} 0 6px;color:#8a5a00">👑 مجموعة ${esc(paxLbl(b,li))} (${1+n})</div>`; }
+  const free = x => !x.lead && ldrOf(b,x)<0;
+  return free(r) && (k===0 || !free(P[k-1])) ? `<div style="font-weight:800;margin:${top} 0 6px;color:var(--mu)">من غير قائد (${P.filter(free).length})</div>` : '';
+}
+/* 👑 زرار «القادة» — كل قائد ومعاه الإيميل والتأشيرة والجواز (كل خانة بتتنسخ بلمسة) */
+function ldPanel(b){
+  const L=leadIdx(b); if(!L.length) return '';
+  const c=(lbl,v)=>v?`<button type="button" class="cp" data-v="${esc(v)}" onclick="event.stopPropagation();apCopy(this,this.dataset.v)"><span class="l">${lbl}</span><span class="v" dir="ltr">${esc(v)}</span><span class="c">📋</span></button>`:`<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
+  return `<details class="ldpan" style="margin-top:8px"><summary class="btn gold sm" style="display:inline-flex;list-style:none;cursor:pointer">👑 القادة (${L.length})</summary><div style="margin-top:8px">${
+    L.map(li=>{ const r=b.pax[li]; return `<div class="pcard lead" style="padding:8px"><div class="ph"><b>👑 ${esc(paxLbl(b,li))}</b><span class="sp"></span><span class="hint">معاه ${ldMap(b).cnt[li]}/${LEAD_MAX}</span></div>${c('📧 الإيميل',r.email)}${c('📄 التأشيرة',r.visa)}${c('🛂 الجواز',r.pass)}</div>`; }).join('')}</div></details>`;
+}
 /* عنوان فاصل «👨 الرجال» / «👩 السيدات» قبل أول فرد من كل فئة (لو الحجز فيه الاتنين) */
 const sxHead = (b, P, k) => { const both=(+b.men||0)>0 && (+b.women||0)>0; if(!both) return ''; const g=paxSx(b,P[k]);
   return (k===0 || paxSx(b,P[k-1])!==g) ? `<div style="font-weight:800;margin:${k?'12px':'0'} 0 6px;color:${g==='m'?'var(--blue)':'var(--pink)'}">${g==='m'?'👨 الرجال':'👩 السيدات'} (${P.filter(r=>paxSx(b,r)===g).length})</div>` : ''; };
@@ -3719,6 +3745,7 @@ function bkRender(){
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${leadIdx(b).length?`<div style="margin-top:6px">${ldSummary(b)}</div>`:''}`;
+  $('#bkHead').insertAdjacentHTML('beforeend', ldPanel(b));
   $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>🔑 كلمة السر للحجز:</b>
     <input id="bkPwIn" dir="ltr" autocomplete="off" value="${esc(b.pw||'')}" placeholder="اكتبها مرة واحدة — بتظهر لكل الأفراد" style="flex:1;min-width:150px" onchange="bkPw(this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`);
   const LI=leadIdx(b), LM=ldMap(b);
@@ -3726,8 +3753,8 @@ function bkRender(){
       <option value="">👑 تابع لقائد: —</option>${LI.map(li=>{ const me=ldrOf(b,r)===li, full=!me && LM.cnt[li]>=LEAD_MAX; return `<option value="${li}" ${me?'selected':''} ${full?'disabled':''}>👑 تابع لـ ${esc(paxLbl(b,li))} (${LM.cnt[li]}/${LEAD_MAX}${full?' — كامل':''})</option>`; }).join('')}</select></div>`;
   const row = (i,k,lbl,v,ltr) => v ? `<button type="button" class="cp" data-i="${i}" data-k="${k}" onclick="bkCopy(this)"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>`
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
-  const ORD=sxSort(b, b.pax);
-  $('#bkPeople').innerHTML = ORD.map((r,k)=>{ const i=b.pax.indexOf(r); return sxHead(b,ORD,k)+`<div class="pcard ${r.nv?'nv':r.made?'made':''} ${r.lead?'lead':''}" data-i="${i}">
+  const ORD=grpSort(b, b.pax);
+  $('#bkPeople').innerHTML = ORD.map((r,k)=>{ const i=b.pax.indexOf(r); return grpHead(b,ORD,k)+`<div class="pcard ${r.nv?'nv':r.made?'made':''} ${r.lead?'lead':''}" data-i="${i}">
       <div class="ph"><b>فرد ${k+1}${(+b.men||0)>0&&(+b.women||0)>0?(paxSx(b,r)==='m'?' 👨':' 👩'):''}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}</b><span class="sp"></span>
         <button type="button" class="ibtn ld ${r.lead?'on':''}" onclick="bkLead(${i})" title="اختار الفرد ده قائد لمجموعة">👑 قائد</button>
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل حسابه':'⬜ اتعمل حسابه'}</button>
@@ -3942,7 +3969,7 @@ function renderPast(){
   const L=all.filter(b=>(pastFilter==='all' || (pastFilter==='open'?pastOpen(b):b.status===pastFilter)) && hit(b));
   const adm=isAdmin();
   const cp = (lbl,v,ltr) => v ? `<button type="button" class="cp" onclick="apCopy(this,'${esc(v)}')"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>` : '';
-  const people = b => { const P=sxSort(b, (b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa)); if(!P.length) return '';
+  const people = b => { const P=grpSort(b, (b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa)); if(!P.length) return '';
     return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 الأفراد (${P.length})</summary><div style="margin-top:8px">${P.map((r,i)=>`<div class="pcard ${r.nv?'nv':''} ${r.lead?'lead':''}" style="padding:8px"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}${r.nv?' <span style="color:var(--red)">🚫 ليس له زيارة</span>':''}</b></div>
       ${cp('👤 الاسم',r.name)}${cp('🛂 الجواز',r.pass,true)}${cp('📄 التأشيرة',r.visa,true)}${cp('📧 الإيميل',r.email,true)}${cp('🔑 كلمة السر',b.pw,true)}${cp('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`; };
   const html = L.slice(0,PAST_N).map(b=>{ const open=pastOpen(b), col=open?'var(--amb)':b.status==='done'?'var(--g)':'#9aa5a0';
@@ -4070,6 +4097,7 @@ function apEh(id, i, v){
 }
 /* الترتيب بيبدأ من ساعة موعد الحجز (عشان الدخول بعد نص الليل ييجي في الآخر) — اللي من غير ساعة في الآخر */
 function ehSorted(b, P){
+  if((b.pax||[]).some(r=>r && r.lead)) return grpSort(b, P);
   const bs=[b.menSlot,b.womenSlot].filter(Boolean).map(toMin), base=bs.length?Math.floor(Math.min(...bs)/60)*60:0;
   const k = r => r.eh ? (toMin(r.eh) - base + 1440) % 1440 : 1e9;
   const s = r => paxSx(b,r)==='m' ? 0 : 1;
@@ -4089,8 +4117,8 @@ function apPeople(b, key){
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
   const cf=V.filter(r=>r.cf).length;
   return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
-    (leadIdx(b).length?`<div style="margin-bottom:8px">${ldSummary(b)}</div>`:'')+
-    V.map((r,i)=>sxHead(b,V,i)+`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
+    (leadIdx(b).length?`<div style="margin-bottom:8px">${ldSummary(b)}${ldPanel(b)}</div>`:'')+
+    V.map((r,i)=>grpHead(b,V,i)+`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
       <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
       ${ehSel(b,r)}</div>
       ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('🛂 الجواز',r.pass,true)}${row('📄 التأشيرة',r.visa,true)}${row('📧 الإيميل',r.email,true)}${pwRow(b)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
