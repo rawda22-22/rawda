@@ -135,7 +135,12 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
 .ldpan>summary::-webkit-details-marker{display:none}
 .bill .ldpan div{display:block;padding:0}.bill .ldpan .ph{display:flex;justify-content:flex-start}
-.ldpan .pcard{padding:8px;margin-bottom:8px}.ldpan .cp{min-height:44px;padding:8px 10px;margin-bottom:6px}.ldpan .cp .l{min-width:70px}.ldpan .cp .v{font-size:15px}
+.bill .ldpan .ldbox,.bill .ldpan .ldone{display:block}
+.ldbox{margin-top:8px;border:1px solid #ecd49a;border-radius:12px;background:#fffdf5;padding:4px 10px}
+.ldone{padding:8px 0;border-bottom:1px dashed #ecd49a}.ldone:last-child{border-bottom:0}
+.ldnm{font-weight:800;color:#8a5a00;font-size:15px;margin-bottom:4px}
+.ldln{display:flex!important;align-items:center;gap:8px;width:100%;border:0;background:none;padding:5px 2px;font:inherit;cursor:pointer;text-align:right;color:var(--tx)}
+.ldln b{flex:1;font-size:15px;overflow-wrap:anywhere;text-align:left}.ldln .c{opacity:.6}.ldln.done b{color:var(--g)}.ldln.miss b{color:var(--mu);font-weight:500}
 .ldbadge{white-space:normal!important;border-radius:10px!important;max-width:100%;line-height:1.5}
 .ldsel{width:100%}
 .pcard.lead{border:2px solid #d9a400;box-shadow:0 0 0 3px #fff4cc}
@@ -3647,16 +3652,17 @@ function grpHead(b, P, k){
   if(!(b.pax||[]).some(r=>r && r.lead)) return sxHead(b, P, k);
   const r=P[k], li=b.pax.indexOf(r), top=k?'14px':'0';
   if(r.lead){ const n=P.filter(x=>!x.lead && ldrOf(b,x)===li).length;
-    return `<div style="font-weight:800;margin:${top} 0 6px;color:#8a5a00">👑 مجموعة ${esc(paxLbl(b,li))} (${1+n})</div>`; }
+    return `<div style="font-weight:800;margin:${top} 0 6px;color:#8a5a00">👑 مجموعة ${esc(String(paxLbl(b,li)).trim().split(/\s+/).slice(0,2).join(' '))} (${1+n})</div>`; }
   const free = x => !x.lead && ldrOf(b,x)<0;
   return free(r) && (k===0 || !free(P[k-1])) ? `<div style="font-weight:800;margin:${top} 0 6px;color:var(--mu)">من غير قائد (${P.filter(free).length})</div>` : '';
 }
 /* 👑 زرار «القادة» — كل قائد ومعاه الإيميل والتأشيرة والجواز (كل خانة بتتنسخ بلمسة) */
 function ldPanel(b){
   const L=leadIdx(b); if(!L.length) return '';
-  const c=(lbl,v)=>v?`<button type="button" class="cp" data-v="${esc(v)}" onclick="event.stopPropagation();apCopy(this,this.dataset.v)"><span class="l">${lbl}</span><span class="v" dir="ltr">${esc(v)}</span><span class="c">📋</span></button>`:`<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
-  return `<details class="ldpan" style="margin-top:8px"><summary class="btn gold sm" style="display:inline-flex;list-style:none;cursor:pointer">👑 القادة (${L.length})</summary><div style="margin-top:8px">${
-    L.map(li=>{ const r=b.pax[li]; return `<div class="pcard lead" style="padding:8px"><div class="ph"><b>👑 ${esc(paxLbl(b,li))}</b><span class="sp"></span><span class="hint">معاه ${ldMap(b).cnt[li]}/${LEAD_MAX}</span></div>${c('📧 الإيميل',r.email)}${c('📄 التأشيرة',r.visa)}${c('🛂 الجواز',r.pass)}</div>`; }).join('')}</div></details>`;
+  const two = n => String(n||'').trim().split(/\s+/).slice(0,2).join(' ');
+  const ln = (ic,v) => v ? `<button type="button" class="ldln" data-v="${esc(v)}" onclick="event.stopPropagation();apCopy(this,this.dataset.v)"><span>${ic}</span><b dir="ltr">${esc(v)}</b><span class="c">📋</span></button>` : `<div class="ldln miss"><span>${ic}</span><b>— ناقص —</b></div>`;
+  return `<details class="ldpan" style="margin-top:8px"><summary class="btn gold sm" style="display:inline-flex;list-style:none;cursor:pointer">👑 القادة (${L.length})</summary><div class="ldbox">${
+    L.map(li=>{ const r=b.pax[li]; return `<div class="ldone"><div class="ldnm">👑 ${esc(two(r.name)||('فرد '+(li+1)))}</div>${ln('📧',r.email)}${ln('🛂',r.pass)}${ln('📄',r.visa)}</div>`; }).join('')}</div></details>`;
 }
 /* عنوان فاصل «👨 الرجال» / «👩 السيدات» قبل أول فرد من كل فئة (لو الحجز فيه الاتنين) */
 const sxHead = (b, P, k) => { const both=(+b.men||0)>0 && (+b.women||0)>0; if(!both) return ''; const g=paxSx(b,P[k]);
@@ -3748,7 +3754,7 @@ function bkRender(){
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length, nvN=b.pax.filter(r=>r.nv).length;
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
-    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${leadIdx(b).length?`<div style="margin-top:6px">${ldSummary(b)}</div>`:''}`;
+    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>`;
   $('#bkHead').insertAdjacentHTML('beforeend', ldPanel(b));
   $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>🔑 كلمة السر للحجز:</b>
     <input id="bkPwIn" dir="ltr" autocomplete="off" value="${esc(b.pw||'')}" placeholder="اكتبها مرة واحدة — بتظهر لكل الأفراد" style="flex:1;min-width:150px" onchange="bkPw(this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`);
@@ -3945,7 +3951,7 @@ function renderOps(){
   const rank={late:0, now:1, soon:2, later:3};
   const card = a => { const b=a.b;
     const when = a.gs.map(g=>`<span class="badge ${g==='m'?'b-men':'b-women'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}</span>`).join(' ');
-    const ld = typeof ldSummary==='function' ? ldSummary(b) : '';
+    const ld = ldPanel(b);
     return `<div class="opc ${a.lv}"><div class="t"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} ${when}</div>
       ${a.why?`<div class="why">${a.why}</div>`:''}${ld?`<div style="margin-top:4px">${ld}</div>`:''}
       <div class="acts">${opActs(a)}</div>${paxN(b)&&acctDone(b)?apPeople(b,'op'+b.id):''}</div>`; };
@@ -4121,7 +4127,7 @@ function apPeople(b, key){
     : `<div class="cp miss"><span class="l">${lbl}</span><span class="v">— ناقص —</span></div>`;
   const cf=V.filter(r=>r.cf).length;
   return `<details style="margin-top:8px" ${AP_OPEN.has(key)?'open':''} ontoggle="AP_OPEN[this.open?'add':'delete']('${key}')"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 أفراد الحجز (${V.length}) — اضغط للعرض ${cf?`<span class="badge ${cf===V.length?'b-green':'b-amb'}">✔️ اتأكد ${cf}/${V.length}</span>`:''}</summary><div style="margin-top:8px">${
-    (leadIdx(b).length?`<div style="margin-bottom:8px">${ldSummary(b)}${ldPanel(b)}</div>`:'')+
+    (leadIdx(b).length?`<div style="margin-bottom:8px">${ldPanel(b)}</div>`:'')+
     V.map((r,i)=>grpHead(b,V,i)+`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
       <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
       ${ehSel(b,r)}</div>
