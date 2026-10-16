@@ -134,13 +134,17 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .pcard.nv{background:#fdf2f2;border-color:#efb9b9}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
 .ldpan>summary::-webkit-details-marker{display:none}
+.bill .ldpan div{display:block;padding:0}.bill .ldpan .ph{display:flex;justify-content:flex-start}
+.ldpan .pcard{padding:8px;margin-bottom:8px}.ldpan .cp{min-height:44px;padding:8px 10px;margin-bottom:6px}.ldpan .cp .l{min-width:70px}.ldpan .cp .v{font-size:15px}
+.ldbadge{white-space:normal!important;border-radius:10px!important;max-width:100%;line-height:1.5}
+.ldsel{width:100%}
 .pcard.lead{border:2px solid #d9a400;box-shadow:0 0 0 3px #fff4cc}
 .ibtn.ld{color:#8a5a00;border-color:#ecd49a}.ibtn.ld.on{background:#d9a400;color:#fff;border-color:#d9a400}
 .ldsel{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #ecd49a;border-radius:10px;background:#fffaf0;color:#8a5a00;max-width:100%}
 .emptag{font-size:11px;font-weight:500;color:var(--mu,#6b7a72);white-space:nowrap}
 .pcard .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.pcard .ibtn.ok{background:#e3f4ec;color:var(--g);border-color:#9fd6bb}.pcard .ph .sp{flex:1}
 .cp{display:flex;align-items:center;gap:10px;width:100%;text-align:right;border:1.5px solid var(--bd);background:#f8faf9;border-radius:12px;padding:12px;margin-bottom:8px;font:inherit;cursor:pointer;min-height:54px}
-.cp .l{font-size:13px;color:var(--mu);white-space:nowrap;min-width:84px}.cp .v{flex:1;font-size:17px;font-weight:700;word-break:break-all}
+.cp .l{font-size:13px;color:var(--mu);white-space:nowrap;min-width:84px}.cp .v{flex:1;font-size:17px;font-weight:700;word-break:normal;overflow-wrap:anywhere}
 .cp .c{font-size:20px}.cp:active{transform:scale(.98)}
 .cp.done{border-color:#9fd6bb;background:#eef8f3}.cp.just{border-color:var(--g);box-shadow:0 0 0 3px #0e6b4f33}
 .cp.miss{cursor:default;opacity:.6}.cp.miss .v{color:var(--red);font-size:14px}
@@ -3675,8 +3679,8 @@ const ldrOf = (b,r) => { const x=ldMap(b).M.get(r); return x===undefined ? -1 : 
 function ldSummary(b){
   const L=leadIdx(b); if(!L.length) return '';
   const {cnt, free}=ldMap(b);
-  return L.map(li=>`<span class="badge" style="background:#fff4cc;color:#8a5a00">👑 ${esc(paxLbl(b,li))} • معاه ${cnt[li]}/${LEAD_MAX}</span>`).join(' ')
-    + (free ? ` <span class="badge b-gray">${free} لسه مش تابعين لقائد</span>` : '');
+  return L.map(li=>`<span class="badge ldbadge" style="background:#fff4cc;color:#8a5a00">👑 ${esc(paxLbl(b,li))} • معاه ${cnt[li]}/${LEAD_MAX}</span>`).join(' ')
+    + (free ? ` <span class="badge b-gray ldbadge">${free} لسه مش تابعين لقائد</span>` : '');
 }
 function bkLead(i){
   const b=bkB(); if(!b || !b.pax[i]) return; const r=b.pax[i];
