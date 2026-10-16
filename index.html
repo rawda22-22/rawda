@@ -3637,13 +3637,12 @@ const allBarred = b => paxN(b)>0 && acctDone(b) && !visitPax(b).length;
 const paxLbl = (b,i) => { const r=(b.pax||[])[i]; return r ? (r.name ? r.name : `فرد ${i+1}`) : ''; };
 const leadIdx = b => (b.pax||[]).slice(0, paxN(b)).map((r,i)=>r.lead?i:-1).filter(i=>i>=0);
 /* القائد ميقدرش يكون تحته أكتر من 4 أفراد (LEAD_MAX).
-   الفرد بيتبع القائد اللي اتحدد له • الأفراد اللي من غير اختيار بيتوزعوا لوحدهم على القادة بالترتيب (رجال ثم سيدات) — كل قائد لحد ما يكمل 4 */
+   الفرد بيتبع القائد اللي اتحدد له • مفيش توزيع تلقائي: المدير بيختار أفراد كل قائد بنفسه */
 const LEAD_MAX = 4;
 function ldMap(b){
   const P=(b.pax||[]).slice(0, paxN(b)), L=leadIdx(b), M=new Map(), cnt={};
   L.forEach(li=>cnt[li]=0);
   P.forEach(r=>{ if(!r.lead && L.includes(r.ldr) && cnt[r.ldr]<LEAD_MAX){ M.set(r, r.ldr); cnt[r.ldr]++; } });
-  sxSort(b, P).forEach(r=>{ if(r.lead || M.has(r) || L.includes(r.ldr)) return; const li=L.find(x=>cnt[x]<LEAD_MAX); if(li!==undefined){ M.set(r, li); cnt[li]++; } });
   return {M, cnt, free: P.filter(r=>!r.lead && !M.has(r)).length};
 }
 const ldrOf = (b,r) => { const x=ldMap(b).M.get(r); return x===undefined ? -1 : x; };
@@ -3651,7 +3650,7 @@ function ldSummary(b){
   const L=leadIdx(b); if(!L.length) return '';
   const {cnt, free}=ldMap(b);
   return L.map(li=>`<span class="badge" style="background:#fff4cc;color:#8a5a00">👑 ${esc(paxLbl(b,li))} • معاه ${cnt[li]}/${LEAD_MAX}</span>`).join(' ')
-    + (free ? ` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⚠️ ${free} من غير قائد — القائد بياخد ${LEAD_MAX} بالكتير، حدّد قائد تاني</span>` : '');
+    + (free ? ` <span class="badge b-gray">${free} لسه مش تابعين لقائد</span>` : '');
 }
 function bkLead(i){
   const b=bkB(); if(!b || !b.pax[i]) return; const r=b.pax[i];
@@ -3659,6 +3658,10 @@ function bkLead(i){
   else { r.lead=true; delete r.ldr; }
   save(); bkRender(); renderAll();
 }
+/* 🔑 كلمة السر — واحدة للحجز كله (b.pw) والمدير بيكتبها، وبتظهر قابلة للنسخ في كارت كل فرد */
+function bkPw(v){ const b=bkB(); if(!b) return; v=String(v||'').trim(); if((b.pw||'')===v) return; if(v) b.pw=v; else delete b.pw; save(); bkRender(); renderAll(); toast(v?'🔑 كلمة السر اتحفظت':'🔑 كلمة السر اتشالت'); }
+const pwRow = b => b.pw ? `<button type="button" class="cp" data-v="${esc(b.pw)}" onclick="apCopy(this,this.dataset.v)"><span class="l">🔑 كلمة السر</span><span class="v" dir="ltr">${esc(b.pw)}</span><span class="c">📋</span></button>`
+  : `<div class="cp miss"><span class="l">🔑 كلمة السر</span><span class="v">— لسه ماتكتبتش —</span></div>`;
 function bkLdr(i, v){
   const b=bkB(); if(!b || !b.pax[i]) return;
   if(v===''){ delete b.pax[i].ldr; }
@@ -3716,6 +3719,8 @@ function bkRender(){
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${leadIdx(b).length?`<div style="margin-top:6px">${ldSummary(b)}</div>`:''}`;
+  $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>🔑 كلمة السر للحجز:</b>
+    <input id="bkPwIn" dir="ltr" autocomplete="off" value="${esc(b.pw||'')}" placeholder="اكتبها مرة واحدة — بتظهر لكل الأفراد" style="flex:1;min-width:150px" onchange="bkPw(this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`);
   const LI=leadIdx(b), LM=ldMap(b);
   const ldPick = (r,i) => r.lead || !LI.length ? '' : `<div style="margin:-2px 0 8px"><select class="ldsel" onchange="bkLdr(${i},this.value)">
       <option value="">👑 تابع لقائد: —</option>${LI.map(li=>{ const me=ldrOf(b,r)===li, full=!me && LM.cnt[li]>=LEAD_MAX; return `<option value="${li}" ${me?'selected':''} ${full?'disabled':''}>👑 تابع لـ ${esc(paxLbl(b,li))} (${LM.cnt[li]}/${LEAD_MAX}${full?' — كامل':''})</option>`; }).join('')}</select></div>`;
@@ -3728,7 +3733,7 @@ function bkRender(){
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل حسابه':'⬜ اتعمل حسابه'}</button>
         <button type="button" class="ibtn ${r.bk?'ok':''}" onclick="bkSlot(${i})" ${r.nv?'disabled':''}>${r.bk?'✅ اتحجز موعده':'📅 اتحجز موعده'}</button>
         <button type="button" class="ibtn nv ${r.nv?'on':''}" onclick="bkNv(${i})">🚫 ليس له زيارة</button></div>
-      ${ldPick(r,i)}${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'email','📧 الإيميل',r.email,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'nat','🌍 الجنسية',r.nat)}
+      ${ldPick(r,i)}${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'email','📧 الإيميل',r.email,true)}${pwRow(b)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`; }).join('');
   $('#bkDoneBtn').textContent = acctDone(b) ? '↩️ إلغاء «تم إنشاء الحسابات»' : `✅ تم إنشاء الحسابات${made<n?` (${made}/${n})`:''}`;
   $('#bkDoneBtn').className = 'btn '+(acctDone(b)?'sec':'pri');
@@ -3939,7 +3944,7 @@ function renderPast(){
   const cp = (lbl,v,ltr) => v ? `<button type="button" class="cp" onclick="apCopy(this,'${esc(v)}')"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>` : '';
   const people = b => { const P=sxSort(b, (b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa)); if(!P.length) return '';
     return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 الأفراد (${P.length})</summary><div style="margin-top:8px">${P.map((r,i)=>`<div class="pcard ${r.nv?'nv':''} ${r.lead?'lead':''}" style="padding:8px"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}${r.nv?' <span style="color:var(--red)">🚫 ليس له زيارة</span>':''}</b></div>
-      ${cp('👤 الاسم',r.name)}${cp('📧 الإيميل',r.email,true)}${cp('📄 التأشيرة',r.visa,true)}${cp('🛂 الجواز',r.pass,true)}${cp('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`; };
+      ${cp('👤 الاسم',r.name)}${cp('🛂 الجواز',r.pass,true)}${cp('📄 التأشيرة',r.visa,true)}${cp('📧 الإيميل',r.email,true)}${cp('🔑 كلمة السر',b.pw,true)}${cp('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`; };
   const html = L.slice(0,PAST_N).map(b=>{ const open=pastOpen(b), col=open?'var(--amb)':b.status==='done'?'var(--g)':'#9aa5a0';
     const when = groupsOf(b).map(g=>`<span class="badge ${g==='m'?'b-new':'b-amb'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}${entered(b,g)?' ✓':noShow(b,g)?' 🚫':''}</span>`).join(' ');
     const st = open ? '<span class="badge b-amb">⏰ الموعد فات ومتقفلش</span>' : `<span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>`;
@@ -4088,7 +4093,7 @@ function apPeople(b, key){
     V.map((r,i)=>sxHead(b,V,i)+`<div class="pcard ${r.cf?'made':''} ${r.lead?'lead':''}"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':ldrOf(b,r)>=0?` <span class="hint">👑 تابع لـ ${esc(paxLbl(b,ldrOf(b,r)))}</span>`:''}</b><span class="sp"></span>
       <button type="button" class="ibtn ${r.cf?'ok':''}" onclick="apCf('${b.id}',${b.pax.indexOf(r)})">${r.cf?'✅ اتأكد':'⬜ اتأكد'}</button>
       ${ehSel(b,r)}</div>
-      ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('📧 الإيميل',r.email,true)}${row('📄 التأشيرة',r.visa,true)}${row('🛂 الجواز',r.pass,true)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
+      ${row('👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row('🛂 الجواز',r.pass,true)}${row('📄 التأشيرة',r.visa,true)}${row('📧 الإيميل',r.email,true)}${pwRow(b)}${row('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`;
 }
 const apNeed = a => !a.sDone || (a.cOpen && !a.cDone) || (a.bOpen && !a.bDone);
 function renderAppts(){
