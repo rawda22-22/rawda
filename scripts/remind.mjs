@@ -200,6 +200,47 @@ export function todayTomorrow(now, tz) {
   return [today, new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)];
 }
 
+/* ===== ☀️ ملخص الصبح على تليجرام — مرة واحدة كل يوم الساعة 9 الصبح (بتوقيت المنطقة) =====
+   بيلم كل الحجوزات الشغالة (مش «تم الدخول» ولا «ملغي») ويقول: إيه المتأخر، إيه مواعيد النهارده وبكرة، وإيه محتاج تأكيد أو حسابات. من غير مبالغ. */
+export const DAILY_AT = 9 * 60;
+export function localNow(now, tz) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: 'numeric' })
+    .formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  return { day: `${p.year}-${p.month}-${p.day}`, min: +p.hour * 60 + +p.minute };
+}
+export function dailySummary(bookings, now, tz, nameOf = () => '') {
+  const [today, tmrw] = todayTomorrow(now, tz), H = 3600000;
+  const late = [], todayL = [], tmrwL = [], conf = [], acct = [];
+  for (const b of bookings) {
+    if (b.status === 'cancelled' || b.status === 'done') continue;
+    const sys = paxOn(b) && ((+b.men || 0) + (+b.women || 0)) > 0;
+    const ap = appointments(b).filter((a) => !(b.entered && b.entered[a.g]) && !(b.noShow && b.noShow[a.g]));
+    if (!ap.length) continue;
+    const who = nameOf(b.createdBy);
+    for (const a of ap) {
+      const dt = zonedEpoch(a.date, a.slot, tz), ms = dt - now;
+      const line = `• ${h(b.name)} — ${a.g === 'm' ? '🧔' : '🧕'} ${a.n} • ${fmt12(a.slot)}${who ? ` • ${h(who)}` : ''}`;
+      if (ms < -H) late.push(`• ${h(b.name)} — ${a.g === 'm' ? '🧔' : '🧕'} ${a.n} • ${a.date} ${fmt12(a.slot)}${who ? ` • ${h(who)}` : ''}`);
+      else if (a.date === today) todayL.push(line);
+      else if (a.date === tmrw) tmrwL.push(line);
+      if (sys && ms > -H && ms <= CONF_MIN * 60000) {
+        if (!(b.acct || b.booked)) acct.push(`• ${h(b.name)} — الموعد بعد ${leftText(ms)}`);
+        else if (grpBooked(b, a.g) && !(b.conf && b.conf[a.g])) conf.push(`• ${h(b.name)} — ${a.g === 'm' ? '🧔' : '🧕'} الموعد بعد ${leftText(ms)}`);
+      }
+    }
+  }
+  const cap = (L) => (L.length > 15 ? [...L.slice(0, 15), `… و${L.length - 15} كمان (افتح «لوحة التشغيل»)`] : L);
+  const day = new Date(today + 'T12:00:00Z').toLocaleDateString('ar-u-nu-latn', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+  const M = [`☀️ <b>ملخص الصبح — ${day}</b>`];
+  const sec = (title, L, empty) => { M.push('', `${title} (${L.length})`); if (L.length) M.push(...cap(L)); else if (empty) M.push(empty); };
+  sec('⏰ <b>متأخر — الموعد فات ومحدش قفله</b>', late, '✅ مفيش');
+  if (acct.length) sec('⚠️ <b>الموعد قرّب ولسه الحسابات ماتعملتش</b>', acct);
+  if (conf.length) sec('✔️ <b>محتاج تأكيد الموعد</b>', conf);
+  sec('📆 <b>مواعيد النهارده</b>', todayL, 'مفيش');
+  sec('🌙 <b>مواعيد بكرة</b>', tmrwL, 'مفيش');
+  return M.join('\n');
+}
+
 /* وضع المراقبة: بيفضل شغال لمدة `minutes` ويفحص كل 20 ثانية.
    بيستخدم Firestore listeners: الحجوزات بتتقري مرة واحدة في البداية وبعدها التعديلات بس — فالقراءات قليلة جداً. */
 export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cairo', siteUrl = '', log = console.log, clock = () => Date.now() }) {
@@ -238,6 +279,19 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
       const now = clock();
       resubscribe(now);
       if (tg && tg.on && tg.token && tg.chatId) {
+        // ☀️ ملخص الصبح (مرة واحدة في اليوم بعد الساعة 9)
+        const ln = localNow(now, tz), dk = 'daily|' + ln.day;
+        if (ln.min >= DAILY_AT && ln.min < DAILY_AT + 180 && !sent[dk]) {
+          try {
+            const snap = await db.collection('bookings').where('status', 'in', ['new', 'confirmed']).get();
+            const list = []; snap.forEach((doc) => list.push({ ...doc.data(), id: doc.id }));
+            for (const b of list) await nameOf(b.createdBy);
+            await send(tg.token, tg.chatId, dailySummary(list, now, tz, (e) => names[String(e || '').toLowerCase()] || ''));
+            sent[dk] = now; totalSent++;
+            await db.doc('meta/reminders').set({ sent, updatedAt: now });
+            log(`اتبعت ملخص الصبح (${list.length} حجز شغال)`);
+          } catch (e) { totalFailed++; sent[dk] = now; console.error('تعذر إرسال ملخص الصبح', '-', e.message); }
+        }
         const all = new Map(); parts.forEach((p) => p.forEach((v, k) => all.set(k, v)));
         const due = dueReminders([...all.values()], now, tz).filter((r) => !sent[r.key]);
         for (const r of due) {

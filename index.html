@@ -168,6 +168,16 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .curPick input{display:none}
 .curPick label:has(input:checked){background:#8a5a00;border-color:#8a5a00;color:#fff}
 .qchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.opk{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.opk button{border:1px solid var(--bd);background:#fff;border-radius:14px;padding:10px 6px;cursor:pointer;text-align:center;font:inherit;color:var(--tx)}
+.opk button b{display:block;font-size:26px;line-height:1.1}.opk button span{font-size:12px;color:var(--mu)}
+.opk button.late b{color:var(--red)}.opk button.now b{color:var(--amb)}.opk button.on{outline:3px solid var(--g);outline-offset:-1px;background:#f1faf5}
+.opsec{margin-bottom:14px}.opsec>h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:16px}.opsec>h3 .n{background:#eef1ef;border-radius:999px;padding:1px 9px;font-size:13px}
+.opc{border:1px solid var(--bd);border-right:6px solid #b9c4be;border-radius:14px;padding:10px 12px;margin-bottom:8px;background:#fff}
+.opc.late{border-right-color:var(--red);background:#fff7f7}.opc.now{border-right-color:var(--amb);background:#fffaf2}.opc.soon{border-right-color:var(--blue)}
+.opc .t{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.opc .why{font-size:13px;font-weight:700;margin-top:4px}
+.opc.late .why{color:var(--red)}.opc.now .why{color:#a35f00}.opc .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+@media(max-width:520px){.opk button b{font-size:21px}}
 .subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .subtabs button{border:1px solid var(--bd);background:#fff;border-radius:999px;padding:6px 13px;cursor:pointer;font-size:13px;color:var(--mu)}
 .subtabs button.on{background:#e4f1ea;border-color:#bfe0cf;color:var(--g);font-weight:700}
@@ -244,6 +254,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 
 <nav class="tabs" id="tabs">
   <button data-t="dash" class="on">📊 لوحة التحكم <span class="dot" id="urgDot" style="display:none"></span></button>
+  <button data-t="ops">🧭 لوحة التشغيل <span class="dot" id="opsDot" style="display:none;background:var(--red)"></span></button>
   <button data-t="groups">🧩 الدفعات</button>
   <button data-t="list">📋 الحجوزات</button>
   <button data-t="fin" class="admin-only">💰 الحسابات <span class="dot" id="payDot" style="display:none;background:var(--amb)"></span><span class="dot" id="revDot" style="display:none;left:auto;right:-4px" title="دفعات بانتظار المراجعة"></span></button>
@@ -466,6 +477,17 @@ body:not(.cloud) .cloud-only{display:none!important}
       <h2>🖨 طباعة الباركود <span class="sp"></span><span class="hint" id="barHead"></span></h2>
       <div class="hint" style="display:block;margin-bottom:8px">الحجز بيظهر هنا قبل الموعد بـ 3 ساعات بس • اضغط على الحجز يفتح جدول بالأسماء والإيميلات — المس الإيميل يتنسخ.</div>
       <div id="barList"></div>
+    </div>
+  </section>
+
+  <!-- 🧭 لوحة التشغيل (تجريبي) -->
+  <section class="sec" id="sec-ops">
+    <div class="card">
+      <h2>🧭 لوحة التشغيل <span class="badge b-amb" style="font-size:11px">تجريبي</span><span class="sp"></span><span class="hint" id="opsHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:10px">كل حجز شغال بيظهر هنا <b>مرة واحدة بس</b> في المرحلة اللي واقف عندها، و<b>مش بيختفي لوحده</b> — بيفضل لحد ما يتعلّم «دخلوا» أو «مدخلوش» أو «ملغي». الأحمر = متأخر • البرتقالي = مطلوب دلوقتي.</div>
+      <div class="opk" id="opsKpi"></div>
+      <input id="opsQ" type="search" placeholder="🔍 بحث بالاسم / التليفون / الإيميل / الجواز / الموظف" style="width:100%;margin-bottom:12px" oninput="renderOps()">
+      <div id="opsList"></div>
     </div>
   </section>
 
@@ -1813,7 +1835,7 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderOps(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
@@ -3800,6 +3822,76 @@ function renderNoVisit(){
       <div style="display:grid;gap:6px;margin-top:8px">${P.map(r=>`<div class="pcard nv" style="margin:0;padding:8px;font-size:14px">
         <b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
   box.innerHTML = html || `<div class="empty">${q?'مفيش نتايج':'✅ مفيش حد ممنوع من الزيارة'}</div>`;
+}
+
+
+/* ========= 🧭 لوحة التشغيل =========
+   كل حجز شغال (مش «تم الدخول» ولا «ملغي») في مرحلة واحدة بس = أول خطوة لسه ماخلصتش:
+   👤 إنشاء الحسابات ← 📅 حجز الموعد ← ✔️ التأكيد (يفتح قبل الموعد بـ 48 س) ← 🖨 الطباعة (قبل الموعد بـ 3 س) ← 🚪 الدخول
+   الحجز مش بيختفي لوحده: لو الموعد فات ولسه مفتوح بيبقى «متأخر» بالأحمر لحد ما حد يقفله. */
+const OP_ST = [
+  {k:'acct',  ic:'👤', l:'إنشاء الحسابات'},
+  {k:'slot',  ic:'📅', l:'حجز الموعد على المنصة'},
+  {k:'conf',  ic:'✔️', l:'تأكيد الموعد'},
+  {k:'bar',   ic:'🖨', l:'طباعة الباركود'},
+  {k:'enter', ic:'🚪', l:'مستني الدخول'},
+];
+let opsF='all';
+const dayOf = t => dstr(new Date(t));
+function opItem(b){
+  if(!canSee(b) || b.status==='cancelled' || b.status==='done' || allBarred(b)) return null;
+  const gs=groupsOf(b).filter(g=>!entered(b,g) && !noShow(b,g)); if(!gs.length) return null;
+  const now=Date.now(), dt=Math.min(...gs.map(g=>gStart(b,g))), left=dt-now, H=36e5;
+  const sys=paxN(b)>0, sg=gs.filter(g=>gDt(b,g)!==null);
+  let st='enter';
+  if(sys && !acctDone(b)) st='acct';
+  else if(sys && (!sg.length || sg.length<gs.length || sg.some(g=>!gDone(b,'slotBk',g)))) st='slot';
+  else if(sys && sg.some(g=>!gDone(b,'conf',g))) st='conf';
+  else if(sys && sg.some(g=>!gDone(b,'bar',g))) st='bar';
+  const ago = ms => { const hh=Math.round(ms/H); return hh<24 ? `${Math.max(1,hh)} ساعة` : `${Math.round(hh/24)} يوم`; };
+  let lv='later', why='';
+  if(left < -H){ lv='late'; why = st==='enter' ? `⏰ الموعد فات من ${ago(-left)} — علّم «دخلوا» أو «مدخلوش»` : `⏰ الموعد فات من ${ago(-left)} والحجز لسه في «${OP_ST.find(x=>x.k===st).l}»`; }
+  else if(st==='acct' || st==='slot'){ if(left<=48*H){ lv='now'; why=`⚠️ الموعد ${remText(left)} ولسه ${st==='acct'?'الحسابات ماتعملتش':'الموعد ماتحجزش'}`; } else if(left<=4*24*H){ lv='soon'; why=`الموعد ${remText(left)}`; } }
+  else if(st==='conf'){ if(left<=CONF_H*H){ lv='now'; why='✔️ التأكيد مفتوح — أكّد دلوقتي'; } else { lv=left<=4*24*H?'soon':'later'; why=`التأكيد بيفتح ${opensText(left-CONF_H*H)}`; } }
+  else if(st==='bar'){ if(left<=BAR_H*H){ lv='now'; why='🖨 الطباعة مفتوحة — اطبع دلوقتي'; } else { lv=left<=24*H?'soon':'later'; why=`الطباعة بتفتح ${opensText(left-BAR_H*H)}`; } }
+  else { if(left<=0){ lv='now'; why='🚪 وقت الدخول — علّم «دخلوا» بعد ما يدخلوا'; } else { lv=left<=24*H?'soon':'later'; why=`الموعد ${remText(left)}`; } }
+  return {b, gs, sg, dt, left, st, lv, why, today: dayOf(dt)===todayStr(), tmrw: dayOf(dt)===dstr(new Date(Date.now()+864e5))};
+}
+function opActs(a){
+  const b=a.b, adm=isAdmin(), G=a.sg.join(','), open=k=>a.sg.filter(g=>!gDone(b,k,g));
+  const A=[];
+  if(a.st==='acct') A.push(adm ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')">📲 إنشاء الحسابات</button>` : `<span class="badge b-gray">مستني المدير يعمل الحسابات</span>`);
+  if(a.st==='slot') A.push(adm ? (a.sg.length===a.gs.length ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')">📅 احجز الموعد (لكل فرد)</button><button class="btn sec sm" onclick="stMark('${b.id}','slotBk','${open('slotBk').join(',')}')">✓ اتحجز للكل</button>` : `<button class="btn pri sm" onclick="editDate('${b.id}')">🕐 حدّد ساعة الموعد الأول</button>`) : `<span class="badge b-gray">مستني المدير يحجز الموعد</span>`);
+  if(a.st==='conf') A.push(a.lv==='now'||a.lv==='late' ? `<button class="btn pri sm" onclick="stMark('${b.id}','conf','${open('conf').join(',')}')">✔️ تم تأكيد الموعد</button><button class="btn sec sm" onclick="apTg('${b.id}','${G}',this)">📨 الأسماء والإيميلات على تليجرام</button>` : `<button class="btn sec sm" disabled>🔒 ${esc(a.why)}</button>`);
+  if(a.st==='bar'){ const og=open('bar');
+    if(a.lv==='now'||a.lv==='late'){ og.forEach(g=>A.push(`<button class="btn gold sm" onclick="barOpen('${b.id}','${g}')">🖨 جدول الباركود${og.length>1?(g==='m'?' — رجال':' — نساء'):''}</button>`)); if(adm) A.push(`<button class="btn sec sm" onclick="stMark('${b.id}','bar','${og.join(',')}')">✓ اتطبع</button>`); }
+    else A.push(`<button class="btn sec sm" disabled>🔒 ${esc(a.why)}</button>`); }
+  if((a.st==='enter' || a.lv==='late') && adm) a.gs.forEach(g=>A.push(`<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="markEntered('${b.id}','${g}')">✓ ${a.gs.length>1||groupsOf(b).length>1?(g==='m'?'الرجال ':'النساء '):''}دخلوا</button><button class="btn sec sm" onclick="markNoShow('${b.id}','${g}')">🚫 ${a.gs.length>1||groupsOf(b).length>1?(g==='m'?'الرجال ':'النساء '):''}مدخلوش</button>`));
+  if(adm) A.push(`<button class="ibtn" onclick="editDate('${b.id}')" title="فتح / تعديل الحجز">✏️</button>`);
+  return A.join('');
+}
+function renderOps(){
+  const box=$('#opsList'); if(!box) return;
+  const all=S.bookings.map(opItem).filter(Boolean);
+  const nL=all.filter(a=>a.lv==='late').length, nN=all.filter(a=>a.lv==='now').length, nT=all.filter(a=>a.today).length, nM=all.filter(a=>a.tmrw).length;
+  $('#opsDot').style.display = (nL+nN) ? 'grid' : 'none'; $('#opsDot').textContent = nL+nN;
+  $('#opsHead').textContent = `${all.length} حجز شغال`;
+  const kp=(f,c,n,l)=>`<button class="${c} ${opsF===f?'on':''}" onclick="opsF=opsF==='${f}'?'all':'${f}';renderOps()"><b>${n}</b><span>${l}</span></button>`;
+  $('#opsKpi').innerHTML = kp('late','late',nL,'⏰ متأخر')+kp('now','now',nN,'🔔 مطلوب دلوقتي')+kp('today','',nT,'📆 مواعيد النهارده')+kp('tmrw','',nM,'🌙 مواعيد بكرة');
+  const q=normAr(($('#opsQ').value||'').trim());
+  const hit = b => !q || normAr([b.name, b.phone, b.createdBy, b.createdBy&&empName(b.createdBy), ...(b.pax||[]).flatMap(r=>[r.name, r.email, r.pass, r.visa])].filter(Boolean).join(' | ')).includes(q);
+  const F=all.filter(a=>hit(a.b) && (opsF==='all' || (opsF==='late'?a.lv==='late':opsF==='now'?a.lv==='now':opsF==='today'?a.today:a.tmrw)));
+  const rank={late:0, now:1, soon:2, later:3};
+  const card = a => { const b=a.b;
+    const when = a.gs.map(g=>`<span class="badge ${g==='m'?'b-men':'b-women'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}</span>`).join(' ');
+    const ld = typeof ldSummary==='function' ? ldSummary(b) : '';
+    return `<div class="opc ${a.lv}"><div class="t"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} ${when}</div>
+      ${a.why?`<div class="why">${a.why}</div>`:''}${ld?`<div style="margin-top:4px">${ld}</div>`:''}
+      <div class="acts">${opActs(a)}</div>${paxN(b)&&acctDone(b)?apPeople(b,'op'+b.id):''}</div>`; };
+  const html = OP_ST.map(s=>{ const L=F.filter(a=>a.st===s.k).sort((x,y)=>rank[x.lv]-rank[y.lv] || x.dt-y.dt); if(!L.length) return '';
+    const bad=L.filter(a=>a.lv==='late'||a.lv==='now').length;
+    return `<div class="opsec"><h3>${s.ic} ${s.l} <span class="n">${L.length}</span>${bad?`<span class="badge b-red" style="background:#fdeeee;color:var(--red)">${bad} محتاج تصرّف</span>`:''}</h3>${L.map(card).join('')}</div>`; }).join('');
+  box.innerHTML = html || `<div class="empty">${q||opsF!=='all'?'🔍 مفيش حجوزات هنا':'🎉 مفيش حجوزات شغالة'}</div>`;
 }
 
 /* ===== 🗄 تبويب «الحجوزات المنتهية» — مرجع: اتلغى، دخل، أو كل مواعيده فاتت بأكتر من 3 ساعات (والموظف بيشوف حجوزاته بس) ===== */
