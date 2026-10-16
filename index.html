@@ -3636,9 +3636,9 @@ const allBarred = b => paxN(b)>0 && acctDone(b) && !visitPax(b).length;
    بيتحدد من «إنشاء الحسابات» وبيظهر كمان في أفراد الحجز في «المواعيد» عشان محدش ينسى مين القائد */
 const paxLbl = (b,i) => { const r=(b.pax||[])[i]; return r ? (r.name ? r.name : `فرد ${i+1}`) : ''; };
 const leadIdx = b => (b.pax||[]).slice(0, paxN(b)).map((r,i)=>r.lead?i:-1).filter(i=>i>=0);
-/* القائد ميقدرش يكون تحته أكتر من 4 أفراد (LEAD_MAX).
+/* القائد ميقدرش يكون تحته أكتر من 3 أفراد (LEAD_MAX).
    الفرد بيتبع القائد اللي اتحدد له • مفيش توزيع تلقائي: المدير بيختار أفراد كل قائد بنفسه */
-const LEAD_MAX = 4;
+const LEAD_MAX = 3;
 function ldMap(b){
   const P=(b.pax||[]).slice(0, paxN(b)), L=leadIdx(b), M=new Map(), cnt={};
   L.forEach(li=>cnt[li]=0);
