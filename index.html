@@ -354,6 +354,17 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="hint" style="margin-bottom:8px">الدفعات اللي الموظفين سجّلوها برقم إيصال من الأرشيف — بتتسجل للعميل فوراً بعد ما السيستم يتأكد من الإيصال، وبتفضل هنا لحد ما تبص عليها.</div>
       <div id="revList"></div>
     </div>
+    <div class="card" id="perCard">
+      <h2>📦 الفترات الحسابية <span class="sp"></span><span class="hint" id="perHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">إقفال الفترة بيحفظ كل حساباتها (الحجوزات اللي تمت، المصروفات، العمولات، المسحوبات، الأرباح) في الأرشيف تحت + بينزّل ملف Excel، والحسابات بتبدأ تعدّ من اليوم اللي بعده. <b>مفيش أي حجز أو مصروف بيتمسح</b> — والحجوزات بتتقسم حسب تاريخ الزيارة.</div>
+      <div id="perCur"></div>
+      <div class="toolbar" style="margin-top:10px">
+        <label class="hint">آخر يوم في الفترة</label><input type="date" id="perEnd">
+        <button class="btn pri sm" onclick="closePeriod()">🔒 إقفال الفترة وبدء فترة جديدة</button>
+      </div>
+      <h3 style="margin:14px 0 6px;font-size:15px">🗄 أرشيف الحسابات (الفترات المقفولة)</h3>
+      <div id="perList"></div>
+    </div>
     <div class="card">
       <h2>📑 التقرير الشهري للمبيعات <span class="sp"></span></h2>
       <div class="toolbar">
@@ -437,6 +448,7 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="toolbar">
         <label class="hint">من</label><input type="date" id="finFrom">
         <label class="hint">إلى</label><input type="date" id="finTo">
+        <button class="ibtn" onclick="setRange('period')">🟢 الفترة الحالية</button>
         <button class="ibtn" onclick="setRange('today')">اليوم</button>
         <button class="ibtn" onclick="setRange('week')">7 أيام</button>
         <button class="ibtn" onclick="setRange('month')">هذا الشهر</button>
@@ -989,7 +1001,7 @@ const isSplit = b => +b.men && +b.women && gDate(b,'m')!==gDate(b,'w');
 function applyData(raw){
   if(!raw) return;
   try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate); if(d.bank) S.bank=d.bank;
-    if(d.fin && mode!=='cloud'){ FIN={costs:d.fin.costs||[], expenses:d.fin.expenses||[], plans:d.fin.plans||[], advances:d.fin.advances||[], statements:d.fin.statements||[]}; S.fin=FIN; } }catch(e){ console.error(e); }
+    if(d.fin && mode!=='cloud'){ FIN={costs:d.fin.costs||[], expenses:d.fin.expenses||[], plans:d.fin.plans||[], advances:d.fin.advances||[], statements:d.fin.statements||[], periods:d.fin.periods||[], period:d.fin.period||null}; S.fin=FIN; } }catch(e){ console.error(e); }
 }
 
 /* ========= حالة المزامنة ========= */
@@ -1081,12 +1093,13 @@ async function initCloud(){
 }
 function subscribe(){
   unsubscribe(); setSync('connecting'); startPresence();
-  FIN={costs:[], expenses:[], plans:[], advances:[], statements:[]};
+  FIN={costs:[], expenses:[], plans:[], advances:[], statements:[], periods:[], period:null};
   finUnlocked=false; setFinPin(undefined);
   if(isAdmin()){
     unsubs.push(fb.onSnapshot(fb.doc(db,'finance','pin'), d=>{ setFinPin(d.exists() && d.data().hash ? d.data() : null); }, e=>{ console.warn('pin:', e.code||e); setFinPin(null); }));
-    unsubs.push(fb.onSnapshot(fb.doc(db,'finance','main'), d=>{ const x=d.exists()?d.data():{}; FIN.costs=Array.isArray(x.costs)?x.costs:[]; FIN.plans=Array.isArray(x.plans)?x.plans:[]; renderAll(); }, e=>console.warn('finance:', e.code||e)));
+    unsubs.push(fb.onSnapshot(fb.doc(db,'finance','main'), d=>{ const x=d.exists()?d.data():{}; FIN.costs=Array.isArray(x.costs)?x.costs:[]; FIN.plans=Array.isArray(x.plans)?x.plans:[]; FIN.period=x.period&&x.period.start?x.period:null; renderAll(); }, e=>console.warn('finance:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'advances'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.advances=a; renderAll(); }, e=>console.warn('advances:', e.code||e)));
+    unsubs.push(fb.onSnapshot(fb.collection(db,'periods'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); a.push({...x, id:d.id}); }); FIN.periods=a; renderAll(); }, e=>console.warn('periods:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'statements'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.statements=a; renderAll(); }, e=>console.warn('statements:', e.code||e)));
     unsubs.push(fb.onSnapshot(fb.collection(db,'expenses'), snap=>{ const a=[]; snap.forEach(d=>a.push({...d.data(), id:d.id})); FIN.expenses=a; renderAll(); }, e=>console.warn('expenses:', e.code||e)));
   }
@@ -1611,6 +1624,7 @@ function setRange(r){
   if(r==='today'){ f=t=todayStr(); }
   if(r==='week'){ f=dstr(new Date(Date.now()-6*864e5)); t=todayStr(); }
   if(r==='month'){ f=dstr(new Date(now.getFullYear(),now.getMonth(),1)); t=dstr(new Date(now.getFullYear(),now.getMonth()+1,0)); }
+  if(r==='period'){ f=perStart(); }
   $('#finFrom').value=f; $('#finTo').value=t; renderFinance();
 }
 function finRange(list, f, t){
@@ -1619,7 +1633,9 @@ function finRange(list, f, t){
   return [['🧮 تكلفة الأفراد', bigMoney(cost), 'var(--mu)'], ['💸 المصروفات'+(comm?' والعمولات':''), bigMoney(exp+comm), 'var(--amb)'],
     [profit<0?'🔻 صافي الخسارة':'📈 صافي الربح', bigMoney(profit), profit<0?'var(--red)':'var(--g)']];
 }
+let finInit=false;
 function renderFinance(){
+  if(!finInit && perStart()){ finInit=true; if(!$('#finFrom').value && !$('#finTo').value) $('#finFrom').value=perStart(); }
   const f=$('#finFrom').value, t=$('#finTo').value, B=base();
   const all=S.bookings.filter(b=>b.status!=='cancelled' && (!f||b.date>=f) && (!t||b.date<=t));
   const list=all.filter(b=>servedCalc(b).n>0), pend=all.filter(b=>servedCalc(b).f<1);   // المنفَّذ فعلاً • واللي لسه (كله أو جزء منه)
@@ -2500,6 +2516,106 @@ async function removePin(){
   catch(e){ toast('⚠️ تعذر الحفظ'); }
 }
 
+/* ========= 📦 الفترات الحسابية =========
+   finance/main.period = {start, no} = بداية الفترة الحالية ورقمها
+   periods/{id} = فترة مقفولة: {no, from, to, closedAt, closedBy, sum:{…أرقام}, sheets:"JSON لملف الأرشيف"}
+   الإقفال مش بيمسح أي حجز أو مصروف — بيحفظ صورة ثابتة للأرقام + ملف Excel، والحسابات بتبدأ تعدّ من اليوم اللي بعده.
+   الحجوزات بتتقسم على الفترات حسب تاريخ الزيارة (زي ملخص الحسابات). */
+const perStart = () => (FIN.period && FIN.period.start) || '';
+const perNo = () => (FIN.period && FIN.period.no) || ((FIN.periods||[]).reduce((m,p)=>Math.max(m,+p.no||0),0)+1);
+const addDay = (d, n) => { const x=new Date(d+'T00:00'); x.setDate(x.getDate()+n); return dstr(x); };
+const lastPeriod = () => [...(FIN.periods||[])].sort((a,b)=>b.no-a.no)[0] || null;
+/* أول تاريخ في البيانات (لو دي أول فترة تتقفل) */
+function firstDataDate(){
+  const ds=[...S.bookings.map(b=>b.date), ...FIN.expenses.map(x=>x.date), ...(FIN.advances||[]).map(x=>x.date)].filter(Boolean).sort();
+  return ds[0] || todayStr();
+}
+function renderPeriods(){
+  if(!isAdmin()) return;
+  const st=perStart(), C=reportData('cur','visit'), P=[...(FIN.periods||[])].sort((a,b)=>b.no-a.no), last=P[0];
+  if(!$('#perEnd').value) $('#perEnd').value=todayStr();
+  $('#perHead').textContent = P.length ? `${P.length} فترة في الأرشيف` : '';
+  $('#perCur').innerHTML = `<div class="appt" style="--gc:var(--g);margin-bottom:0">
+    <div class="info"><div class="nm">🟢 الفترة ${perNo()} — ${st?`من ${fmtDate(st)} <span class="hint" dir="ltr">${st}</span>`:'من أول البيانات'} لحد دلوقتي</div>
+      <div class="sub">✅ ${C.T.n} حجز تم • صافي المبيعات ${moneyB(C.T.total)} • المحصّل ${moneyB(C.T.paid)} • المصروفات ${moneyB(C.T.exp)} • <b style="color:${C.T.profit<0?'var(--red)':'var(--g)'}">${C.T.profit<0?'خسارة':'ربح'} ${moneyB(Math.abs(C.T.profit))}</b>${C.pend.n?` • 🕓 ${C.pend.n} لسه ماتمتش`:''}</div></div>
+    <div class="acts"><button class="ibtn" onclick="viewPeriod('cur')">👁 عرض</button></div></div>`;
+  $('#perList').innerHTML = P.length ? P.map(p=>{ const x=p.sum||{}, cur=x.cur||base(), M=v=>money(+v||0,cur);
+    return `<div class="appt" style="--gc:var(--blue);margin-bottom:6px">
+      <div class="time" style="font-size:14px">الفترة ${p.no}<small>${new Date(p.closedAt||Date.now()).toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'short'})}</small></div>
+      <div class="info"><div class="nm">🗄 ${fmtDate(p.from)} ← ${fmtDate(p.to)} <span class="hint" dir="ltr">${p.from} → ${p.to}</span></div>
+        <div class="sub">✅ ${x.n||0} حجز • ${x.persons||0} فرد • صافي ${M(x.total)} • محصّل ${M(x.paid)} • مصروفات ${M(x.exp)} • <b style="color:${x.profit<0?'var(--red)':'var(--g)'}">${x.profit<0?'خسارة':'ربح'} ${M(Math.abs(+x.profit||0))}</b>${x.pend?` • ⚠️ ${x.pend} حجز ماكانش متقفل`:''} • 👤 ${who(p.closedBy)}</div></div>
+      <div class="acts">
+        <button class="ibtn money" onclick="periodXLSX('${p.id}')" title="ملف الأرشيف زي ما اتقفل">⬇️ Excel</button>
+        <button class="ibtn" onclick="viewPeriod('p:${p.id}')" title="عرض أرقام الفترة دي في التقرير">👁 عرض</button>
+        ${p===last?`<button class="ibtn del" onclick="reopenPeriod('${p.id}')" title="يرجّع الفترة دي مفتوحة ويدمجها مع الحالية">↩️ فك الإقفال</button>`:''}
+      </div></div>`; }).join('')
+    : '<div class="empty">لسه مفيش فترات مقفولة</div>';
+}
+function viewPeriod(key){
+  const sel=$('#repMonth'); fillRepMonths(); sel.value=key; renderReport();
+  sel.closest('.card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+async function periodXLSX(id){
+  const p=(FIN.periods||[]).find(x=>x.id===id); if(!p) return;
+  let sh=null; try{ sh=JSON.parse(p.sheets||'null'); }catch(e){}
+  if(!sh){ toast('⚠️ ملف الفترة دي مش محفوظ — هيتعمل من الأرقام الحالية'); sh=reportSheets(reportData('p:'+id,'visit')); }
+  await writeReportXLSX(sh, `rawdah-archive-period-${p.no}_${p.from}_${p.to}`);
+}
+async function closePeriod(){
+  if(!isAdmin()) return;
+  const st=perStart(), end=$('#perEnd').value||todayStr(), from=st||firstDataDate();
+  if(end>todayStr()){ toast('⛔ مينفعش تقفل فترة بتاريخ في المستقبل'); return; }
+  if(end<from){ toast(`⛔ آخر يوم لازم يكون من ${from} أو بعده`); return; }
+  const no=perNo(), R=reportData(`rng:${from}|${end}`,'visit'), sym=CUR[R.B].sym;
+  const pendL=S.bookings.filter(b=>b.status!=='cancelled' && b.date>=from && b.date<=end && servedCalc(b).f<1);
+  let msg=`📦 إقفال الفترة ${no}\nمن ${from} إلى ${end}\n\n✅ ${R.T.n} حجز تم • صافي المبيعات ${num(R.T.total)} ${sym}\n💸 المصروفات ${num(R.T.exp)} ${sym} • ${R.T.profit<0?'🔻 خسارة':'📈 ربح'} ${num(Math.abs(R.T.profit))} ${sym}\n`;
+  if(pendL.length) msg+=`\n⚠️ فيه ${pendL.length} حجز موعده في الفترة دي ولسه متسجّلش دخوله (مش هيتحسب في الإقفال):\n${pendL.slice(0,8).map(b=>'• '+b.name+' ('+b.date+')').join('\n')}${pendL.length>8?'\n…':''}\nالأفضل تسجّل وضعهم الأول من «المستحقات ← مواعيد فاتت».\n`;
+  msg+=`\nهيتحفظ ملف أرشيف بكل حسابات الفترة دي وهيتحمّل Excel، والحسابات هتبدأ فترة جديدة من ${addDay(end,1)}.\nمفيش أي حجز أو مصروف هيتمسح.\n\nتكمل؟`;
+  if(!confirm(msg)) return;
+  const sh=reportSheets(R);
+  sh.info=[[`أرشيف الفترة الحسابية رقم ${no}`],[],['من',from],['إلى',end],['تاريخ الإقفال', new Date().toLocaleString('ar-u-nu-latn')],['قفلها', ME?.name||loginName(myEmail())||'—'],['أساس الحساب','حسب تاريخ الزيارة — المحسوب = اللي دخل فعلاً'],[],
+    ['⚠️ حجوزات موعدها في الفترة ولسه ماتمتش وقت الإقفال (مش محسوبة)', pendL.length],
+    ...pendL.map(b=>[`${b.date} • ${b.name}`, `${b.phone||''} • ${(STATUS[b.status]||[b.status])[0]}${b.createdBy?' • '+empName(b.createdBy.toLowerCase()):''}`])];
+  const T=R.T, sum={n:T.n, persons:T.persons, total:T.total, paid:T.paid, rem:T.rem, cost:T.cost, comm:T.commB, exp:T.exp, profit:T.profit, adv:round2(T.adv), pend:pendL.length, cur:R.B};
+  let sheets=JSON.stringify(sh);
+  if(sheets.length>900000){ toast('⚠️ الفترة كبيرة جداً — الأرقام هتتحفظ، والملف التفصيلي هيتحمّل بس'); sheets=''; }
+  const id=`P${String(no).padStart(3,'0')}-${end}`, doc={no, from, to:end, closedAt:Date.now(), closedBy:myEmail(), sum, sheets};
+  const next={start:addDay(end,1), no:no+1};
+  try{
+    if(mode==='cloud'){
+      const batch=fb.writeBatch(db);
+      batch.set(fb.doc(db,'periods',id), doc);
+      batch.set(fb.doc(db,'finance','main'), {period:next, updatedAt:Date.now(), updatedBy:myEmail()}, {merge:true});
+      await batch.commit();
+    } else { (FIN.periods=FIN.periods||[]).push({...doc, id}); FIN.period=next; finSave(); }
+  }catch(e){ cloudErr(e); toast('⚠️ الإقفال فشل — اتأكد من النت وإن قواعد Firestore اتحدثت'); return; }
+  if(mode==='cloud'){ FIN.period=next; if(!FIN.periods.some(x=>x.id===id)) FIN.periods.push({...doc, id}); }
+  $('#perEnd').value=''; $('#finFrom').value=next.start; $('#finTo').value='';
+  $('#repMonth').value='cur'; renderAll();
+  toast(`✅ اتقفلت الفترة ${no} — بدأت الفترة ${no+1} من ${next.start}`);
+  await writeReportXLSX(sh, `rawdah-archive-period-${no}_${from}_${end}`);
+}
+async function reopenPeriod(id){
+  const p=(FIN.periods||[]).find(x=>x.id===id); if(!p || p!==lastPeriod()) return;
+  if(!confirm(`فك إقفال الفترة ${p.no} (${p.from} ← ${p.to})؟\nهترجع تتحسب مع الفترة الحالية، وملفها هيتشال من الأرشيف.\n(لو محتاج الملف نزّله Excel الأول)`)) return;
+  const prev={start:p.from, no:p.no};
+  try{
+    if(mode==='cloud'){
+      const batch=fb.writeBatch(db);
+      batch.delete(fb.doc(db,'periods',id));
+      batch.set(fb.doc(db,'finance','main'), {period:prev, updatedAt:Date.now(), updatedBy:myEmail()}, {merge:true});
+      await batch.commit();
+    } else { FIN.periods=FIN.periods.filter(x=>x.id!==id); FIN.period=prev; finSave(); }
+  }catch(e){ cloudErr(e); toast('⚠️ فشل'); return; }
+  if(mode==='cloud'){ FIN.period=prev; FIN.periods=FIN.periods.filter(x=>x.id!==id); }
+  $('#finFrom').value=prev.start; renderAll(); toast(`↩️ الفترة ${p.no} رجعت مفتوحة من ${p.from}`);
+}
+/* تنبيه لو حد بيسجّل مصروف أو سلفة بتاريخ في فترة مقفولة */
+function perOldOk(d){
+  const st=perStart(); if(!st || !d || d>=st) return true;
+  return confirm(`⚠️ التاريخ ${d} في فترة مقفولة (الفترة الحالية بدأت ${st}).\nمش هيظهر في حسابات الفترة الحالية، وملف أرشيف الفترة القديمة مش هيتغير.\nتسجّله برضه؟`);
+}
+
 /* ========= 📑 التقرير الشهري ========= */
 const monthName = ym => { const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString('ar-u-nu-latn',{month:'long',year:'numeric'}); };
 function fillRepMonths(){
@@ -2507,10 +2623,15 @@ function fillRepMonths(){
   for(let i=0;i<12;i++){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); set.add(`${d.getFullYear()}-${pad(d.getMonth()+1)}`); }
   S.bookings.forEach(b=>{ if(b.date) set.add(b.date.slice(0,7)); if(b.createdAt) set.add(bkMonth(b)); });
   const arr=[...set].filter(Boolean).sort().reverse();
-  const html=arr.map(m=>`<option value="${m}">${monthName(m)}</option>`).join('');
+  const P=[...(FIN.periods||[])].sort((a,b)=>b.no-a.no);
+  const html=`<optgroup label="📦 الفترات الحسابية"><option value="cur">🟢 الفترة الحالية${perStart()?` (من ${perStart()})`:''}</option>${P.map(p=>`<option value="p:${p.id}">🗄 الفترة ${p.no}: ${p.from} ← ${p.to}</option>`).join('')}</optgroup>`
+    +`<optgroup label="📅 الشهور">${arr.map(m=>`<option value="${m}">${monthName(m)}</option>`).join('')}</optgroup>`;
   if(sel.innerHTML!==html) sel.innerHTML=html;
-  sel.value = arr.includes(v) ? v : curMonth();
+  const ok=[...sel.options].some(o=>o.value===v);
+  if(!repPerInit && perStart()){ repPerInit=true; sel.value='cur'; return; }
+  sel.value = ok && v ? v : (perStart() ? 'cur' : curMonth());
 }
+let repPerInit=false;
 /* ========= 💵 أنظمة العمولة (المدير بيعدّلها من الحسابات) =========
    كل نظام = شرائح حسب سعر الفرد بالجنيه قبل الخصم. العمولة إما مبلغ ثابت (جنيه) لكل فرد، أو نسبة % من صافي الحجز.
    أي تعديل بيتسجّل كنسخة جديدة «تسري من يوم» — الحجوزات اللي قبلها بتفضل بالنظام القديم. */
@@ -2542,7 +2663,7 @@ function planText(p, d){ const v=planVer(p, d||todayStr()); return v.tiers.map((
 /* ========= 🧮 التكاليف والمصروفات (للمدير بس) =========
    السحابة: finance/main {costs:[{id,amt,cur,from}]} + collection expenses — قواعد Firestore بتمنع الموظفين يقروهم.
    الوضع المحلي: بيتحفظوا مع البيانات في S.fin. */
-let FIN = { costs:[], expenses:[], plans:[], advances:[], statements:[] };
+let FIN = { costs:[], expenses:[], plans:[], advances:[], statements:[], periods:[], period:null };
 const EXP_TYPES = ['إيجار','رواتب','إعلانات وتسويق','مواصلات','اتصالات وإنترنت','رسوم تحويل وعمولات بنكية','مطبوعات وأدوات','ضيافة','أخرى'];
 /* تكلفة الفرد السارية على يوم معيّن (لو الحجز أقدم من أول تكلفة متسجلة بناخد أول تكلفة) */
 function costAt(d){
@@ -2582,6 +2703,7 @@ async function addExpense(){
   const date=$('#expDate').value||todayStr(), type=$('#expType').value.trim(), amt=+$('#expAmt').value, cur=$('#expCur').value, note=$('#expNote').value.trim();
   if(!type){ toast('اختار نوع المصروف'); $('#expType').focus(); return; }
   if(!(amt>0)){ toast('اكتب مبلغ المصروف'); $('#expAmt').focus(); return; }
+  if(!perOldOk(date)) return;
   const x={id:uid(), date, type, amt:round2(amt), cur, note, by:myEmail(), at:Date.now()};
   try{
     if(mode==='cloud'){ const {id,...d}=x; await fb.setDoc(fb.doc(db,'expenses',id), d); }
@@ -2605,6 +2727,7 @@ async function addAdvance(){
   const emp=$('#advEmp').value, type=$('#advType').value.trim()||'سلفة على الراتب', amt=+$('#advAmt').value, cur=$('#advCur').value, date=$('#advDate').value||todayStr(), note=$('#advNote').value.trim();
   if(!emp){ toast('اختار الموظف'); return; }
   if(!(amt>0)){ toast('اكتب المبلغ'); $('#advAmt').focus(); return; }
+  if(!perOldOk(date)) return;
   const x={id:uid(), emp, type, amt:round2(amt), cur, date, note, by:myEmail(), at:Date.now()};
   try{
     if(mode==='cloud'){ const {id,...d}=x; await fb.setDoc(fb.doc(db,'advances',id), d); }
@@ -2631,13 +2754,13 @@ function renderAdvances(R){
   const types=[...new Set([...ADV_TYPES, ...(FIN.advances||[]).map(x=>x.type)])], dl=types.map(t=>`<option value="${esc(t)}">`).join('');
   if($('#advTypes').innerHTML!==dl) $('#advTypes').innerHTML=dl;
   const list=[...R.advs].reverse();
-  $('#advHead').textContent = `${monthName(R.ym)} • ${list.length} عملية • ${num(R.T.adv)} ج.م`;
+  $('#advHead').textContent = `${R.label} • ${list.length} عملية • ${num(R.T.adv)} ج.م`;
   $('#advSum').innerHTML = R.emps.filter(x=>x.adv).map(x=>`<span class="chip">${esc(empName(x.email))}: <b style="color:var(--red)">${num(x.adv)} ج.م</b>${x.cm?` • عمولة ${num(x.comm)} • الصافي <b>${num(x.net)}</b>`:''}</span>`).join('');
   $('#advList').innerHTML = list.length ? list.map(x=>`<div class="appt" style="--gc:var(--amb);margin-bottom:6px">
       <div class="time" style="font-size:13px">${fmtDate(x.date)}<small>${x.date}</small></div>
       <div class="info"><div class="nm">${esc(empName(x.emp))} • ${esc(x.type)} <b style="color:var(--red)">${money(x.amt,x.cur)}</b></div>${x.note?`<div class="sub">${esc(x.note)}</div>`:''}</div>
       <div class="acts"><button class="ibtn" onclick="goStmt('${encodeURIComponent(x.emp)}')" title="كشف حساب الموظف">🧾</button><button class="ibtn del" onclick="delAdvance('${x.id}')">🗑</button></div></div>`).join('')
-    : '<div class="empty">مفيش مسحوبات في الشهر ده</div>';
+    : '<div class="empty">مفيش مسحوبات في الفترة دي</div>';
 }
 
 /* ===== 💵 تعديل أنظمة العمولة ===== */
@@ -2714,18 +2837,26 @@ function renderCosts(R){
   const types=[...new Set([...EXP_TYPES, ...FIN.expenses.map(x=>x.type)])];
   const dl=types.map(t=>`<option value="${esc(t)}">`).join(''); if($('#expTypes').innerHTML!==dl) $('#expTypes').innerHTML=dl;
   const list=expIn(R.from, R.to).sort((a,b)=>b.date.localeCompare(a.date) || b.at-a.at);
-  $('#expHead').textContent = `${monthName(R.ym)} • ${list.length} مصروف • ${moneyB(R.T.exp)}`;
+  $('#expHead').textContent = `${R.label} • ${list.length} مصروف • ${moneyB(R.T.exp)}`;
   $('#expTypesSum').innerHTML = R.expTypes.map(([t,v])=>`<span class="chip">${esc(t)}: <b>${moneyB(v)}</b></span>`).join('');
   $('#expList').innerHTML = list.length ? list.map(x=>`<div class="appt" style="--gc:var(--red);margin-bottom:6px">
       <div class="time" style="font-size:13px">${fmtDate(x.date)}<small>${x.date}</small></div>
       <div class="info"><div class="nm">${esc(x.type)} <b style="color:var(--red)">${money(x.amt,x.cur)}</b>${x.cur!==base()?` <span class="hint">≈ ${moneyB(conv(x.amt,x.cur,base()))}</span>`:''}</div>
         ${x.note?`<div class="sub">${esc(x.note)}</div>`:''}</div>
       <div class="acts"><button class="ibtn del" onclick="delExpense('${x.id}')">🗑</button></div></div>`).join('')
-    : '<div class="empty">مفيش مصروفات في الشهر ده</div>';
+    : '<div class="empty">مفيش مصروفات في الفترة دي</div>';
 }
 
+/* 📦 نطاق التقرير: شهر «YYYY-MM» • «cur» = الفترة الحسابية الحالية • «p:<id>» = فترة مقفولة من الأرشيف */
+function repRange(key){
+  if(key==='cur'){ const st=perStart(); return {from:st||'0000-01-01', to:'9999-12-31', label:`الفترة الحالية (رقم ${perNo()})`, span:st?`من ${st} لحد دلوقتي`:'من البداية لحد دلوقتي', fkey:`period-${perNo()}-current`}; }
+  if(key && key.startsWith('rng:')){ const [from,to]=key.slice(4).split('|'); return {from, to, label:`الفترة ${perNo()}`, span:`${from} إلى ${to}`, fkey:`period-${perNo()}`}; }
+  if(key && key.startsWith('p:')){ const p=(FIN.periods||[]).find(x=>x.id===key.slice(2)); if(p) return {from:p.from, to:p.to, label:`الفترة ${p.no} (مقفولة)`, span:`${p.from} إلى ${p.to}`, fkey:`period-${p.no}`}; key=curMonth(); }
+  const [y,m]=key.split('-').map(Number), from=`${key}-01`, to=dstr(new Date(y,m,0));
+  return {from, to, label:monthName(key), span:`${from} إلى ${to}`, fkey:key};
+}
 function reportData(ym, basis){
-  const [y,m]=ym.split('-').map(Number), from=`${ym}-01`, to=dstr(new Date(y,m,0)), B=base();
+  const RG=repRange(ym), from=RG.from, to=RG.to, B=base();
   const keyDate = b => basis==='created' && b.createdAt ? dstr(new Date(b.createdAt)) : b.date;
   const all=S.bookings.filter(b=>{ const d=keyDate(b); return d>=from && d<=to; });
   const act=all.filter(b=>b.status!=='cancelled');
@@ -2763,7 +2894,7 @@ function reportData(ym, basis){
   T.profit=T.gross-T.commB-T.exp;               // صافي الربح = مجمل الربح − العمولات − المصروفات
   r2(T);
   r2(P);
-  return { ym, basis, from, to, B, T, rows, cancelled:all.length-act.length, pend:P, pendBy:PE,
+  return { ym, basis, from, to, label:RG.label, span:RG.span, fkey:RG.fkey, B, T, rows, cancelled:all.length-act.length, pend:P, pendBy:PE,
     advs:advs.sort((a,b)=>a.date.localeCompare(b.date)),
     emps:Object.values(E).map(x=>{ r2(x); x.tierList=Object.values(x.tiers).map(r2); return x; }).sort((a,b)=>b.total-a.total||b.adv-a.adv), days:Object.values(D).map(r2).sort((a,b)=>a.d.localeCompare(b.d)),
     curs:CODES.filter(k=>C[k]).map(k=>r2(C[k])), methods:Object.entries(M).map(([k,v])=>[k,round2(v)]),
@@ -2774,7 +2905,7 @@ function reportData(ym, basis){
 function profitBox(R){
   const T=R.T, line=(l,v,c,b)=>`<div style="display:flex;justify-content:space-between;padding:6px 2px;${b?'border-top:2px solid var(--bd);font-weight:800;font-size:17px':''}"><span>${l}</span><b style="color:${c}" dir="ltr">${v}</b></div>`;
   return `<div class="bill" style="margin:4px 0 14px;padding:10px 14px">
-    <div style="font-weight:700;margin-bottom:4px">📈 الأرباح — ${monthName(R.ym)}</div>
+    <div style="font-weight:700;margin-bottom:4px">📈 الأرباح — ${R.label}</div>
     ${line('صافي المبيعات', moneyB(T.total), 'var(--tx)')}
     ${line(`− تكلفة الأفراد (${T.persons} فرد)`, moneyB(T.cost), 'var(--red)')}
     ${line('= مجمل الربح', moneyB(T.gross), T.gross<0?'var(--red)':'var(--g)')}
@@ -2798,10 +2929,10 @@ function renderReport(){
     ...(R.pend.n ? [['🕓 لسه ماتمتش (مش محسوبة)', `${R.pend.n} <small>حجز • ${R.pend.persons} فرد • ${num(R.pend.total)} ${CUR[R.B].sym}</small>`, 'var(--mu)'], ['💰 مقدمات محصّلة لحجوزات لسه', bigMoney(R.pend.adv), 'var(--blue)']] : []),
   ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
   $('#repProfit').innerHTML = profitBox(R);
-  renderCosts(R); renderAdvances(R); renderPlans(); renderStmts();
+  renderCosts(R); renderAdvances(R); renderPlans(); renderStmts(); renderPeriods();
   $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة (ج.م)</th><th>مسحوبات (ج.م)</th><th>الصافي له (ج.م)</th><th></th></tr></thead>
     <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${esc(planName(x.cm))}${x.tierList.length?' • '+x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '):''}</div>`:'—'}</td><td>${x.adv?`<b style="color:var(--red)">${num(x.adv)}</b>`:'—'}</td><td>${x.cm||x.adv?`<b style="color:${x.net<0?'var(--red)':'var(--g)'}">${num(x.net)}</b>`:'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="goStmt('${encodeURIComponent(x.email)}')" title="كشف حساب الموظف">🧾 كشف</button>`}</td></tr>`).join('')}</tbody>`
-    : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الشهر ده</td></tr></tbody>';
+    : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الفترة دي</td></tr></tbody>';
 }
 ['repMonth','repBasis'].forEach(k=>$('#'+k).addEventListener('change', renderReport));
 
@@ -2813,7 +2944,7 @@ function loadXLSX(){
 const basisLbl = b => b==='created' ? 'حسب تاريخ التسجيل (يوم البيع)' : 'حسب تاريخ الزيارة';
 function reportSheets(R){
   const BN=CUR[R.B].name, nowS=new Date().toLocaleString('ar-u-nu-latn');
-  const summary=[[`تقرير مبيعات ${monthName(R.ym)}`],[basisLbl(R.basis), `${R.from} إلى ${R.to}`],['تاريخ الإصدار', nowS],['أصدره', ME?.name||loginName(myEmail())||'—'],[],
+  const summary=[[`تقرير مبيعات ${R.label}`],[basisLbl(R.basis), `${R.span}`],['تاريخ الإصدار', nowS],['أصدره', ME?.name||loginName(myEmail())||'—'],[],
     ['البند', `القيمة (${BN})`],
     ['حجوزات تمت (محسوبة)', R.T.n],['حجوزات لسه ماتمتش (غير محسوبة)', R.pend.n],['قيمة الحجوزات اللي لسه', R.pend.total],['مقدمات محصّلة لحجوزات لسه', R.pend.adv],['حجوزات ملغية (غير محسوبة)', R.cancelled],['عدد الأفراد', R.T.persons],['رجال', R.T.men],['نساء', R.T.women],
     ['الإجمالي قبل الخصم', R.T.sub],['الخصومات', R.T.disc],['صافي المبيعات', R.T.total],['المحصّل', R.T.paid],['المتبقي', R.T.rem],['نسبة التحصيل', R.pct/100],['عمولات الموظفين (جنيه)', R.T.comm],[],
@@ -2825,17 +2956,17 @@ function reportSheets(R){
     [`أسعار الصرف: 1 ريال = ${S.settings.egpPerSar} جنيه • 1 دولار = ${S.settings.sarPerUsd} ريال`],[],
     ['أنظمة العمولة الحالية (حسب سعر الفرد بالجنيه قبل الخصم)'], ...plans().map(p=>[p.name, planText(p, R.to)])];
   const sm=k=>R.emps.reduce((s,x)=>s+(x[k]||0),0);
-  const emps=[[`المبيعات حسب الموظف — ${monthName(R.ym)} (${BN})`],[],['الموظف','اسم الدخول','حجوزات','أفراد','الصافي','المحصّل','المتبقي','% من المبيعات','نظام العمولة','تفصيل الشرائح','العمولة (جنيه)','المسحوبات (جنيه)','الصافي له (جنيه)'],
+  const emps=[[`المبيعات حسب الموظف — ${R.label} (${BN})`],[],['الموظف','اسم الدخول','حجوزات','أفراد','الصافي','المحصّل','المتبقي','% من المبيعات','نظام العمولة','تفصيل الشرائح','العمولة (جنيه)','المسحوبات (جنيه)','الصافي له (جنيه)'],
     ...R.emps.map(x=>[x.email==='—'?'غير معروف':empName(x.email), x.email==='—'?'':loginName(x.email), x.n, x.persons, x.total, x.paid, x.rem, R.T.total?round2(x.total/R.T.total):0, x.cm?planName(x.cm):'—', x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '), x.comm, x.adv, round2(x.net)]),
     ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid,R.T.rem,R.T.total?1:0,'','',R.T.comm,round2(R.T.adv),round2(sm('net'))]];
-  const advSheet=[[`مسحوبات وسلف الموظفين — ${monthName(R.ym)}`],[],['التاريخ','الموظف','النوع','المبلغ','العملة','المبلغ (جنيه)','تفاصيل'],
+  const advSheet=[[`مسحوبات وسلف الموظفين — ${R.label}`],[],['التاريخ','الموظف','النوع','المبلغ','العملة','المبلغ (جنيه)','تفاصيل'],
     ...R.advs.map(a=>[a.date, empName(a.emp), a.type, a.amt, CUR[a.cur].name, round2(conv(a.amt,a.cur,'EGP')), a.note||'']), ['الإجمالي','','','','',round2(R.T.adv),'']];
-  const days=[[`المبيعات اليومية — ${monthName(R.ym)} (${BN})`],[],['التاريخ','اليوم','حجوزات','أفراد','الصافي','المحصّل'],
+  const days=[[`المبيعات اليومية — ${R.label} (${BN})`],[],['التاريخ','اليوم','حجوزات','أفراد','الصافي','المحصّل'],
     ...R.days.map(x=>[x.d, new Date(x.d+'T00:00').toLocaleDateString('ar-u-nu-latn',{weekday:'long'}), x.n, x.persons, x.total, x.paid]),
     ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid]];
   const det=[['التاريخ','الاسم','الهاتف','رجال','نساء','أفراد','العملة','سعر الفرد','الخصم','الصافي','المدفوع','المتبقي',`الصافي (${BN})`,`المحصّل (${BN})`,'حالة السداد','طريقة الدفع','حالة الحجز','الموظف','ملاحظات','سعر الفرد (جنيه)','العمولة (جنيه)'],
     ...R.rows.map(({b,c,d,e,pd,pe,cmode,cm})=>[d,b.name,b.phone,c.men,c.women,c.n,CUR[c.cur].name,c.price,c.disc,c.total,c.paid,c.rem,round2(conv(c.total,c.cur,R.B)),round2(conv(pd,c.cur,R.B)),plain(PAY[c.st][0]),plain(METHODS[b.payMethod]),STATUS[b.status][0],e==='—'?'':empName(e),b.notes||'',pe,cmode?cm:''])];
-  const exps=[[`المصروفات — ${monthName(R.ym)}`],[],['التاريخ','النوع','المبلغ','العملة',`المبلغ (${BN})`,'تفاصيل'],
+  const exps=[[`المصروفات — ${R.label}`],[],['التاريخ','النوع','المبلغ','العملة',`المبلغ (${BN})`,'تفاصيل'],
     ...R.exps.map(x=>[x.date, x.type, x.amt, CUR[x.cur].name, round2(conv(x.amt,x.cur,R.B)), x.note||'']),
     ['الإجمالي','','','',R.T.exp,''],[],['حسب النوع',`المبلغ (${BN})`], ...R.expTypes];
   det[0].push(`تكلفة الأفراد (${BN})`, `الربح قبل المصروفات (${BN})`);
@@ -2844,8 +2975,10 @@ function reportSheets(R){
 }
 async function downloadReport(){
   const R=curR();
-  if(!R.T.n && !confirm('مفيش حجوزات في الشهر ده. تحميل تقرير فاضي؟')) return;
-  const sh=reportSheets(R), fname=`rawdah-report-${R.ym}`;
+  if(!R.T.n && !confirm('مفيش حجوزات في الفترة دي. تحميل تقرير فاضي؟')) return;
+  await writeReportXLSX(reportSheets(R), `rawdah-report-${R.fkey}`);
+}
+async function writeReportXLSX(sh, fname){
   let X; try{ toast('⏳ جارٍ تجهيز ملف Excel...'); X=await loadXLSX(); }
   catch(e){ toast('تعذر تحميل مكتبة Excel — اتحمل CSV بدلها');
     const csv='﻿'+sh.det.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -2857,6 +2990,7 @@ async function downloadReport(){
     for(let r=rg.s.r;r<=rg.e.r;r++) for(let c=rg.s.c;c<=rg.e.c;c++){ const cell=ws[X.utils.encode_cell({r,c})]; if(cell && cell.t==='n') cell.z = pctCols.includes(c) && r>0 ? '0%' : (Number.isInteger(cell.v)?'0':'#,##0.00'); }
     X.utils.book_append_sheet(wb, ws, name);
   };
+  if(sh.info) add('بيانات الإقفال', sh.info, [30,40]);
   add('الملخص', sh.summary, [34,22,14,14,14]);
   const pr=sh.summary.findIndex(r=>r[0]==='نسبة التحصيل'); if(pr>=0){ const ws=wb.Sheets['الملخص'], cell=ws[X.utils.encode_cell({r:pr,c:1})]; if(cell) cell.z='0%'; }
   add('حسب الموظف', sh.emps, [22,20,10,10,14,14,14,14,14,40,14,14,14], [7]);
@@ -2871,7 +3005,7 @@ function printReport(){
   const R=curR(), BN=CUR[R.B].sym, M=v=>moneyB(v);
   const w=window.open('','_blank'); if(!w){ toast('اسمح بالنوافذ المنبثقة (Pop-ups) للموقع ده'); return; }
   const tbl=(head, rows, foot)=>`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${head.length}" style="text-align:center">لا يوجد</td></tr>`}</tbody>${foot?`<tfoot><tr>${foot.map(f=>`<td>${f}</td>`).join('')}</tr></tfoot>`:''}</table>`;
-  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير مبيعات ${monthName(R.ym)}</title><style>
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير مبيعات ${R.label}</title><style>
     @page{size:A4;margin:12mm} *{box-sizing:border-box} body{font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;color:#1c2822;margin:0;padding:16px;font-size:12px}
     header{display:flex;align-items:center;gap:12px;border-bottom:3px solid #c9a24a;padding-bottom:10px;margin-bottom:14px}
     header .lg{font-size:34px} header h1{margin:0;font-size:20px;color:#093f2e} header p{margin:2px 0 0;color:#6b7a72}
@@ -2884,7 +3018,7 @@ function printReport(){
     .noprint button{font:inherit;padding:8px 16px;border-radius:8px;border:0;background:#0e6b4f;color:#fff;cursor:pointer}
   </style></head><body>
   <div class="noprint"><button onclick="print()">🖨 طباعة / حفظ PDF</button></div>
-  <header><div class="lg">🕌</div><div><h1>تقرير مبيعات ${monthName(R.ym)}</h1><p>حجوزات الروضة الشريفة • ${basisLbl(R.basis)} • ${R.from} إلى ${R.to}</p><p class="mu">أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}${ME?.name?' بواسطة '+esc(ME.name):''} • المبالغ بـ ${CUR[R.B].name}</p></div></header>
+  <header><div class="lg">🕌</div><div><h1>تقرير مبيعات ${R.label}</h1><p>حجوزات الروضة الشريفة • ${basisLbl(R.basis)} • ${R.span}</p><p class="mu">أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}${ME?.name?' بواسطة '+esc(ME.name):''} • المبالغ بـ ${CUR[R.B].name}</p></div></header>
   <div class="kp">
     <div><span>حجوزات تمت</span><b>${R.T.n}</b></div><div><span>عدد الأفراد</span><b>${R.T.persons} <small class="mu">(${R.T.men} ر / ${R.T.women} ن)</small></b></div>
     <div><span>قبل الخصم</span><b>${M(R.T.sub)}</b></div><div><span>الخصومات</span><b>${M(R.T.disc)}</b></div>
@@ -2926,7 +3060,7 @@ function printStatement(k){
     const x=R.emps.find(y=>y.email===e)||{tierList:[], comm:0, adv:0, net:0}, tiers=x.tierList, total=x.comm;
     const advs=R.advs.filter(a=>a.emp===e), adv=x.adv||0, net=round2(total-adv), pendN=R.pendBy[e]||0;
     return `<section class="pg">
-      <header><div class="lg">🧾</div><div><h1>كشف حساب موظف — ${esc(empName(e))}</h1><p>${monthName(R.ym)} • ${basisLbl(R.basis)} • ${R.from} إلى ${R.to}</p>
+      <header><div class="lg">🧾</div><div><h1>كشف حساب موظف — ${esc(empName(e))}</h1><p>${R.label} • ${basisLbl(R.basis)} • ${R.span}</p>
         <p class="mu">${cm?`نظام العمولة: <b>${esc(planName(cm))}</b>`:'<b>لم تُحدَّد طريقة عمولة لهذا الموظف</b> (حدّدها من قائمة الموظفين)'} • أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}</p></div></header>
       <div class="kp"><div><span>إجمالي الحجوزات</span><b>${rows.length}</b></div><div><span>إجمالي الأفراد</span><b>${persons}</b></div><div style="border-top-color:#c9a24a"><span>إجمالي العمولة</span><b>${cm?EG(total):'—'}</b></div>
         <div style="border-top-color:#d63c3c"><span>المسحوبات والسلف</span><b>${EG(adv)}</b></div><div style="grid-column:span 2;border-top-color:${net<0?'#d63c3c':'#0e6b4f'}"><span>${net<0?'الباقي على الموظف (المسحوبات أكتر من العمولة)':'صافي المستحق من العمولة بعد خصم المسحوبات'}</span><b>${EG(Math.abs(net))}</b></div></div>
@@ -2944,7 +3078,7 @@ function printStatement(k){
       <div class="sig"><span>توقيع المحاسب: ..............................</span><span>توقيع الموظف (استلمت): ..............................</span></div>
     </section>`;
   };
-  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>كشف حساب — ${monthName(R.ym)}</title><style>
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>كشف حساب — ${R.label}</title><style>
     @page{size:A4;margin:12mm} *{box-sizing:border-box} body{font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic",Arial,sans-serif;color:#1c2822;margin:0;padding:16px;font-size:12px}
     .pg{page-break-after:always} .pg:last-of-type{page-break-after:auto}
     header{display:flex;align-items:center;gap:12px;border-bottom:3px solid #c9a24a;padding-bottom:10px;margin-bottom:14px}

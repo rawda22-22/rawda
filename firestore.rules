@@ -62,6 +62,10 @@ service cloud.firestore {
     match /statements/{id} {
       allow read, create, delete: if isAdmin();
     }
+    // 📦 أرشيف الفترات الحسابية: للمدير بس — الفترة بعد إقفالها مابتتعدلش (آخر فترة بس ممكن يتفك إقفالها = حذف)
+    match /periods/{id} {
+      allow read, create, delete: if isAdmin();
+    }
 
     // 🗂 أرشيف الاسكرينات (archive.html) — منفصل عن الحجوزات
     // أي حساب نشط يرفع ويشوف، ومحدش يعدّل صورة بعد ما اتحفظت، والمدير بس يحذف
