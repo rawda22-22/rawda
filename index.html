@@ -787,7 +787,7 @@ body:not(.cloud) .cloud-only{display:none!important}
         <div id="cmTiers"></div>
         <button type="button" class="btn sec sm" style="width:fit-content;margin-top:6px" onclick="cmAddTier()">＋ شريحة</button></div>
       <div class="f" id="cmRateF"><label id="cmRateL">المبلغ</label><input id="cmRate" type="number" min="0" step="0.01"></div>
-      <div class="f"><label>يسري على الزيارات من يوم</label><input id="cmFrom" type="date"></div>
+      <div class="f"><label>يسري على الزيارات من يوم</label><input id="cmFrom" type="date"><span class="hint">2000-01-01 = على كل الحجوزات (اللي لسه ماتحاسبش عليها في كشف)</span></div>
       <div class="f full"><div class="hint" id="cmHint"></div></div>
       <div class="f full" id="cmHist"></div>
     </div>
@@ -2355,7 +2355,7 @@ function openCm(k){
   $('#cmType').value=v?v.type:'take'; $('#cmRate').value=v&&(v.type==='take'||v.type==='give')?v.rate:'';
   $('#cmTiers').innerHTML=(v&&v.type==='tier'?v.tiers:CM_DEF_TIERS).map(cmTierRow).join(''); cmFixTiers();
   const L=cmVers(e), d=new Date();
-  $('#cmFrom').value = L.length ? todayStr() : dstr(new Date(d.getFullYear(), d.getMonth(), 1));
+  $('#cmFrom').value = L.length ? todayStr() : '2000-01-01';
   $('#cmHist').innerHTML = L.length ? `<div class="hint" style="display:block">السجل: ${[...L].reverse().map(x=>`من ${x.from}: ${cmLbl(x)}`).join(' • ')}</div>`
     : (u.comm&&planOf(u.comm) ? `<div class="hint" style="display:block">النظام القديم: ${esc(planName(u.comm))} — هيفضل على الزيارات اللي قبل التاريخ اللي هتختاره.</div>` : '');
   cmUI(); $('#cmOv').classList.add('on');
@@ -2610,7 +2610,11 @@ function renderPeriods(){
   $('#perCur').innerHTML = `<div class="appt" style="--gc:var(--g);margin-bottom:0">
     <div class="info"><div class="nm">🟢 الفترة ${perNo()} — ${st?`من ${fmtDate(st)} <span class="hint" dir="ltr">${st}</span>`:'من أول البيانات'} لحد دلوقتي</div>
       <div class="sub">✅ ${C.T.n} حجز تم • صافي المبيعات ${moneyB(C.T.total)} • المحصّل ${moneyB(C.T.paid)} • المصروفات ${moneyB(C.T.exp)} • <b style="color:${C.T.profit<0?'var(--red)':'var(--g)'}">${C.T.profit<0?'خسارة':'ربح'} ${moneyB(Math.abs(C.T.profit))}</b>${C.pend.n?` • 🕓 ${C.pend.n} لسه ماتمتش`:''}</div></div>
-    <div class="acts"><button class="ibtn" onclick="viewPeriod('cur')">👁 عرض</button></div></div>`;
+    <div class="acts"><button class="ibtn" onclick="viewPeriod('cur')">👁 عرض</button></div></div>
+    <details style="margin-top:6px"><summary class="hint" style="cursor:pointer">📋 الحجوزات المحسوبة في الفترة دي (${C.rows.length}) — اضغط تشوف الأرباح جاية منين</summary>
+      ${C.rows.length?`<div style="overflow-x:auto;margin-top:6px"><table class="curTable"><thead><tr><th>تاريخ الزيارة</th><th>العميل</th><th>الموظف</th><th>أفراد</th><th>الصافي</th><th>التكلفة</th><th>العمولة</th></tr></thead>
+        <tbody>${C.rows.map(r=>`<tr><td>${r.d}</td><td>${esc(r.b.name)}</td><td>${r.e==='—'?'—':esc(empName(r.e))}</td><td>${r.c.n}</td><td>${moneyB(conv(r.c.total,r.c.cur,C.B))}</td><td>${moneyB(r.cost)}</td><td>${r.cmode?(r.cm<0?`للشركة ${num(-r.cm)}`:num(r.cm)):'—'}</td></tr>`).join('')}</tbody></table></div>`
+        :'<div class="empty">مفيش حجوزات اتنفذت من بداية الفترة</div>'}</details>`;
   $('#perList').innerHTML = P.length ? P.map(p=>{ const x=p.sum||{}, cur=x.cur||base(), M=v=>money(+v||0,cur);
     return `<div class="appt" style="--gc:var(--blue);margin-bottom:6px">
       <div class="time" style="font-size:14px">الفترة ${p.no}<small>${new Date(p.closedAt||Date.now()).toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'short'})}</small></div>
@@ -2744,8 +2748,9 @@ function commCalc(b, e, c=calc(b)){
     if(nv.type==='give'){ const a=round2(tot*r/100); return {id:'n:give', type:'give', pe, amt:a, bal:a, rate:r, lbl:'نسبة للموظف من الصافي', rl:`${num(r)}% من الصافي`, key:`give|${r}`}; }
     const fee=round2(r*c.n); return {id:'n:take', type:'take', pe, fee, amt:round2(tot-fee), bal:-fee, rate:r, lbl:'مبلغ للشركة على الفرد', rl:`${num(r)} ج.م للشركة / فرد`, key:`take|${r}`};
   }
-  const id=commMode(e);
-  if(!id || id.startsWith('n:')) return {id:'', pe, amt:0, bal:0};
+  // قبل تاريخ النظام الجديد: بالنظام القديم (الشرائح) المتسجل للموظف
+  const lid=(USERS[e]&&USERS[e].comm)||'', id=planOf(lid)?lid:'';
+  if(!id) return {id:'', pe, amt:0, bal:0};
   const p=planOf(id), v=planVer(p, b.date||''), ti=tierIdx(v.tiers, pe), r=+v.tiers[ti].rate||0;
   const amt = p.unit==='pct' ? round2(conv(c.total, c.cur, 'EGP')*r/100) : r*c.n;
   return {id, pe, amt, bal:amt, rate:r, ti, lbl:tierLbl(v.tiers, ti), rl:rateLbl(p, r), key:v.from+'|'+ti};
