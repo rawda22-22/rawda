@@ -437,9 +437,12 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div id="advList" style="margin-top:10px"></div>
     </div>
     <div class="card">
-      <h2>💵 أنظمة العمولة <span class="sp"></span><button class="btn sec sm" onclick="editPlan()">＋ نظام جديد</button></h2>
-      <div class="hint" style="margin-bottom:8px">الشرائح حسب سعر الفرد بالجنيه قبل الخصم. تحديد نظام كل موظف من تبويب «الموظفين».</div>
-      <div id="planList"></div>
+      <h2>💵 أنظمة العمولة <span class="sp"></span></h2>
+      <div class="hint" style="margin-bottom:8px">نظامين: 🏢 <b>الشركة بتاخد مبلغ على كل فرد</b> (الموظف بيستلم فلوس العميل ويورّد مبلغ الشركة) أو 💵 <b>الموظف ليه نسبة %</b> من صافي الحجز. كل موظف له نظامه ورقمه — اضغط على الموظف تعدّله.</div>
+      <div id="cmList"></div>
+      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">الأنظمة القديمة (الشرائح) — بتتحسب بيها الزيارات اللي قبل تغيير النظام</summary>
+        <div style="margin-top:6px"><button class="btn sec sm" onclick="editPlan()">＋ نظام شرائح</button></div>
+        <div id="planList" style="margin-top:6px"></div></details>
     </div>
     <div class="card">
       <h2>💰 ملخص الحسابات <span class="sp"></span>
@@ -767,6 +770,24 @@ body:not(.cloud) .cloud-only{display:none!important}
       <button class="btn pri" onclick="savePlan()">💾 حفظ</button>
       <button class="btn sec" id="plDel" onclick="delPlan()" style="color:var(--red)">🗑 حذف النظام</button>
     </div>
+  </div>
+</div>
+
+<!-- 💵 نظام عمولة الموظف -->
+<div class="overlay" id="cmOv">
+  <div class="modal" style="max-width:520px">
+    <h3 id="cmTtl">نظام العمولة<button class="x" onclick="closeOv('cmOv')">×</button></h3>
+    <div class="fg">
+      <div class="f full"><label>النظام</label><select id="cmType" onchange="cmUI()">
+        <option value="take">🏢 الشركة بتاخد مبلغ على كل فرد (الموظف بيستلم فلوس العميل)</option>
+        <option value="give">💵 الموظف ليه نسبة % من صافي الحجز</option>
+        <option value="none">بدون عمولة</option></select></div>
+      <div class="f" id="cmRateF"><label id="cmRateL">المبلغ</label><input id="cmRate" type="number" min="0" step="0.01"></div>
+      <div class="f"><label>يسري على الزيارات من يوم</label><input id="cmFrom" type="date"></div>
+      <div class="f full"><div class="hint" id="cmHint"></div></div>
+      <div class="f full" id="cmHist"></div>
+    </div>
+    <div class="mfoot"><button class="btn pri" onclick="saveCm()">💾 حفظ</button></div>
   </div>
 </div>
 
@@ -2305,7 +2326,7 @@ function renderStaff(){
         <div class="sub"><span dir="ltr">${esc(loginName(e))}</span> • حجوزات الشهر: <b>${mine.length}</b> • صافي: <b>${moneyB(net)}</b>${(()=>{ const a=advIn(ym+'-01', ym+'-31').filter(x=>x.emp===e).reduce((s,x)=>s+conv(x.amt,x.cur,'EGP'),0); return a?` • <span style="color:var(--red)">مسحوبات الشهر: <b>${num(a)} ج.م</b></span>`:''; })()}</div>
       </div>
       <div class="acts">
-        ${mode==='cloud'?`<select class="ibtn" onchange="setComm('${k}',this.value)" title="طريقة حساب العمولة في التقرير الشهري">${[['','بدون عمولة'],...plans().map(p=>[p.id,p.name])].map(([v,l])=>`<option value="${v}" ${(commMode(e))===v?'selected':''}>💵 ${esc(l)}</option>`).join('')}</select>`:''}
+        <button class="ibtn ${commMode(e)?'money':''}" onclick="openCm('${k}')" title="نظام العمولة">💵 ${esc(commMode(e)?cmName(e):'بدون عمولة')}</button>
         <button class="ibtn ${u.hideOps?'del':''}" onclick="toggleOps('${k}')" title="إظهار / إخفاء عملاء الموظف ده من شاشة التشغيل (المواعيد القادمة)">${u.hideOps?'🙈 مخفي من التشغيل':'👁 ظاهر في التشغيل'}</button>
         <button class="ibtn" onclick="staffAct('name','${k}')" title="تغيير الاسم">✏️</button>
         ${me?'':`<button class="ibtn" onclick="staffAct('role','${k}')">${u.role==='admin'?'👤 خليه موظف':'⭐ خليه مدير'}</button>
@@ -2319,6 +2340,36 @@ async function toggleOps(k){
   const v=!u.hideOps;
   try{ await fb.updateDoc(fb.doc(db,'users',e), {hideOps:v}); toast(v?`🙈 عملاء ${u.name||loginName(e)} مش هيظهروا في شاشة التشغيل`:`👁 عملاء ${u.name||loginName(e)} رجعوا يظهروا في التشغيل`); }
   catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); renderStaff(); }
+}
+/* 💵 تعديل نظام عمولة موظف — كل تعديل نسخة جديدة «تسري من يوم» عشان الحسابات القديمة ماتتغيرش */
+let cmEdit='';
+function openCm(k){
+  if(!isAdmin()) return;
+  const e=decodeURIComponent(k), u=USERS[e]; if(!u) return; cmEdit=e;
+  const v=cmNow(e);
+  $('#cmTtl').firstChild.textContent=`نظام العمولة — ${u.name||loginName(e)} `;
+  $('#cmType').value=v?v.type:'take'; $('#cmRate').value=v&&v.type!=='none'?v.rate:'';
+  const L=cmVers(e), d=new Date();
+  $('#cmFrom').value = L.length ? todayStr() : dstr(new Date(d.getFullYear(), d.getMonth(), 1));
+  $('#cmHist').innerHTML = L.length ? `<div class="hint" style="display:block">السجل: ${[...L].reverse().map(x=>`من ${x.from}: ${cmLbl(x)}`).join(' • ')}</div>`
+    : (u.comm&&planOf(u.comm) ? `<div class="hint" style="display:block">النظام القديم: ${esc(planName(u.comm))} — هيفضل على الزيارات اللي قبل التاريخ اللي هتختاره.</div>` : '');
+  cmUI(); $('#cmOv').classList.add('on');
+}
+function cmUI(){
+  const t=$('#cmType').value;
+  $('#cmRateF').style.display = t==='none' ? 'none' : '';
+  $('#cmRateL').textContent = t==='take' ? 'المبلغ للشركة على كل فرد (جنيه)' : 'النسبة للموظف %';
+  $('#cmHint').textContent = t==='take' ? 'مثال: 50 جنيه × حجز فيه 3 أفراد = 150 جنيه للشركة. الموظف بيستلم فلوس العميل، والباقي بعد مبلغ الشركة بتاعه — وفي كشف حسابه بيظهر المطلوب منه للشركة.'
+    : t==='give' ? 'مثال: 10% من حجز صافيه 3000 جنيه = 300 جنيه للموظف. بتتحسب من الصافي بعد الخصم، والشركة هي اللي بتدفعها.' : 'الموظف مالوش عمولة ومفيش عليه مبلغ.';
+}
+async function saveCm(){
+  const e=cmEdit, u=USERS[e]; if(!u || !isAdmin()) return;
+  const type=$('#cmType').value, rate=type==='none'?0:+$('#cmRate').value, from=$('#cmFrom').value||todayStr();
+  if(type!=='none' && !(rate>0)){ toast(type==='take'?'اكتب المبلغ':'اكتب النسبة'); $('#cmRate').focus(); return; }
+  if(type==='give' && rate>100){ toast('النسبة لازم تكون أقل من 100%'); return; }
+  const cmv=[...cmVers(e).filter(x=>x.from!==from), {from, type, rate:round2(rate), at:Date.now(), by:myEmail()}].sort((a,b)=>a.from.localeCompare(b.from));
+  try{ await fb.updateDoc(fb.doc(db,'users',e), {cmv}); USERS[e]={...u, cmv}; closeOv('cmOv'); toast('✓ اتحفظ نظام العمولة'); renderAll(); }
+  catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); }
 }
 async function setComm(k, v){
   const e=decodeURIComponent(k); if(!USERS[e] || !isAdmin()) return;
@@ -2641,8 +2692,17 @@ const DEF_PLANS = [
 ];
 const plans = () => (FIN.plans && FIN.plans.length ? FIN.plans : DEF_PLANS);
 const planOf = id => plans().find(p=>p.id===id) || null;
-const commMode = e => { const m=(USERS[e]&&USERS[e].comm)||''; return planOf(m) ? m : ''; };
+/* 💵 نظام العمولة الجديد لكل موظف (users/{e}.cmv = [{from, type, rate}]) — بيسري على الزيارات من يوم «from»:
+   take = الشركة بتاخد مبلغ ثابت (جنيه) على كل فرد من الموظف — الموظف بيستلم فلوس العميل ويورّد للشركة مبلغها
+   give = الموظف ليه نسبة % من صافي الحجز (بعد الخصم) — الشركة بتدفعهاله
+   none = بدون عمولة • الحجوزات اللي قبل أول «from» بتفضل بالأنظمة القديمة (الشرائح) */
+const cmVers = e => ((USERS[e]&&USERS[e].cmv)||[]).filter(v=>v && v.from && ['take','give','none'].includes(v.type)).sort((a,b)=>a.from.localeCompare(b.from));
+function cmAt(e, d){ let v=null; for(const x of cmVers(e)) if(x.from<=(d||'')) v=x; return v; }
+const cmNow = e => cmAt(e, todayStr()) || cmVers(e)[0] || null;
+const cmLbl = v => !v ? '' : v.type==='take' ? `الشركة بتاخد ${num(v.rate)} ج.م على الفرد` : v.type==='give' ? `للموظف ${num(v.rate)}% من الصافي` : 'بدون عمولة';
+const commMode = e => { const v=cmNow(e); if(v) return v.type==='none' ? '' : 'n:'+v.type; const m=(USERS[e]&&USERS[e].comm)||''; return planOf(m) ? m : ''; };
 const planName = id => planOf(id)?.name || 'بدون عمولة';
+const cmName = e => { const v=cmNow(e); return v ? cmLbl(v) : planName(commMode(e)); };
 function planVer(p, d){ const L=[...p.versions].sort((a,b)=>a.from.localeCompare(b.from)); let v=L[0]; for(const x of L) if(x.from<=d) v=x; return v; }
 function tierIdx(tiers, pe){ let i=0; tiers.forEach((t,k)=>{ if(pe>=t.min) i=k; }); return i; }
 function tierLbl(tiers, i){
@@ -2652,12 +2712,20 @@ function tierLbl(tiers, i){
 }
 const rateLbl = (p, r) => p.unit==='pct' ? `${num(r)}% من الصافي` : `${num(r)} ج.م للفرد`;
 /* عمولة حجز معيّن لموظف معيّن (بالجنيه) */
+/* amt = اللي بيروح للموظف من الحجز (بيتخصم من ربح الشركة) • bal = رصيد الموظف في كشف حسابه: + له على الشركة • − عليه للشركة */
 function commCalc(b, e, c=calc(b)){
-  const id=commMode(e), pe=round2(conv(+b.price||0, c.cur, 'EGP'));
-  if(!id) return {id:'', pe, amt:0};
+  const pe=round2(conv(+b.price||0, c.cur, 'EGP')), nv=cmAt(e, b.date||'');
+  if(nv){
+    if(nv.type==='none') return {id:'', pe, amt:0, bal:0};
+    const tot=round2(conv(c.total, c.cur, 'EGP')), r=+nv.rate||0;
+    if(nv.type==='give'){ const a=round2(tot*r/100); return {id:'n:give', type:'give', pe, amt:a, bal:a, rate:r, lbl:'نسبة للموظف من الصافي', rl:`${num(r)}% من الصافي`, key:`give|${r}`}; }
+    const fee=round2(r*c.n); return {id:'n:take', type:'take', pe, fee, amt:round2(tot-fee), bal:-fee, rate:r, lbl:'مبلغ للشركة على الفرد', rl:`${num(r)} ج.م للشركة / فرد`, key:`take|${r}`};
+  }
+  const id=commMode(e);
+  if(!id || id.startsWith('n:')) return {id:'', pe, amt:0, bal:0};
   const p=planOf(id), v=planVer(p, b.date||''), ti=tierIdx(v.tiers, pe), r=+v.tiers[ti].rate||0;
   const amt = p.unit==='pct' ? round2(conv(c.total, c.cur, 'EGP')*r/100) : r*c.n;
-  return {id, pe, amt, rate:r, ti, lbl:tierLbl(v.tiers, ti), rl:rateLbl(p, r), key:v.from+'|'+ti};
+  return {id, pe, amt, bal:amt, rate:r, ti, lbl:tierLbl(v.tiers, ti), rl:rateLbl(p, r), key:v.from+'|'+ti};
 }
 function planText(p, d){ const v=planVer(p, d||todayStr()); return v.tiers.map((t,i)=>`${tierLbl(v.tiers,i)} = ${rateLbl(p,t.rate)}`).join(' • '); }
 /* ========= 🧮 التكاليف والمصروفات (للمدير بس) =========
@@ -2755,7 +2823,7 @@ function renderAdvances(R){
   if($('#advTypes').innerHTML!==dl) $('#advTypes').innerHTML=dl;
   const list=[...R.advs].reverse();
   $('#advHead').textContent = `${R.label} • ${list.length} عملية • ${num(R.T.adv)} ج.م`;
-  $('#advSum').innerHTML = R.emps.filter(x=>x.adv).map(x=>`<span class="chip">${esc(empName(x.email))}: <b style="color:var(--red)">${num(x.adv)} ج.م</b>${x.cm?` • عمولة ${num(x.comm)} • الصافي <b>${num(x.net)}</b>`:''}</span>`).join('');
+  $('#advSum').innerHTML = R.emps.filter(x=>x.adv).map(x=>`<span class="chip">${esc(empName(x.email))}: <b style="color:var(--red)">${num(x.adv)} ج.م</b>${x.cm?` • ${x.comm<0?'للشركة':'عمولة'} ${num(Math.abs(x.comm))} • ${x.net<0?'عليه':'له'} <b>${num(Math.abs(x.net))}</b>`:''}</span>`).join('');
   $('#advList').innerHTML = list.length ? list.map(x=>`<div class="appt" style="--gc:var(--amb);margin-bottom:6px">
       <div class="time" style="font-size:13px">${fmtDate(x.date)}<small>${x.date}</small></div>
       <div class="info"><div class="nm">${esc(empName(x.emp))} • ${esc(x.type)} <b style="color:var(--red)">${money(x.amt,x.cur)}</b></div>${x.note?`<div class="sub">${esc(x.note)}</div>`:''}</div>
@@ -2813,6 +2881,13 @@ async function delPlan(){
   try{ const list=plans().filter(x=>x.id!==p.id); await writePlans(list); FIN.plans=list; closeOv('planOv'); renderAll(); }catch(e){ cloudErr(e); }
 }
 function renderPlans(){
+  const us=Object.values(USERS).filter(u=>u.active!==false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ar'));
+  $('#cmList').innerHTML = us.length ? us.map(u=>{ const e=u.email, v=cmNow(e), m=commMode(e);
+    return `<div class="appt" style="--gc:${v?.type==='take'?'var(--blue)':m?'var(--gold)':'var(--bd)'};margin-bottom:6px;cursor:pointer" onclick="openCm('${encodeURIComponent(e)}')"><div class="info">
+      <div class="nm">${esc(u.name||loginName(e))} ${v?.type==='take'?'<span class="badge b-new">🏢 للشركة على الفرد</span>':v?.type==='give'?'<span class="badge b-green">💵 نسبة للموظف</span>':''}</div>
+      <div class="sub">${m?esc(cmName(e)):'بدون عمولة'}${v&&v.from>todayStr()?` • يبدأ ${v.from}`:v?` • من ${v.from}`:''}</div></div>
+      <div class="acts"><button class="ibtn">✏️</button></div></div>`; }).join('')
+    : '<div class="empty">مفيش موظفين</div>';
   $('#planList').innerHTML = plans().map(p=>{ const v=planVer(p,todayStr()), users=Object.values(USERS).filter(u=>u.comm===p.id&&u.active!==false).map(u=>esc(u.name||loginName(u.email)));
     const olds=p.versions.length>1?`<div class="hint">آخر تعديل يسري من ${v.from} • ${p.versions.length} نسخ</div>`:'';
     return `<div class="appt" style="--gc:var(--gold);margin-bottom:6px"><div class="info">
@@ -2873,12 +2948,12 @@ function reportData(ym, basis){
     T.n++; T.persons+=c.n; T.men+=c.men; T.women+=c.women; T.comm+=cm;
     T.sub+=cv(b,c.sub); T.disc+=cv(b,c.disc); T.total+=cv(b,c.total); T.paid+=cv(b,pd); T.rem+=cv(b,c.rem);
     const cost=bookingCost(b,B,c); T.cost+=cost;
-    const x=E[e]||(E[e]={email:e,cm:cmode,n:0,persons:0,total:0,paid:0,rem:0,comm:0,tiers:{}}); x.n++; x.persons+=c.n; x.total+=cv(b,c.total); x.paid+=cv(b,pd); x.rem+=cv(b,c.rem); x.comm+=cm;
-    if(cmode){ const t=x.tiers[cc_.key]||(x.tiers[cc_.key]={lbl:cc_.lbl, rl:cc_.rl, bk:0, p:0, amt:0}); t.bk++; t.p+=c.n; t.amt+=cm; }
+    const x=E[e]||(E[e]={email:e,cm:commMode(e),n:0,persons:0,total:0,paid:0,rem:0,comm:0,tiers:{}}); x.n++; x.persons+=c.n; x.total+=cv(b,c.total); x.paid+=cv(b,pd); x.rem+=cv(b,c.rem); x.comm+=cc_.bal;
+    if(cmode){ x.cm=x.cm||cmode; const t=x.tiers[cc_.key]||(x.tiers[cc_.key]={lbl:cc_.lbl, rl:cc_.rl, bk:0, p:0, amt:0}); t.bk++; t.p+=c.n; t.amt+=cc_.bal; }
     const dd=D[d]||(D[d]={d,n:0,persons:0,total:0,paid:0}); dd.n++; dd.persons+=c.n; dd.total+=cv(b,c.total); dd.paid+=cv(b,pd);
     const cc=C[c.cur]||(C[c.cur]={c:c.cur,n:0,total:0,paid:0,rem:0}); cc.n++; cc.total+=c.total; cc.paid+=pd; cc.rem+=c.rem;
     if(pd>0){ const k=b.payMethod||'cash'; M[k]=(M[k]||0)+cv(b,pd); }
-    return {b,c,d,e,pd,pe,cmode,cm,ct:cc_,cost:round2(cost)};
+    return {b,c,d,e,pd,pe,cmode,cm:cc_.bal,ct:cc_,cost:round2(cost)};
   });
   const r2=o=>{ for(const k in o) if(typeof o[k]==='number') o[k]=round2(o[k]); return o; };
   const exps=expIn(from,to), ET={};
@@ -2909,13 +2984,15 @@ function profitBox(R){
     ${line('صافي المبيعات', moneyB(T.total), 'var(--tx)')}
     ${line(`− تكلفة الأفراد (${T.persons} فرد)`, moneyB(T.cost), 'var(--red)')}
     ${line('= مجمل الربح', moneyB(T.gross), T.gross<0?'var(--red)':'var(--g)')}
-    ${T.commB?line('− عمولات الموظفين', moneyB(T.commB), 'var(--red)'):''}
+    ${T.commB?line('− عمولات وحصص الموظفين', moneyB(T.commB), 'var(--red)'):''}
     ${line('− المصروفات', moneyB(T.exp), 'var(--red)')}
     ${line(T.profit<0?'🔻 صافي الخسارة':'✅ صافي الربح', moneyB(T.profit), T.profit<0?'var(--red)':'var(--g)', true)}
     ${!R.hasCost?'<div class="hint" style="color:var(--red);display:block">⚠️ سجّل تكلفة الفرد تحت عشان الربح يتحسب صح</div>':''}
     ${T.total?`<div class="hint" style="display:block">هامش الربح: <b>${Math.round(T.profit/T.total*100)}%</b> من صافي المبيعات</div>`:''}
   </div>`;
 }
+/* رصيد موظف: موجب = له عند الشركة • سالب = عليه للشركة */
+const balTxt = v => v<0 ? `<b style="color:var(--red)">عليه ${num(-v)}</b>` : `<b style="color:var(--g)">له ${num(v)}</b>`;
 const curR = () => reportData($('#repMonth').value||curMonth(), $('#repBasis').value);
 const plain = s => String(s||'').replace(/^\S+\s/,'');
 function renderReport(){
@@ -2925,13 +3002,13 @@ function renderReport(){
   $('#repStats').innerHTML=[
     ['✅ حجوزات تمت', R.T.n, 'var(--g)'], ['أفراد دخلوا', `${R.T.persons} <small>(${R.T.men} ر / ${R.T.women} ن)</small>`, 'var(--blue)'],
     ['صافي المبيعات (المنفّذ)', bigMoney(R.T.total), 'var(--g)'], ['المحصّل', bigMoney(R.T.paid), '#3fa37e'], ['المتبقي', bigMoney(R.T.rem), 'var(--red)'],
-    ...(R.T.comm ? [['عمولات الموظفين', `${num(R.T.comm)} <small>ج.م</small>`, 'var(--gold)']] : []),
+    ...(R.T.comm ? [['عمولات وحصص الموظفين', `${num(R.T.comm)} <small>ج.م</small>`, 'var(--gold)']] : []),
     ...(R.pend.n ? [['🕓 لسه ماتمتش (مش محسوبة)', `${R.pend.n} <small>حجز • ${R.pend.persons} فرد • ${num(R.pend.total)} ${CUR[R.B].sym}</small>`, 'var(--mu)'], ['💰 مقدمات محصّلة لحجوزات لسه', bigMoney(R.pend.adv), 'var(--blue)']] : []),
   ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
   $('#repProfit').innerHTML = profitBox(R);
   renderCosts(R); renderAdvances(R); renderPlans(); renderStmts(); renderPeriods();
-  $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة (ج.م)</th><th>مسحوبات (ج.م)</th><th>الصافي له (ج.م)</th><th></th></tr></thead>
-    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`<b>${num(x.comm)}</b><div class="hint">${esc(planName(x.cm))}${x.tierList.length?' • '+x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '):''}</div>`:'—'}</td><td>${x.adv?`<b style="color:var(--red)">${num(x.adv)}</b>`:'—'}</td><td>${x.cm||x.adv?`<b style="color:${x.net<0?'var(--red)':'var(--g)'}">${num(x.net)}</b>`:'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="goStmt('${encodeURIComponent(x.email)}')" title="كشف حساب الموظف">🧾 كشف</button>`}</td></tr>`).join('')}</tbody>`
+  $('#repEmp').innerHTML = R.emps.length ? `<thead><tr><th>الموظف</th><th>حجوزات</th><th>أفراد</th><th>الصافي</th><th>المحصّل</th><th>المتبقي</th><th>% من المبيعات</th><th>العمولة / مبلغ الشركة (ج.م)</th><th>مسحوبات (ج.م)</th><th>الرصيد (ج.م)</th><th></th></tr></thead>
+    <tbody>${R.emps.map(x=>`<tr><td>${x.email==='—'?'غير معروف':esc(empName(x.email))}</td><td>${x.n}</td><td>${x.persons}</td><td>${moneyB(x.total)}</td><td style="color:var(--g)">${moneyB(x.paid)}</td><td style="color:var(--red)">${moneyB(x.rem)}</td><td>${R.T.total?Math.round(x.total/R.T.total*100):0}%</td><td>${x.cm?`${balTxt(x.comm)}<div class="hint">${esc(cmName(x.email))}${x.tierList.length?' • '+x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '):''}</div>`:'—'}</td><td>${x.adv?`<b style="color:var(--red)">${num(x.adv)}</b>`:'—'}</td><td>${x.cm||x.adv?balTxt(x.net):'—'}</td><td>${x.email==='—'?'':`<button class="ibtn" onclick="goStmt('${encodeURIComponent(x.email)}')" title="كشف حساب الموظف">🧾 كشف</button>`}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الفترة دي</td></tr></tbody>';
 }
 ['repMonth','repBasis'].forEach(k=>$('#'+k).addEventListener('change', renderReport));
@@ -2947,24 +3024,24 @@ function reportSheets(R){
   const summary=[[`تقرير مبيعات ${R.label}`],[basisLbl(R.basis), `${R.span}`],['تاريخ الإصدار', nowS],['أصدره', ME?.name||loginName(myEmail())||'—'],[],
     ['البند', `القيمة (${BN})`],
     ['حجوزات تمت (محسوبة)', R.T.n],['حجوزات لسه ماتمتش (غير محسوبة)', R.pend.n],['قيمة الحجوزات اللي لسه', R.pend.total],['مقدمات محصّلة لحجوزات لسه', R.pend.adv],['حجوزات ملغية (غير محسوبة)', R.cancelled],['عدد الأفراد', R.T.persons],['رجال', R.T.men],['نساء', R.T.women],
-    ['الإجمالي قبل الخصم', R.T.sub],['الخصومات', R.T.disc],['صافي المبيعات', R.T.total],['المحصّل', R.T.paid],['المتبقي', R.T.rem],['نسبة التحصيل', R.pct/100],['عمولات الموظفين (جنيه)', R.T.comm],[],
-    ['📈 الأرباح', `القيمة (${BN})`],['صافي المبيعات', R.T.total],['تكلفة الأفراد', R.T.cost],['مجمل الربح', R.T.gross],['عمولات الموظفين', R.T.commB],['المصروفات', R.T.exp],['صافي الربح', R.T.profit],[],
+    ['الإجمالي قبل الخصم', R.T.sub],['الخصومات', R.T.disc],['صافي المبيعات', R.T.total],['المحصّل', R.T.paid],['المتبقي', R.T.rem],['نسبة التحصيل', R.pct/100],['عمولات وحصص الموظفين (جنيه)', R.T.comm],[],
+    ['📈 الأرباح', `القيمة (${BN})`],['صافي المبيعات', R.T.total],['تكلفة الأفراد', R.T.cost],['مجمل الربح', R.T.gross],['عمولات وحصص الموظفين', R.T.commB],['المصروفات', R.T.exp],['صافي الربح', R.T.profit],[],
     ['تكلفة الفرد المسجلة'], ...[...FIN.costs].sort((a,b)=>a.from.localeCompare(b.from)).map(c=>[`من ${c.from}`, `${c.amt} ${CUR[c.cur].name}`]),[],
     ['حسب العملة (بالعملة الأصلية)'],['العملة','حجوزات','الصافي','المحصّل','المتبقي'],
     ...R.curs.map(x=>[CUR[x.c].name, x.n, x.total, x.paid, x.rem]),[],
     [`المحصّل حسب طريقة الدفع (${BN})`], ...R.methods.map(([k,v])=>[plain(METHODS[k]||k), v]),[],
     [`أسعار الصرف: 1 ريال = ${S.settings.egpPerSar} جنيه • 1 دولار = ${S.settings.sarPerUsd} ريال`],[],
-    ['أنظمة العمولة الحالية (حسب سعر الفرد بالجنيه قبل الخصم)'], ...plans().map(p=>[p.name, planText(p, R.to)])];
+    ['أنظمة العمولة الحالية'], ...Object.values(USERS).filter(u=>u.active!==false && commMode(u.email)).map(u=>[u.name||loginName(u.email), cmName(u.email)])];
   const sm=k=>R.emps.reduce((s,x)=>s+(x[k]||0),0);
-  const emps=[[`المبيعات حسب الموظف — ${R.label} (${BN})`],[],['الموظف','اسم الدخول','حجوزات','أفراد','الصافي','المحصّل','المتبقي','% من المبيعات','نظام العمولة','تفصيل الشرائح','العمولة (جنيه)','المسحوبات (جنيه)','الصافي له (جنيه)'],
-    ...R.emps.map(x=>[x.email==='—'?'غير معروف':empName(x.email), x.email==='—'?'':loginName(x.email), x.n, x.persons, x.total, x.paid, x.rem, R.T.total?round2(x.total/R.T.total):0, x.cm?planName(x.cm):'—', x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '), x.comm, x.adv, round2(x.net)]),
+  const emps=[[`المبيعات حسب الموظف — ${R.label} (${BN})`],[],['الموظف','اسم الدخول','حجوزات','أفراد','الصافي','المحصّل','المتبقي','% من المبيعات','نظام العمولة','التفصيل','العمولة له (+) / مبلغ الشركة عليه (−) (جنيه)','المسحوبات (جنيه)','الرصيد: له (+) / عليه (−) (جنيه)'],
+    ...R.emps.map(x=>[x.email==='—'?'غير معروف':empName(x.email), x.email==='—'?'':loginName(x.email), x.n, x.persons, x.total, x.paid, x.rem, R.T.total?round2(x.total/R.T.total):0, x.cm?cmName(x.email):'—', x.tierList.map(t=>`${t.p} فرد × ${t.rl}`).join(' • '), x.comm, x.adv, round2(x.net)]),
     ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid,R.T.rem,R.T.total?1:0,'','',R.T.comm,round2(R.T.adv),round2(sm('net'))]];
   const advSheet=[[`مسحوبات وسلف الموظفين — ${R.label}`],[],['التاريخ','الموظف','النوع','المبلغ','العملة','المبلغ (جنيه)','تفاصيل'],
     ...R.advs.map(a=>[a.date, empName(a.emp), a.type, a.amt, CUR[a.cur].name, round2(conv(a.amt,a.cur,'EGP')), a.note||'']), ['الإجمالي','','','','',round2(R.T.adv),'']];
   const days=[[`المبيعات اليومية — ${R.label} (${BN})`],[],['التاريخ','اليوم','حجوزات','أفراد','الصافي','المحصّل'],
     ...R.days.map(x=>[x.d, new Date(x.d+'T00:00').toLocaleDateString('ar-u-nu-latn',{weekday:'long'}), x.n, x.persons, x.total, x.paid]),
     ['الإجمالي','',R.T.n,R.T.persons,R.T.total,R.T.paid]];
-  const det=[['التاريخ','الاسم','الهاتف','رجال','نساء','أفراد','العملة','سعر الفرد','الخصم','الصافي','المدفوع','المتبقي',`الصافي (${BN})`,`المحصّل (${BN})`,'حالة السداد','طريقة الدفع','حالة الحجز','الموظف','ملاحظات','سعر الفرد (جنيه)','العمولة (جنيه)'],
+  const det=[['التاريخ','الاسم','الهاتف','رجال','نساء','أفراد','العملة','سعر الفرد','الخصم','الصافي','المدفوع','المتبقي',`الصافي (${BN})`,`المحصّل (${BN})`,'حالة السداد','طريقة الدفع','حالة الحجز','الموظف','ملاحظات','سعر الفرد (جنيه)','عمولة له (+) / مبلغ للشركة (−) (جنيه)'],
     ...R.rows.map(({b,c,d,e,pd,pe,cmode,cm})=>[d,b.name,b.phone,c.men,c.women,c.n,CUR[c.cur].name,c.price,c.disc,c.total,c.paid,c.rem,round2(conv(c.total,c.cur,R.B)),round2(conv(pd,c.cur,R.B)),plain(PAY[c.st][0]),plain(METHODS[b.payMethod]),STATUS[b.status][0],e==='—'?'':empName(e),b.notes||'',pe,cmode?cm:''])];
   const exps=[[`المصروفات — ${R.label}`],[],['التاريخ','النوع','المبلغ','العملة',`المبلغ (${BN})`,'تفاصيل'],
     ...R.exps.map(x=>[x.date, x.type, x.amt, CUR[x.cur].name, round2(conv(x.amt,x.cur,R.B)), x.note||'']),
@@ -3061,15 +3138,15 @@ function printStatement(k){
     const advs=R.advs.filter(a=>a.emp===e), adv=x.adv||0, net=round2(total-adv), pendN=R.pendBy[e]||0;
     return `<section class="pg">
       <header><div class="lg">🧾</div><div><h1>كشف حساب موظف — ${esc(empName(e))}</h1><p>${R.label} • ${basisLbl(R.basis)} • ${R.span}</p>
-        <p class="mu">${cm?`نظام العمولة: <b>${esc(planName(cm))}</b>`:'<b>لم تُحدَّد طريقة عمولة لهذا الموظف</b> (حدّدها من قائمة الموظفين)'} • أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}</p></div></header>
-      <div class="kp"><div><span>إجمالي الحجوزات</span><b>${rows.length}</b></div><div><span>إجمالي الأفراد</span><b>${persons}</b></div><div style="border-top-color:#c9a24a"><span>إجمالي العمولة</span><b>${cm?EG(total):'—'}</b></div>
-        <div style="border-top-color:#d63c3c"><span>المسحوبات والسلف</span><b>${EG(adv)}</b></div><div style="grid-column:span 2;border-top-color:${net<0?'#d63c3c':'#0e6b4f'}"><span>${net<0?'الباقي على الموظف (المسحوبات أكتر من العمولة)':'صافي المستحق من العمولة بعد خصم المسحوبات'}</span><b>${EG(Math.abs(net))}</b></div></div>
-      ${cm?`<h2>العمولة حسب الشريحة</h2><table><thead><tr><th>الشريحة</th><th>العمولة</th><th>عدد الحجوزات</th><th>عدد الأفراد</th><th>المبلغ</th></tr></thead>
-        <tbody>${tiers.map(t=>`<tr><td>${t.lbl}</td><td>${t.rl}</td><td>${t.bk}</td><td>${t.p}</td><td><b>${EG(t.amt)}</b></td></tr>`).join('')}</tbody>
-        <tfoot><tr><td>الإجمالي</td><td></td><td>${rows.length}</td><td>${persons}</td><td>${EG(total)}</td></tr></tfoot></table>`:''}
+        <p class="mu">${cm?`نظام العمولة: <b>${esc(cmName(e))}</b>`:'<b>لم تُحدَّد طريقة عمولة لهذا الموظف</b> (حدّدها من قائمة الموظفين)'} • أُصدر ${new Date().toLocaleString('ar-u-nu-latn')}</p></div></header>
+      <div class="kp"><div><span>إجمالي الحجوزات</span><b>${rows.length}</b></div><div><span>إجمالي الأفراد</span><b>${persons}</b></div><div style="border-top-color:#c9a24a"><span>${total<0?'مبلغ الشركة على الحجوزات':'إجمالي العمولة'}</span><b>${cm?EG(Math.abs(total)):'—'}</b></div>
+        <div style="border-top-color:#d63c3c"><span>المسحوبات والسلف</span><b>${EG(adv)}</b></div><div style="grid-column:span 2;border-top-color:${net<0?'#d63c3c':'#0e6b4f'}"><span>${net<0?'المطلوب من الموظف للشركة':'صافي المستحق للموظف بعد خصم المسحوبات'}</span><b>${EG(Math.abs(net))}</b></div></div>
+      ${cm?`<h2>التفصيل حسب النظام</h2><table><thead><tr><th>البند</th><th>القيمة</th><th>عدد الحجوزات</th><th>عدد الأفراد</th><th>المبلغ</th></tr></thead>
+        <tbody>${tiers.map(t=>`<tr><td>${t.lbl}</td><td>${t.rl}</td><td>${t.bk}</td><td>${t.p}</td><td><b>${EG(Math.abs(t.amt))}</b>${t.amt<0?' (للشركة)':''}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>الإجمالي</td><td></td><td>${rows.length}</td><td>${persons}</td><td>${EG(Math.abs(total))}${total<0?' (للشركة)':''}</td></tr></tfoot></table>`:''}
       <h2>تفاصيل الحجوزات اللي تمت</h2>
       ${pendN?`<p class="mu">🕓 فيه ${pendN} حجز تاني مسجّل باسمه لسه ماتمش (موعده مجاش أو مااتسجلش دخوله) — مش محسوب في الكشف ده، وهيتحسب لما يتم.</p>`:''}
-      <table><thead><tr><th>التاريخ</th><th>العميل</th><th>أفراد</th><th>سعر الفرد (ج.م)</th><th>الشريحة</th><th>العمولة</th></tr></thead>
+      <table><thead><tr><th>التاريخ</th><th>العميل</th><th>أفراد</th><th>سعر الفرد (ج.م)</th><th>النظام</th><th>له (+) / للشركة (−)</th></tr></thead>
         <tbody>${rows.map(r=>`<tr><td>${r.d.slice(5)}</td><td>${esc(r.b.name)}</td><td>${r.c.n}</td><td>${num(r.pe)}</td><td>${r.cmode?r.ct.rl:'—'}</td><td>${r.cmode?num(r.cm):'—'}</td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center">لا يوجد</td></tr>'}</tbody></table>
       ${advs.length?`<h2>المسحوبات والسلف</h2><table><thead><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>تفاصيل</th></tr></thead>
         <tbody>${advs.map(a=>`<tr><td>${a.date.slice(5)}</td><td>${esc(a.type)}</td><td>${money(a.amt,a.cur)}${a.cur!=='EGP'?` <span class="mu">(${EG(conv(a.amt,a.cur,'EGP'))})</span>`:''}</td><td>${esc(a.note||'')}</td></tr>`).join('')}</tbody>
@@ -3120,7 +3197,7 @@ function buildStmt(e, to){
     const gs=servedGroups(b).filter(g=>!(G[b.id]||[]).includes(g) && gDate(b,g)<=to);
     if(!gs.length) return;
     const c=portionCalc(b, gs), ct=commCalc(b, e, c), d=gs.map(g=>gDate(b,g)).sort()[0];
-    items.push({id:b.id, g:gs, name:b.name, date:d, men:c.men, women:c.women, n:c.n, pe:ct.pe, rl:ct.id?ct.rl:'', lbl:ct.id?ct.lbl:'', key:ct.key||'', cm:round2(ct.amt)});
+    items.push({id:b.id, g:gs, name:b.name, date:d, men:c.men, women:c.women, n:c.n, pe:ct.pe, rl:ct.id?ct.rl:'', lbl:ct.id?ct.lbl:'', key:ct.key||'', cm:round2(ct.bal)});
   });
   items.sort((a,b)=>a.date.localeCompare(b.date));
   const advs=(FIN.advances||[]).filter(a=>a.emp===e && !A.has(a.id) && a.date<=to).sort((a,b)=>a.date.localeCompare(b.date))
@@ -3132,7 +3209,7 @@ function buildStmt(e, to){
   const comm=round2(items.reduce((s,x)=>s+x.cm,0)), adv=round2(advs.reduce((s,x)=>s+x.egp,0));
   const late=items.filter(x=>x.date<from).length;
   const pend=S.bookings.filter(b=>(b.createdBy||'').toLowerCase()===e && b.status!=='cancelled' && servedCalc(b).f<1).length;
-  return {emp:e, no:stmtsOf(e).length+1, from, to, cm, plan:cm?planName(cm):'', items, advs, advIds:advs.map(a=>a.id), tiers:Object.values(T),
+  return {emp:e, no:stmtsOf(e).length+1, from, to, cm, plan:cm?cmName(e):'', items, advs, advIds:advs.map(a=>a.id), tiers:Object.values(T),
     comm, adv, net:round2(comm-adv), persons:items.reduce((s,x)=>s+x.n,0), count:items.length, late, pend,
     rates:{egpPerSar:S.settings.egpPerSar, sarPerUsd:S.settings.sarPerUsd}};
 }
@@ -3149,7 +3226,7 @@ function renderStmts(){
     $('#sxFrom').value=P.from;
     $('#sxInfo').innerHTML = `<div class="bill" style="padding:10px 14px">
       <div class="hint" style="display:block">${last?`آخر كشف: رقم ${last.no} عن الفترة من ${last.from} إلى ${last.to} (اتعمل ${new Date(last.at).toLocaleDateString('ar-u-nu-latn')})`:'مفيش كشوف سابقة للموظف ده — ده هيبقى أول كشف'}</div>
-      <div style="margin-top:6px">الكشف الجاي (رقم ${P.no}): <b>${P.count}</b> حجز • <b>${P.persons}</b> فرد • عمولة <b>${num(P.comm)} ج.م</b> • مسحوبات <b style="color:var(--red)">${num(P.adv)} ج.م</b> • الصافي <b style="color:${P.net<0?'var(--red)':'var(--g)'}">${num(P.net)} ج.م</b></div>
+      <div style="margin-top:6px">الكشف الجاي (رقم ${P.no}): <b>${P.count}</b> حجز • <b>${P.persons}</b> فرد • ${P.comm<0?'مبلغ الشركة':'عمولة'} <b>${num(Math.abs(P.comm))} ج.م</b> • مسحوبات <b style="color:var(--red)">${num(P.adv)} ج.م</b> • ${P.net<0?'مطلوب منه للشركة':'الصافي له'} <b style="color:${P.net<0?'var(--red)':'var(--g)'}">${num(Math.abs(P.net))} ج.م</b></div>
       ${P.late?`<div class="hint" style="display:block;color:var(--amb)">⚠️ منهم ${P.late} حجز من فترة قبل كده بس دخولهم اتسجل متأخر — هيتحسبوا في الكشف ده.</div>`:''}
       ${P.pend?`<div class="hint" style="display:block">🕓 ${P.pend} حجز لسه ماتمش — مش هيدخل، وهيستنى الكشف اللي بعده.</div>`:''}
       ${!P.cm?'<div class="hint" style="display:block;color:var(--red)">الموظف ده مالوش نظام عمولة — حدّده من تبويب الموظفين.</div>':''}</div>`;
@@ -3158,7 +3235,7 @@ function renderStmts(){
   $('#sxList').innerHTML = L.length ? L.map(x=>`<div class="appt" style="--gc:var(--gold);margin-bottom:6px">
       <div class="time" style="font-size:13px">رقم ${x.no}<small>${new Date(x.at).toLocaleDateString('ar-u-nu-latn')}</small></div>
       <div class="info"><div class="nm">${esc(empName(x.emp))} • من ${x.from} إلى ${x.to}</div>
-        <div class="sub">${x.count} حجز • ${x.persons} فرد • عمولة ${num(x.comm)} • مسحوبات ${num(x.adv)} • <b>الصافي ${num(x.net)} ج.م</b>${x.by?` • اعتمده ${who(x.by)}`:''}</div></div>
+        <div class="sub">${x.count} حجز • ${x.persons} فرد • ${x.comm<0?'للشركة':'عمولة'} ${num(Math.abs(x.comm))} • مسحوبات ${num(x.adv)} • <b>${x.net<0?'عليه':'له'} ${num(Math.abs(x.net))} ج.م</b>${x.by?` • اعتمده ${who(x.by)}`:''}</div></div>
       <div class="acts"><button class="ibtn" onclick="stmtPrint('${x.id}')" title="طباعة تاني">🖨</button>${lastIds.has(x.id)?`<button class="ibtn del" onclick="stmtDel('${x.id}')" title="إلغاء آخر كشف">🗑</button>`:''}</div></div>`).join('')
     : '<div class="empty">مفيش كشوف محفوظة لسه</div>';
 }
@@ -3177,7 +3254,7 @@ function stmtPreview(){ const P=stmtCheck(); if(P) stmtWindow([P], true); }
 async function stmtIssue(){
   const P=stmtCheck(); if(!P) return;
   if(!P.count && !P.advs.length){ toast('مفيش حاجة جديدة تتحاسب في الفترة دي'); return; }
-  if(!confirm(`اعتماد كشف رقم ${P.no} لـ ${empName(P.emp)} من ${P.from} إلى ${P.to}؟\nالصافي: ${num(P.net)} ج.م\n\nبعد الاعتماد الحجوزات والسلف دي مش هتتحسب في أي كشف تاني.`)) return;
+  if(!confirm(`اعتماد كشف رقم ${P.no} لـ ${empName(P.emp)} من ${P.from} إلى ${P.to}؟\n${P.net<0?'المطلوب من الموظف للشركة':'الصافي للموظف'}: ${num(Math.abs(P.net))} ج.م\n\nبعد الاعتماد الحجوزات والسلف دي مش هتتحسب في أي كشف تاني.`)) return;
   const st={...P, id:uid(), at:Date.now(), by:myEmail()};
   const w=window.open('','_blank');
   try{
@@ -3203,13 +3280,13 @@ function stmtWindow(list, draft, w){
   const page = P=>`<section class="pg">${draft?'<div class="draft">معاينة — الكشف ده لسه مااتحفظش</div>':''}
       <header><div class="lg">🧾</div><div><h1>كشف حساب موظف — ${esc(empName(P.emp))}</h1><p>كشف رقم ${P.no} • عن الفترة من <b>${P.from}</b> إلى <b>${P.to}</b></p>
         <p class="mu">${P.cm?`نظام العمولة: <b>${esc(P.plan)}</b>`:'<b>لم تُحدَّد طريقة عمولة لهذا الموظف</b>'} • ${draft?'معاينة':`اعتُمد ${new Date(P.at).toLocaleString('ar-u-nu-latn')}${P.by?' بواسطة '+esc(empName(P.by)):''}`}</p></div></header>
-      <div class="kp"><div><span>عدد الحجوزات</span><b>${P.count}</b></div><div><span>عدد الأفراد</span><b>${P.persons}</b></div><div style="border-top-color:#c9a24a"><span>إجمالي العمولة</span><b>${P.cm?EG(P.comm):'—'}</b></div>
-        <div style="border-top-color:#d63c3c"><span>المسحوبات والسلف</span><b>${EG(P.adv)}</b></div><div style="grid-column:span 2;border-top-color:${P.net<0?'#d63c3c':'#0e6b4f'}"><span>${P.net<0?'الباقي على الموظف (المسحوبات أكتر من العمولة)':'صافي المستحق للموظف'}</span><b>${EG(Math.abs(P.net))}</b></div></div>
-      ${P.tiers.length?`<h2>العمولة حسب الشريحة</h2><table><thead><tr><th>الشريحة</th><th>العمولة</th><th>عدد الحجوزات</th><th>عدد الأفراد</th><th>المبلغ</th></tr></thead>
-        <tbody>${P.tiers.map(t=>`<tr><td>${t.lbl}</td><td>${t.rl}</td><td>${t.bk}</td><td>${t.p}</td><td><b>${EG(t.amt)}</b></td></tr>`).join('')}</tbody>
-        <tfoot><tr><td>الإجمالي</td><td></td><td>${P.count}</td><td>${P.persons}</td><td>${EG(P.comm)}</td></tr></tfoot></table>`:''}
+      <div class="kp"><div><span>عدد الحجوزات</span><b>${P.count}</b></div><div><span>عدد الأفراد</span><b>${P.persons}</b></div><div style="border-top-color:#c9a24a"><span>${P.comm<0?'مبلغ الشركة على الحجوزات':'إجمالي العمولة'}</span><b>${P.cm?EG(Math.abs(P.comm)):'—'}</b></div>
+        <div style="border-top-color:#d63c3c"><span>المسحوبات والسلف</span><b>${EG(P.adv)}</b></div><div style="grid-column:span 2;border-top-color:${P.net<0?'#d63c3c':'#0e6b4f'}"><span>${P.net<0?'المطلوب من الموظف للشركة':'صافي المستحق للموظف'}</span><b>${EG(Math.abs(P.net))}</b></div></div>
+      ${P.tiers.length?`<h2>التفصيل حسب النظام</h2><table><thead><tr><th>البند</th><th>القيمة</th><th>عدد الحجوزات</th><th>عدد الأفراد</th><th>المبلغ</th></tr></thead>
+        <tbody>${P.tiers.map(t=>`<tr><td>${t.lbl}</td><td>${t.rl}</td><td>${t.bk}</td><td>${t.p}</td><td><b>${EG(Math.abs(t.amt))}</b>${t.amt<0?' (للشركة)':''}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>الإجمالي</td><td></td><td>${P.count}</td><td>${P.persons}</td><td>${EG(Math.abs(P.comm))}${P.comm<0?' (للشركة)':''}</td></tr></tfoot></table>`:''}
       <h2>الحجوزات اللي تمت</h2>
-      <table><thead><tr><th>#</th><th>تاريخ الزيارة</th><th>العميل</th><th>ر / ن</th><th>سعر الفرد (ج.م)</th><th>الشريحة</th><th>العمولة</th></tr></thead>
+      <table><thead><tr><th>#</th><th>تاريخ الزيارة</th><th>العميل</th><th>ر / ن</th><th>سعر الفرد (ج.م)</th><th>النظام</th><th>له (+) / للشركة (−)</th></tr></thead>
         <tbody>${P.items.map((r,i)=>`<tr><td>${i+1}</td><td>${r.date}${r.date<P.from?' <span class="mu">(دخول متأخر)</span>':''}</td><td>${esc(r.name)}</td><td>${r.men||0} / ${r.women||0}</td><td>${num(r.pe)}</td><td>${r.rl||'—'}</td><td>${r.rl?num(r.cm):'—'}</td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center">لا يوجد</td></tr>'}</tbody></table>
       ${P.advs.length?`<h2>المسحوبات والسلف</h2><table><thead><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>تفاصيل</th></tr></thead>
         <tbody>${P.advs.map(a=>`<tr><td>${a.date}</td><td>${esc(a.type)}</td><td>${money(a.amt,a.cur)}${a.cur!=='EGP'?` <span class="mu">(${EG(a.egp)})</span>`:''}</td><td>${esc(a.note)}</td></tr>`).join('')}</tbody>
