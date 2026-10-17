@@ -438,7 +438,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     </div>
     <div class="card">
       <h2>💵 أنظمة العمولة <span class="sp"></span></h2>
-      <div class="hint" style="margin-bottom:8px">نظامين: 🏢 <b>الشركة بتاخد مبلغ على كل فرد</b> (الموظف بيستلم فلوس العميل ويورّد مبلغ الشركة) أو 💵 <b>الموظف ليه نسبة %</b> من صافي الحجز. كل موظف له نظامه ورقمه — اضغط على الموظف تعدّله.</div>
+      <div class="hint" style="margin-bottom:8px">3 أنظمة: 🏢 <b>الشركة بتاخد مبلغ على كل فرد</b> (الموظف بيستلم فلوس العميل ويورّد مبلغ الشركة) • 💵 <b>الموظف ليه نسبة %</b> من صافي الحجز • 📶 <b>شرائح</b>: الموظف ليه مبلغ على الفرد حسب سعر الفرد. كل موظف له نظامه ورقمه — اضغط على الموظف تعدّله.</div>
       <div id="cmList"></div>
       <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">الأنظمة القديمة (الشرائح) — بتتحسب بيها الزيارات اللي قبل تغيير النظام</summary>
         <div style="margin-top:6px"><button class="btn sec sm" onclick="editPlan()">＋ نظام شرائح</button></div>
@@ -781,7 +781,11 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="f full"><label>النظام</label><select id="cmType" onchange="cmUI()">
         <option value="take">🏢 الشركة بتاخد مبلغ على كل فرد (الموظف بيستلم فلوس العميل)</option>
         <option value="give">💵 الموظف ليه نسبة % من صافي الحجز</option>
+        <option value="tier">📶 شرائح: الموظف ليه مبلغ على كل فرد حسب سعر الفرد</option>
         <option value="none">بدون عمولة</option></select></div>
+      <div class="f full" id="cmTiersF"><label>الشرائح (سعر الفرد بالجنيه قبل الخصم ← عمولة الموظف على الفرد)</label>
+        <div id="cmTiers"></div>
+        <button type="button" class="btn sec sm" style="width:fit-content;margin-top:6px" onclick="cmAddTier()">＋ شريحة</button></div>
       <div class="f" id="cmRateF"><label id="cmRateL">المبلغ</label><input id="cmRate" type="number" min="0" step="0.01"></div>
       <div class="f"><label>يسري على الزيارات من يوم</label><input id="cmFrom" type="date"></div>
       <div class="f full"><div class="hint" id="cmHint"></div></div>
@@ -2348,26 +2352,43 @@ function openCm(k){
   const e=decodeURIComponent(k), u=USERS[e]; if(!u) return; cmEdit=e;
   const v=cmNow(e);
   $('#cmTtl').firstChild.textContent=`نظام العمولة — ${u.name||loginName(e)} `;
-  $('#cmType').value=v?v.type:'take'; $('#cmRate').value=v&&v.type!=='none'?v.rate:'';
+  $('#cmType').value=v?v.type:'take'; $('#cmRate').value=v&&(v.type==='take'||v.type==='give')?v.rate:'';
+  $('#cmTiers').innerHTML=(v&&v.type==='tier'?v.tiers:CM_DEF_TIERS).map(cmTierRow).join(''); cmFixTiers();
   const L=cmVers(e), d=new Date();
   $('#cmFrom').value = L.length ? todayStr() : dstr(new Date(d.getFullYear(), d.getMonth(), 1));
   $('#cmHist').innerHTML = L.length ? `<div class="hint" style="display:block">السجل: ${[...L].reverse().map(x=>`من ${x.from}: ${cmLbl(x)}`).join(' • ')}</div>`
     : (u.comm&&planOf(u.comm) ? `<div class="hint" style="display:block">النظام القديم: ${esc(planName(u.comm))} — هيفضل على الزيارات اللي قبل التاريخ اللي هتختاره.</div>` : '');
   cmUI(); $('#cmOv').classList.add('on');
 }
+const CM_DEF_TIERS=[{min:0,rate:10},{min:100,rate:15},{min:150,rate:20}];
+const cmTierRow = t => `<div class="qchips cmtier" style="margin-bottom:6px;align-items:center;flex-wrap:nowrap">
+  <span class="hint" style="white-space:nowrap">من سعر</span><input type="number" class="cmMin" min="0" step="1" value="${t.min}" style="width:90px;padding:8px;border:1px solid var(--bd);border-radius:8px">
+  <span class="hint" style="white-space:nowrap">ج.م ← للموظف</span><input type="number" class="cmTr" min="0" step="0.01" value="${t.rate}" style="width:90px;padding:8px;border:1px solid var(--bd);border-radius:8px">
+  <span class="hint">ج.م/فرد</span><button type="button" class="ibtn del" onclick="this.parentNode.remove();cmFixTiers()">🗑</button></div>`;
+function cmFixTiers(){ document.querySelectorAll('#cmTiers .cmtier').forEach((r,i)=>{ const m=r.querySelector('.cmMin'); if(i===0){ m.value=0; m.disabled=true; } else m.disabled=false; }); }
+function cmAddTier(){ const rows=document.querySelectorAll('#cmTiers .cmtier'), last=rows.length?+rows[rows.length-1].querySelector('.cmMin').value:0;
+  $('#cmTiers').insertAdjacentHTML('beforeend', cmTierRow({min:rows.length?last+50:0, rate:0})); cmFixTiers(); }
 function cmUI(){
   const t=$('#cmType').value;
-  $('#cmRateF').style.display = t==='none' ? 'none' : '';
+  $('#cmRateF').style.display = t==='none'||t==='tier' ? 'none' : '';
+  $('#cmTiersF').style.display = t==='tier' ? '' : 'none';
   $('#cmRateL').textContent = t==='take' ? 'المبلغ للشركة على كل فرد (جنيه)' : 'النسبة للموظف %';
   $('#cmHint').textContent = t==='take' ? 'مثال: 50 جنيه × حجز فيه 3 أفراد = 150 جنيه للشركة. الموظف بيستلم فلوس العميل، والباقي بعد مبلغ الشركة بتاعه — وفي كشف حسابه بيظهر المطلوب منه للشركة.'
-    : t==='give' ? 'مثال: 10% من حجز صافيه 3000 جنيه = 300 جنيه للموظف. بتتحسب من الصافي بعد الخصم، والشركة هي اللي بتدفعها.' : 'الموظف مالوش عمولة ومفيش عليه مبلغ.';
+    : t==='give' ? 'مثال: 10% من حجز صافيه 3000 جنيه = 300 جنيه للموظف. بتتحسب من الصافي بعد الخصم، والشركة هي اللي بتدفعها.'
+    : t==='tier' ? 'مثال بالأرقام دي: حجز 3 أفراد سعر الفرد 120 جنيه = 3 × 15 = 45 جنيه للموظف. سعر الفرد بالجنيه قبل الخصم (الريال والدولار بيتحولوا بسعر الصرف)، والشركة هي اللي بتدفعها.' : 'الموظف مالوش عمولة ومفيش عليه مبلغ.';
 }
 async function saveCm(){
   const e=cmEdit, u=USERS[e]; if(!u || !isAdmin()) return;
-  const type=$('#cmType').value, rate=type==='none'?0:+$('#cmRate').value, from=$('#cmFrom').value||todayStr();
-  if(type!=='none' && !(rate>0)){ toast(type==='take'?'اكتب المبلغ':'اكتب النسبة'); $('#cmRate').focus(); return; }
+  const type=$('#cmType').value, rate=type==='none'||type==='tier'?0:+$('#cmRate').value, from=$('#cmFrom').value||todayStr();
+  let tiers=null;
+  if(type==='tier'){
+    tiers=[...document.querySelectorAll('#cmTiers .cmtier')].map((r,i)=>({min:i?Math.max(0,+r.querySelector('.cmMin').value||0):0, rate:round2(Math.max(0,+r.querySelector('.cmTr').value||0))})).sort((a,b)=>a.min-b.min);
+    if(!tiers.length){ toast('ضيف شريحة واحدة على الأقل'); return; }
+    if(tiers.some((t,i)=>i && t.min===tiers[i-1].min)){ toast('فيه شريحتين بنفس السعر'); return; }
+  }
+  if(type!=='none' && type!=='tier' && !(rate>0)){ toast(type==='take'?'اكتب المبلغ':'اكتب النسبة'); $('#cmRate').focus(); return; }
   if(type==='give' && rate>100){ toast('النسبة لازم تكون أقل من 100%'); return; }
-  const cmv=[...cmVers(e).filter(x=>x.from!==from), {from, type, rate:round2(rate), at:Date.now(), by:myEmail()}].sort((a,b)=>a.from.localeCompare(b.from));
+  const cmv=[...cmVers(e).filter(x=>x.from!==from), {from, type, rate:round2(rate), ...(tiers?{tiers}:{}), at:Date.now(), by:myEmail()}].sort((a,b)=>a.from.localeCompare(b.from));
   try{ await fb.updateDoc(fb.doc(db,'users',e), {cmv}); USERS[e]={...u, cmv}; closeOv('cmOv'); toast('✓ اتحفظ نظام العمولة'); renderAll(); }
   catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); }
 }
@@ -2696,10 +2717,10 @@ const planOf = id => plans().find(p=>p.id===id) || null;
    take = الشركة بتاخد مبلغ ثابت (جنيه) على كل فرد من الموظف — الموظف بيستلم فلوس العميل ويورّد للشركة مبلغها
    give = الموظف ليه نسبة % من صافي الحجز (بعد الخصم) — الشركة بتدفعهاله
    none = بدون عمولة • الحجوزات اللي قبل أول «from» بتفضل بالأنظمة القديمة (الشرائح) */
-const cmVers = e => ((USERS[e]&&USERS[e].cmv)||[]).filter(v=>v && v.from && ['take','give','none'].includes(v.type)).sort((a,b)=>a.from.localeCompare(b.from));
+const cmVers = e => ((USERS[e]&&USERS[e].cmv)||[]).filter(v=>v && v.from && (['take','give','none'].includes(v.type) || (v.type==='tier' && Array.isArray(v.tiers) && v.tiers.length))).sort((a,b)=>a.from.localeCompare(b.from));
 function cmAt(e, d){ let v=null; for(const x of cmVers(e)) if(x.from<=(d||'')) v=x; return v; }
 const cmNow = e => cmAt(e, todayStr()) || cmVers(e)[0] || null;
-const cmLbl = v => !v ? '' : v.type==='take' ? `الشركة بتاخد ${num(v.rate)} ج.م على الفرد` : v.type==='give' ? `للموظف ${num(v.rate)}% من الصافي` : 'بدون عمولة';
+const cmLbl = v => !v ? '' : v.type==='tier' ? `شرائح للموظف: ${v.tiers.map(t=>num(t.rate)).join(' / ')} ج.م على الفرد` : v.type==='take' ? `الشركة بتاخد ${num(v.rate)} ج.م على الفرد` : v.type==='give' ? `للموظف ${num(v.rate)}% من الصافي` : 'بدون عمولة';
 const commMode = e => { const v=cmNow(e); if(v) return v.type==='none' ? '' : 'n:'+v.type; const m=(USERS[e]&&USERS[e].comm)||''; return planOf(m) ? m : ''; };
 const planName = id => planOf(id)?.name || 'بدون عمولة';
 const cmName = e => { const v=cmNow(e); return v ? cmLbl(v) : planName(commMode(e)); };
@@ -2718,6 +2739,8 @@ function commCalc(b, e, c=calc(b)){
   if(nv){
     if(nv.type==='none') return {id:'', pe, amt:0, bal:0};
     const tot=round2(conv(c.total, c.cur, 'EGP')), r=+nv.rate||0;
+    if(nv.type==='tier'){ const ti=tierIdx(nv.tiers, pe), tr=+nv.tiers[ti].rate||0, a=round2(tr*c.n);
+      return {id:'n:tier', type:'tier', pe, amt:a, bal:a, rate:tr, ti, lbl:tierLbl(nv.tiers, ti), rl:`${num(tr)} ج.م للفرد`, key:`tier|${nv.tiers[ti].min}|${tr}`}; }
     if(nv.type==='give'){ const a=round2(tot*r/100); return {id:'n:give', type:'give', pe, amt:a, bal:a, rate:r, lbl:'نسبة للموظف من الصافي', rl:`${num(r)}% من الصافي`, key:`give|${r}`}; }
     const fee=round2(r*c.n); return {id:'n:take', type:'take', pe, fee, amt:round2(tot-fee), bal:-fee, rate:r, lbl:'مبلغ للشركة على الفرد', rl:`${num(r)} ج.م للشركة / فرد`, key:`take|${r}`};
   }
@@ -2884,7 +2907,7 @@ function renderPlans(){
   const us=Object.values(USERS).filter(u=>u.active!==false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ar'));
   $('#cmList').innerHTML = us.length ? us.map(u=>{ const e=u.email, v=cmNow(e), m=commMode(e);
     return `<div class="appt" style="--gc:${v?.type==='take'?'var(--blue)':m?'var(--gold)':'var(--bd)'};margin-bottom:6px;cursor:pointer" onclick="openCm('${encodeURIComponent(e)}')"><div class="info">
-      <div class="nm">${esc(u.name||loginName(e))} ${v?.type==='take'?'<span class="badge b-new">🏢 للشركة على الفرد</span>':v?.type==='give'?'<span class="badge b-green">💵 نسبة للموظف</span>':''}</div>
+      <div class="nm">${esc(u.name||loginName(e))} ${v?.type==='take'?'<span class="badge b-new">🏢 للشركة على الفرد</span>':v?.type==='give'?'<span class="badge b-green">💵 نسبة للموظف</span>':v?.type==='tier'?'<span class="badge b-green">📶 شرائح للموظف</span>':''}</div>
       <div class="sub">${m?esc(cmName(e)):'بدون عمولة'}${v&&v.from>todayStr()?` • يبدأ ${v.from}`:v?` • من ${v.from}`:''}</div></div>
       <div class="acts"><button class="ibtn">✏️</button></div></div>`; }).join('')
     : '<div class="empty">مفيش موظفين</div>';
