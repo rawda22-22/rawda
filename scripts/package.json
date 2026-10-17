@@ -2,8 +2,10 @@
   "name": "rawda-reminders",
   "private": true,
   "type": "module",
-  "description": "تنبيهات تليجرام قبل مواعيد الحجز (بتشتغل من GitHub Actions)",
+  "description": "تنبيهات تليجرام قبل مواعيد الحجز + أكواد نسك من الجيميل (بتشتغل من GitHub Actions)",
   "dependencies": {
-    "firebase-admin": "^13.0.0"
+    "firebase-admin": "^13.0.0",
+    "imapflow": "^1.0.170",
+    "mailparser": "^3.7.1"
   }
 }

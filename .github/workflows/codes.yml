@@ -1,0 +1,33 @@
+name: Nusuk codes to Telegram
+
+# 🔑 أول ما كود نسك يوصل الجيميل بيتبعت على تليجرام خلال ثواني (scripts/codes.mjs)
+# المراقب متصل بالجيميل على طول ~5 ساعات و45 دقيقة، وقبل ما يخلص بدقيقتين بيشغّل اللي بعده بنفسه.
+# الـ cron بالساعة احتياطي بس لو السلسلة وقفت (ولو فيه مراقب شغال بيخرج على طول).
+# محتاج Secrets: FIREBASE_SERVICE_ACCOUNT (موجود) و GMAIL_ACCOUNTS  ←  name@gmail.com:كلمة_سر_التطبيقات
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write   # عشان يشغّل المراقب اللي بعده
+
+jobs:
+  codes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --prefix scripts --no-audit --no-fund
+      - name: Watch Gmail for Nusuk codes
+        run: node scripts/codes.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_ACCOUNTS: ${{ secrets.GMAIL_ACCOUNTS }}
+          GH_TOKEN: ${{ github.token }}
+          WATCH_MINUTES: '345'
