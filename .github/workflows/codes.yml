@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '23 * * * *'
   workflow_dispatch:
+    inputs:
+      diag:
+        description: 'تشخيص: يبعت على تليجرام آخر الإيميلات اللي وصلت (من غير ما يراقب)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,3 +36,4 @@ jobs:
           GMAIL_ACCOUNTS: ${{ secrets.GMAIL_ACCOUNTS }}
           GH_TOKEN: ${{ github.token }}
           WATCH_MINUTES: '345'
+          DIAG: ${{ inputs.diag || false }}

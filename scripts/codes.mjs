@@ -39,6 +39,37 @@ function recipient(parsed, account) {
   return all.find((a) => a.split('@')[0].replace(/\./g, '').toLowerCase().split('+')[0] === base) || all[0] || account;
 }
 
+const mask = (a) => String(a).replace(/^(.).*(.)@/, '$1***$2@');
+
+/* 🧪 تشخيص: بيبعت على تليجرام (مش في سجلات GitHub) آخر الإيميلات اللي وصلت في آخر ساعتين — الوارد والسبام */
+async function diagAccount({ account, pass, tg }) {
+  const { ImapFlow } = await import('imapflow');
+  const { simpleParser } = await import('mailparser');
+  const client = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: account, pass }, logger: false });
+  const L = [`🧪 <b>تشخيص أكواد نسك</b>`, `📮 ${h(account)}`];
+  try { await client.connect(); }
+  catch (e) { await tgSend(tg.token, tg.chatId, L.concat(`❌ مش قادر يدخل الحساب: ${h(e.responseText || e.message)}`).join('\n')); return; }
+  L.push('✅ الدخول للحساب تمام');
+  const boxes = await client.list();
+  const pick = (u, fb) => boxes.find((b) => b.specialUse === u)?.path || fb;
+  for (const [name, path] of [['📥 الوارد', 'INBOX'], ['🚫 السبام', pick('\\Junk', '[Gmail]/Spam')]]) {
+    const lock = await client.getMailboxLock(path).catch(() => null); if (!lock) { L.push('', `${name}: مش لاقيه`); continue; }
+    try {
+      const ms = [];
+      for await (const m of client.fetch({ since: new Date(Date.now() - 2 * 3600e3) }, { uid: true, envelope: true, internalDate: true, source: true })) ms.push(m);
+      L.push('', `${name}: ${ms.length} إيميل في آخر ساعتين`);
+      for (const m of ms.slice(-8)) {
+        const p = await simpleParser(m.source), from = (m.envelope?.from || []).map((x) => x.address).join(' ');
+        const code = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' '));
+        const t = new Date(m.internalDate).toLocaleTimeString('ar-u-nu-latn', { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit' });
+        L.push(`• ${t} من <code>${h(from)}</code>${SENDER.test(from) ? ' ✅نسك' : ''}\n   إلى ${h(recipient(p, account))} • ${h(String(p.subject || '').slice(0, 50))} • ${code ? 'كود: ' + h(code) : 'مفيش كود'}`);
+      }
+    } finally { lock.release(); }
+  }
+  await client.logout().catch(() => {});
+  await tgSend(tg.token, tg.chatId, L.join('\n').slice(0, 4000));
+}
+
 async function watchAccount({ account, pass, db, tg, endAt, log }) {
   const { ImapFlow } = await import('imapflow');
   const { simpleParser } = await import('mailparser');
@@ -59,7 +90,7 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
     if (!code) { log(`إيميل نسك من غير كود: ${parsed.subject || ''}`); return; }
     const to = recipient(parsed, account);
     await tgSend(tg.token, tg.chatId, codeMessage({ to, code, subject: parsed.subject, date }));
-    log(`✓ اتبعت كود ${to} (بعد ${Math.round((Date.now() - date) / 1000)} ثانية من وصوله)`);
+    log(`✓ اتبعت كود (بعد ${Math.round((Date.now() - date) / 1000)} ثانية من وصوله)`);   // من غير الإيميل — سجلات GitHub عامة
   };
 
   const fetchNew = async (client) => {
@@ -72,12 +103,12 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
 
   while (Date.now() < endAt) {
     const client = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: account, pass }, logger: false, maxIdleTime: 4 * 60000 });
-    client.on('error', (e) => console.error(account, 'IMAP:', e.message));
+    client.on('error', (e) => console.error(mask(account), 'IMAP:', e.message));
     try {
       await client.connect();
       const lock = await client.getMailboxLock('INBOX');
       try {
-        log(`متصل بـ ${account} — مستني الأكواد`);
+        log(`متصل بـ ${mask(account)} — مستني الأكواد`);
         await fetchNew(client);
         lastUid = Math.max(lastUid, (client.mailbox?.uidNext || 1) - 1);
         let busy = Promise.resolve();
@@ -87,8 +118,8 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
       } finally { lock.release(); }
       await client.logout().catch(() => {});
     } catch (e) {
-      console.error(account, 'تعذر الاتصال:', e.message);
-      if (/auth|credential|password|AUTHENTICATIONFAILED/i.test(e.message)) { console.log(`::error::كلمة سر التطبيقات لـ ${account} غلط`); return; }
+      console.error(mask(account), 'تعذر الاتصال:', e.message);
+      if (/auth|credential|password|AUTHENTICATIONFAILED/i.test(e.message + (e.responseText || ''))) { console.log(`::error::كلمة سر التطبيقات لـ ${mask(account)} غلط`); await tgSend(tg.token, tg.chatId, `⚠️ أكواد نسك: كلمة سر التطبيقات لـ <code>${h(account)}</code> غلط — اعمل واحدة جديدة وحدّث GMAIL_ACCOUNTS`).catch(() => {}); return; }
       await new Promise((ok) => setTimeout(ok, 5000));
     }
   }
@@ -101,28 +132,38 @@ async function main() {
   const { getFirestore } = await import('firebase-admin/firestore');
   initializeApp({ credential: cert(JSON.parse(raw)) });
   const db = getFirestore(), log = (m) => console.log('::notice::' + m);
+  const diag = process.env.DIAG === 'true';
   const minutes = +process.env.WATCH_MINUTES || 345, endAt = Date.now() + minutes * 60000;
 
   // 🔒 مراقب واحد بس في نفس الوقت (الاحتياطي بالساعة بيخرج لو فيه واحد شغال) — والتالي بيبدأ قبل ما اللي قبله يخلص بدقيقتين
   const runId = process.env.GITHUB_RUN_ID || String(Date.now());
-  const ok = await db.runTransaction(async (t) => {
-    const ref = db.doc('meta/codesLease'), s = await t.get(ref), L = s.exists ? s.data() : null;
-    if (L && L.runId !== runId && L.until > Date.now() + 3 * 60000) return false;
-    t.set(ref, { runId, until: endAt, at: Date.now() }); return true;
+  // الشغال بيحدّث «beat» كل 30 ثانية — لو وقف (اتلغى/وقع) أكتر من دقيقة ونص، أي مراقب جديد يمسك مكانه
+  const lease = db.doc('meta/codesLease');
+  const ok = diag || await db.runTransaction(async (t) => {
+    const s = await t.get(lease), L = s.exists ? s.data() : null, now = Date.now();
+    const alive = L && L.runId !== runId && now - (L.beat || 0) < 90000 && (L.until || 0) > now + 3 * 60000;
+    if (alive) return false;
+    t.set(lease, { runId, until: endAt, beat: now }); return true;
   });
   if (!ok) { log('فيه مراقب أكواد شغال بالفعل — خروج'); return; }
+  if (!diag) setInterval(() => lease.set({ runId, until: endAt, beat: Date.now() }).catch(() => {}), 30000);
 
   // تشغيل المراقب اللي بعده قبل النهاية بدقيقتين (عشان مفيش ولا ثانية من غير مراقبة)
   const repo = process.env.GITHUB_REPOSITORY, token = process.env.GH_TOKEN;
-  if (repo && token) setTimeout(() => fetch(`https://api.github.com/repos/${repo}/actions/workflows/codes.yml/dispatches`, {
+  if (repo && token && !diag) setTimeout(() => fetch(`https://api.github.com/repos/${repo}/actions/workflows/codes.yml/dispatches`, {
     method: 'POST', headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
     body: JSON.stringify({ ref: process.env.GITHUB_REF_NAME || 'main' }),
   }).then((r) => log(`تشغيل المراقب التالي: ${r.status}`)).catch((e) => console.error(e.message)), Math.max(0, endAt - Date.now() - 2 * 60000));
 
   let tg = null;
   db.doc('meta/telegram').onSnapshot((d) => { tg = d.exists ? d.data() : null; });
-  while (!tg) await new Promise((r) => setTimeout(r, 500));
-  if (!tg.on || !tg.token || !tg.chatId) log('⚠️ تليجرام مش مفعّل في إعدادات الموقع');
+  for (let i = 0; tg === null && i < 40; i++) await new Promise((r) => setTimeout(r, 500));
+  if (!tg || !tg.token || !tg.chatId) { console.log('::error::إعدادات تليجرام (التوكن ورقم الشات) مش موجودة في الموقع'); return; }
+
+  if (diag) {
+    for (const a of accs) { const i = a.indexOf(':'); await diagAccount({ account: a.slice(0, i).trim(), pass: a.slice(i + 1).replace(/\s+/g, ''), tg }).catch((e) => console.error(e.message)); }
+    process.exit(0);
+  }
 
   await Promise.all(accs.map((a) => { const i = a.indexOf(':'); return watchAccount({ account: a.slice(0, i).trim(), pass: a.slice(i + 1).replace(/\s+/g, ''), db, tg: new Proxy({}, { get: (_, k) => tg[k] }), endAt, log }); }));
   process.exit(0);
