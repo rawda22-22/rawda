@@ -287,6 +287,10 @@ body:not(.cloud) .cloud-only{display:none!important}
       <h2>📲 مطلوب على المنصة (حساب / موعد) <span class="hint">— البيانات كاملة والموعد خلال 10 أيام</span> <span class="sp"></span><span class="hint" id="bkCount"></span></h2>
       <div id="bkList"></div>
     </div>
+    <div class="card" id="ldCard" style="display:none;border:2px solid #d9a400">
+      <h2>👑 قادة محوّلين <span id="ldCardWho"></span> <span class="sp"></span><span class="hint" id="ldCardN"></span></h2>
+      <div id="ldList"></div>
+    </div>
     <div id="alertBox"></div>
     <div class="stats" id="stats"></div>
     <div class="grid2">
@@ -1766,6 +1770,31 @@ function dueCancel(id){
 }
 $('#dueTabs').addEventListener('click', e=>{ const x=e.target.closest('button'); if(x){ dueTab=x.dataset.d; renderDue(); } });
 
+/* 👑 تحويل قادة حجز لموظف تاني: b.ldTo = إيميل الموظف — بيشوف القادة (إيميل/جواز/تأشيرة) في «👑 قادة محوّلين ليك» على لوحة التحكم */
+const ldEmps = () => Object.values(USERS).filter(u=>u.active!==false && u.email!==myEmail()).map(u=>u.email).sort((a,b)=>empName(a).localeCompare(empName(b),'ar'));
+function bkLdTo(v){
+  const b=bkB(); if(!b || !isAdmin()) return;
+  if(v) b.ldTo=v; else delete b.ldTo;
+  save(); renderAll(); bkRender();
+  toast(v ? `👑 قادة «${b.name}» هيظهروا عند ${empName(v)}` : '✓ القادة رجعوا لصاحب الحجز بس');
+}
+function renderLdShare(){
+  const mine = !isAdmin();
+  const L=S.bookings.filter(b=>b.ldTo && b.status!=='cancelled' && b.status!=='done' && !allBarred(b) && leadIdx(b).length && (!mine || b.ldTo===myEmail()))
+    .sort((a,b)=>firstDt(a)-firstDt(b));
+  $('#ldCard').style.display = L.length ? '' : 'none'; if(!L.length) return;
+  $('#ldCardWho').textContent = mine ? 'ليك' : 'لموظفين';
+  $('#ldCardN').textContent = `${L.length} حجز`;
+  const gl = (b,g) => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
+  $('#ldList').innerHTML = L.map(b=>{ const LM=ldMap(b);
+    return `<div class="appt" style="--gc:#d9a400;margin-bottom:8px;display:block">
+      <div class="nm">${esc(b.name)} ${empTag(b)}${!mine?` <span class="badge b-amb">👑 عند ${esc(empName(b.ldTo))}</span>`:''}</div>
+      <div class="sub">${[gl(b,'m'),gl(b,'w')].filter(Boolean).join(' &nbsp; ')} • ${leadIdx(b).map(li=>`${esc(paxLbl(b,li))}: معاه ${LM.cnt[li]||0}`).join(' • ')}</div>
+      ${ldPanel(b).replace('<details class="ldpan"','<details class="ldpan" open')}
+      ${!mine?`<button class="ibtn" style="margin-top:6px" onclick="bkOpen('${b.id}')">✏️ تغيير</button>`:''}
+    </div>`; }).join('');
+}
+
 /* 🔍 مراجعة الدفعات: الدفعة بتتسجل عادي، والمدير بس بيبص عليها ويعلّم «تمت المراجعة» */
 let revTab='pending';
 function payReviews(done){
@@ -1886,7 +1915,7 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderOps(); renderStats(); renderUpcoming(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderOps(); renderStats(); renderUpcoming(); renderLdShare(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
@@ -3997,6 +4026,8 @@ function bkRender(){
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>`;
   $('#bkHead').insertAdjacentHTML('beforeend', ldPanel(b));
+  if(isAdmin() && leadIdx(b).length) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>👑 القادة يظهروا كمان عند:</b>
+    <select onchange="bkLdTo(this.value)" style="flex:1;min-width:150px"><option value="">— محدش (صاحب الحجز بس) —</option>${ldEmps().map(e=>`<option value="${esc(e)}" ${b.ldTo===e?'selected':''}>${esc(empName(e))}</option>`).join('')}</select></div>`);
   $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>🔑 كلمة السر للحجز:</b>
     <input id="bkPwIn" dir="ltr" autocomplete="off" value="${esc(b.pw||'')}" placeholder="اكتبها مرة واحدة — بتظهر لكل الأفراد" style="flex:1;min-width:150px" onchange="bkPw(this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`);
   const LI=leadIdx(b), LM=ldMap(b);
