@@ -26,9 +26,10 @@ export function extractCode(subject, text) {
 }
 
 const h = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-export function codeMessage({ to, code, subject, date, tz = 'Africa/Cairo' }) {
+export function codeMessage({ to, code, subject, date, lag, tz = 'Africa/Cairo' }) {
   const time = new Date(date).toLocaleTimeString('ar-u-nu-latn', { timeZone: tz, hour: 'numeric', minute: '2-digit', second: '2-digit' });
-  return ['🔑 <b>كود نسك</b>', `📧 <code>${h(to)}</code>`, `🔢 <code>${h(code)}</code>`, `🕒 ${time}`, subject ? `✉️ ${h(String(subject).slice(0, 80))}` : '']
+  // ⚡ lag = من أول ما الإيميل دخل الجيميل لحد ما اتبعت هنا (لو صغير والكود لسه متأخر عندك يبقى التأخير من نسك نفسها)
+  return ['🔑 <b>كود نسك</b>', `📧 <code>${h(to)}</code>`, `🔢 <code>${h(code)}</code>`, `🕒 ${time}${lag != null ? ` • ⚡ ${lag} ث` : ''}`, subject ? `✉️ ${h(String(subject).slice(0, 80))}` : '']
     .filter(Boolean).join('\n');
 }
 
@@ -70,10 +71,32 @@ async function diagAccount({ account, pass, tg }) {
   await tgSend(tg.token, tg.chatId, L.join('\n').slice(0, 4000));
 }
 
+const POLL_MS = 2000;
+/* اتصال IMAP تاني بيسأل «آخر رقم إيميل كام؟» (STATUS UIDNEXT) كل ثانيتين — خفيف جداً ومابيحمّلش أي إيميلات */
+function startPoller({ ImapFlow, account, pass, every, uidNow, onNew }) {
+  let c = null, stopped = false, busy = false;
+  const tick = async () => {
+    if (stopped || busy) return; busy = true;
+    try {
+      if (!c || !c.usable) {
+        c = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: account, pass }, logger: false });
+        c.on('error', () => {});
+        await c.connect();
+      }
+      const s = await c.status('INBOX', { uidNext: true });
+      if (s && s.uidNext - 1 > uidNow()) onNew();
+    } catch { try { c?.close(); } catch {} c = null; }
+    finally { busy = false; }
+  };
+  const t = setInterval(tick, every); tick();
+  return () => { stopped = true; clearInterval(t); c?.logout().catch(() => {}); };
+}
+
 async function watchAccount({ account, pass, db, tg, endAt, log }) {
   const { ImapFlow } = await import('imapflow');
   const { simpleParser } = await import('mailparser');
   let lastUid = 0, first = true;
+  const seen = new Set();
 
   const handle = async (client, msg) => {
     if (msg.uid > lastUid) lastUid = msg.uid;
@@ -83,13 +106,17 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
     if (Date.now() - date > MAX_AGE_MS) return;
     // ✋ منع التكرار حتى لو فيه مراقبين شغالين مع بعض: create بيفشل لو المستند موجود
     const key = `${account}|${msg.envelope?.messageId || msg.uid}`.replace(/[\/]/g, '_').slice(0, 900);
-    try { await db.collection('codeSent').doc(Buffer.from(key).toString('base64url')).create({ at: Date.now() }); }
-    catch { return; }
-    const parsed = await simpleParser(msg.source);
+    if (seen.has(key)) return; seen.add(key);
+    // ⚡ منع التكرار وقراءة الإيميل بيحصلوا مع بعض في نفس اللحظة (بدل ما نستنى واحد ورا التاني)
+    const [dup, parsed] = await Promise.all([
+      db.collection('codeSent').doc(Buffer.from(key).toString('base64url')).create({ at: Date.now() }).then(() => false, () => true),
+      simpleParser(msg.source),
+    ]);
+    if (dup) return;
     const code = extractCode(parsed.subject, parsed.text || parsed.html?.replace(/<[^>]+>/g, ' '));
     if (!code) { log(`إيميل نسك من غير كود: ${parsed.subject || ''}`); return; }
     const to = recipient(parsed, account);
-    await tgSend(tg.token, tg.chatId, codeMessage({ to, code, subject: parsed.subject, date }));
+    await tgSend(tg.token, tg.chatId, codeMessage({ to, code, subject: parsed.subject, date, lag: Math.max(0, Math.round((Date.now() - date) / 1000)) }));
     log(`✓ اتبعت كود (بعد ${Math.round((Date.now() - date) / 1000)} ثانية من وصوله)`);   // من غير الإيميل — سجلات GitHub عامة
   };
 
@@ -111,10 +138,15 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
         log(`متصل بـ ${mask(account)} — مستني الأكواد`);
         await fetchNew(client);
         lastUid = Math.max(lastUid, (client.mailbox?.uidNext || 1) - 1);
-        let busy = Promise.resolve();
-        client.on('exists', () => { busy = busy.then(() => fetchNew(client)).catch((e) => console.error(e.message)); });
-        while (Date.now() < endAt && client.usable) await client.idle().catch(() => {});
-        await busy;
+        let busy = Promise.resolve(), queued = false;
+        const kick = () => { if (queued) return; queued = true; busy = busy.then(() => { queued = false; return fetchNew(client); }).catch((e) => console.error(e.message)); };
+        client.on('exists', kick);
+        // ⚡ جيميل أحياناً بيتأخر في تبليغ IDLE — فاتصال تاني صغير بيبص على الصندوق كل ثانيتين ولو فيه جديد بيصحّي الأول على طول
+        const stopPoll = startPoller({ ImapFlow, account, pass, every: POLL_MS, uidNow: () => lastUid, onNew: kick });
+        try {
+          while (Date.now() < endAt && client.usable) await client.idle().catch(() => {});
+          await busy;
+        } finally { stopPoll(); }
       } finally { lock.release(); }
       await client.logout().catch(() => {});
     } catch (e) {
