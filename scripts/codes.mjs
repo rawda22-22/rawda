@@ -54,7 +54,8 @@ async function diagAccount({ account, pass, tg }) {
   L.push('✅ الدخول للحساب تمام');
   const boxes = await client.list();
   const pick = (u, fb) => boxes.find((b) => b.specialUse === u)?.path || fb;
-  for (const [name, path] of [['📥 الوارد', 'INBOX'], ['🚫 السبام', pick('\\Junk', '[Gmail]/Spam')]]) {
+  console.log(`::notice::تشخيص ${mask(account)}: الفولدرات ${boxes.map((b) => b.path + (b.specialUse ? '(' + b.specialUse + ')' : '')).join(' | ')}`);
+  for (const [name, path] of [['📥 الوارد', 'INBOX'], ['🚫 السبام', pick('\\Junk', '[Gmail]/Spam')], ['🗂 كل البريد', pick('\\All', '[Gmail]/All Mail')]]) {
     const lock = await client.getMailboxLock(path).catch(() => null); if (!lock) { L.push('', `${name}: مش لاقيه`); continue; }
     try {
       const ms = [];
