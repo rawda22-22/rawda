@@ -589,7 +589,8 @@ body:not(.cloud) .cloud-only{display:none!important}
         <input id="bankQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderBank()">
         <select id="bankF" class="ibtn" onchange="renderBank()"><option value="free">المتاحة</option><option value="used">المستخدمة</option><option value="">الكل</option></select>
         <button class="ibtn" onclick="bankDupCheck()" title="يدوّر على أي إيميل متكرر في البنك أو في الحجوزات">🔍 فحص التكرار</button>
-        <button class="ibtn del" onclick="bankDelLast()" title="يحذف آخر إيميلات اتضافت للبنك (المتاحة بس — المسحوبة مابتتلمسش)">🗑 حذف آخر إضافة</button></h2>
+        <button class="ibtn del" onclick="bankDelLast()" title="يحذف آخر إيميلات اتضافت للبنك (المتاحة بس — المسحوبة مابتتلمسش)">🗑 حذف آخر إضافة</button>
+        <button class="ibtn del" onclick="bankDelLast(true)" title="يحذف كل الإيميلات المتاحة في البنك — المسحوبة لعملاء مابتتلمسش">🧹 مسح كل المتاح</button></h2>
       <div id="bankDup"></div>
       <div style="overflow-x:auto"><table class="curTable" id="bankTable"></table></div>
     </div>
@@ -764,6 +765,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="mfoot">
       <button class="btn pri" onclick="paxSave()">💾 حفظ</button>
       <button class="btn gold" id="paxUpBtn" onclick="paxUpload()">📤 تم الرفع</button>
+      <button class="btn admin-only" id="paxReBtn" onclick="paxReplaceEmails()" title="يشيل إيميلات الحجز ده (اللي مش شغالة) ويسحب بدالها جديدة من البنك">🔄 إيميلات جديدة</button>
     </div>
   </div>
 </div>
@@ -3608,6 +3610,24 @@ function paxSave(close=true){
 }
 function paxClose(){ if(paxDirty) paxSave(true); else { closeOv('paxOv'); PAXID=null; } }
 
+/* 🔄 استبدال إيميلات حجز: الإيميلات القديمة بتتشال من الأفراد (وتفضل محروقة في البنك — مش بترجع)
+   وبيتسحب بدالها جديدة بالترتيب. لو البنك فاضي دلوقتي، أول ما تضيف إيميلات الحجز بيتملى لوحده */
+async function paxReplaceEmails(){
+  const b=paxB(); if(!b || !isAdmin()) return;
+  paxCollect();
+  const n=paxN(b), have=(b.pax||[]).slice(0,n).filter(r=>r.email);
+  if(!have.length){ toast('الحجز ده مفيهوش إيميلات أصلاً'); return; }
+  if(!confirm(`🔄 استبدال إيميلات حجز ${b.name}\n\nهيتشال ${have.length} إيميل:\n${have.map(r=>r.email).join('\n')}\n\nويتسحب بدالهم ${have.length} إيميل جديد من البنك.\n(القديمة مش هترجع للبنك)${acctDone(b)?'\n\n⚠️ الحجز ده اتعمله حسابات على المنصة — لازم تعمل الحسابات من جديد بالإيميلات الجديدة':''}\n\nمتأكد؟`)) return;
+  (b.pax||[]).forEach(r=>{ if(r) r.email=''; });
+  b.pax=fixRows(b.pax, n); paxDirty=false;
+  await Promise.resolve(save()); paxRender();
+  const r=await allocEmails(b);
+  const bb=paxB(); if(bb){ bb.pax=fixRows(bb.pax, paxN(bb)); paxRender(); }
+  renderAll();
+  if(r.got && !r.short) toast(`✅ اتبدلت ${r.got} إيميل`);
+  else if(r.short>0) toast(`⚠️ اتبدل ${r.got||0} بس — البنك ناقص ${r.short}. أول ما تضيف إيميلات الحجز هيتملى لوحده`);
+}
+
 /* ===== 📤 تم الرفع: بيأكد الحجز وبيبعت الإيميلات والبيانات على تليجرام ===== */
 async function paxUpload(){
   const b=paxB(); if(!b) return;
@@ -3970,15 +3990,20 @@ async function bankSetLow(){
     toast(`✓ هنبّهك لما يفضل أقل من ${v} إيميل`); renderAll(); }catch(e){ cloudErr(e); }
 }
 /* 🗑 حذف آخر N إيميل اتضافوا للبنك (أعلى أرقام) — المتاحة بس، والمسحوبة (المحروقة) عمرها ما بتتمسح */
-async function bankDelLast(){
+async function bankDelLast(wipe){
   if(!isAdmin()) return;
-  const raw=prompt('عايز تحذف آخر كام إيميل اتضافوا للبنك؟', '2000'); if(raw===null) return;
-  const n=Math.round(+String(raw).replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660)); if(!(n>0)){ toast('اكتب رقم صحيح'); return; }
-  const next=+bankMeta().next||0, all=[...bankList()].sort((a,b)=>b.seq-a.seq), last=all.slice(0,n);
+  const next=+bankMeta().next||0, all=[...bankList()].sort((a,b)=>b.seq-a.seq);
+  let n;
+  if(wipe){ n=all.length; } else {
+    const raw=prompt('عايز تحذف آخر كام إيميل اتضافوا للبنك؟', '2000'); if(raw===null) return;
+    n=Math.round(+String(raw).replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660)); if(!(n>0)){ toast('اكتب رقم صحيح'); return; }
+  }
+  const last=all.slice(0,n);
   const del=last.filter(x=>x.seq>next), burned=last.length-del.length;
-  if(!del.length){ toast('⛔ آخر الإيميلات دي كلها اتسحبت لعملاء — مش هينفع تتحذف'); return; }
+  if(!del.length){ toast(wipe?'مفيش إيميلات متاحة في البنك أصلاً':'⛔ آخر الإيميلات دي كلها اتسحبت لعملاء — مش هينفع تتحذف'); return; }
   const lo=del[del.length-1], hi=del[0];
-  if(!confirm(`هيتحذف ${del.length} إيميل من البنك نهائياً:\nمن #${lo.seq} (${lo.email})\nلحد #${hi.seq} (${hi.email})${burned?`\n\n⚠️ ${burned} منهم اتسحبوا لعملاء — دول مش هيتحذفوا`:''}${n>all.length?`\n\n(البنك فيه ${all.length} بس)`:''}\n\nالحذف مالوش رجوع. متأكد؟`)) return;
+  if(wipe && !confirm(`🧹 هيتمسح كل الإيميلات المتاحة في البنك: ${del.length} إيميل\n(اللي اتسحبوا لعملاء مش هيتلمسوا)\n\nبعدها تقدر تضيف إيميلات جديدة.\nالحذف مالوش رجوع. متأكد؟`)) return;
+  if(!wipe && !confirm(`هيتحذف ${del.length} إيميل من البنك نهائياً:\nمن #${lo.seq} (${lo.email})\nلحد #${hi.seq} (${hi.email})${burned?`\n\n⚠️ ${burned} منهم اتسحبوا لعملاء — دول مش هيتحذفوا`:''}${n>all.length?`\n\n(البنك فيه ${all.length} بس)`:''}\n\nالحذف مالوش رجوع. متأكد؟`)) return;
   try{
     if(mode==='cloud'){
       toast(`⏳ جاري حذف ${del.length} إيميل…`);
