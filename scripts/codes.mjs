@@ -26,10 +26,10 @@ export function extractCode(subject, text) {
 }
 
 const h = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-export function codeMessage({ to, code, subject, date, lag, tz = 'Africa/Cairo' }) {
+export function codeMessage({ to, code, subject, date, lag, gm, tz = 'Africa/Cairo' }) {
   const time = new Date(date).toLocaleTimeString('ar-u-nu-latn', { timeZone: tz, hour: 'numeric', minute: '2-digit', second: '2-digit' });
   // ⚡ lag = من أول ما الإيميل دخل الجيميل لحد ما اتبعت هنا (لو صغير والكود لسه متأخر عندك يبقى التأخير من نسك نفسها)
-  return ['🔑 <b>كود نسك</b>', `📧 <code>${h(to)}</code>`, `🔢 <code>${h(code)}</code>`, `🕒 ${time}${lag != null ? ` • ⚡ ${lag} ث` : ''}`, subject ? `✉️ ${h(String(subject).slice(0, 80))}` : '']
+  return ['🔑 <b>كود نسك</b>', `📧 <code>${h(to)}</code>`, `🔢 <code>${h(code)}</code>`, `🕒 ${time}${lag != null ? ` • ⚡ ${lag} ث${gm != null ? ` (جيميل ${gm} + إحنا ${Math.max(0, lag - gm)})` : ''}` : ''}`, subject ? `✉️ ${h(String(subject).slice(0, 80))}` : '']
     .filter(Boolean).join('\n');
 }
 
@@ -71,7 +71,7 @@ async function diagAccount({ account, pass, tg }) {
   await tgSend(tg.token, tg.chatId, L.join('\n').slice(0, 4000));
 }
 
-const POLL_MS = 2000;
+const POLL_MS = 1000;
 /* اتصال IMAP تاني بيسأل «آخر رقم إيميل كام؟» (STATUS UIDNEXT) كل ثانيتين — خفيف جداً ومابيحمّلش أي إيميلات */
 function startPoller({ ImapFlow, account, pass, every, uidNow, onNew }) {
   let c = null, stopped = false, busy = false;
@@ -96,9 +96,11 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
   const { ImapFlow } = await import('imapflow');
   const { simpleParser } = await import('mailparser');
   let lastUid = 0, first = true;
+  const startedAt = Date.now();
   const seen = new Set();
 
   const handle = async (client, msg) => {
+    const seenAt = Date.now();   // اللحظة اللي الإيميل ظهر لنا فيها من الجيميل
     if (msg.uid > lastUid) lastUid = msg.uid;
     const from = (msg.envelope?.from || []).map((x) => x.address || '').join(' ');
     if (!SENDER.test(from)) return;
@@ -108,15 +110,19 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
     const key = `${account}|${msg.envelope?.messageId || msg.uid}`.replace(/[\/]/g, '_').slice(0, 900);
     if (seen.has(key)) return; seen.add(key);
     // ⚡ منع التكرار وقراءة الإيميل بيحصلوا مع بعض في نفس اللحظة (بدل ما نستنى واحد ورا التاني)
+    // 🔒 فحص التكرار في Firestore بس في الدقيقتين اللي فيهم مراقبين شغالين مع بعض (وقت التسليم) — غير كده مابنستناش
+    const handover = Date.now() < startedAt + 3 * 60000 || Date.now() > endAt - 3 * 60000;
+    const ref = db.collection('codeSent').doc(Buffer.from(key).toString('base64url'));
     const [dup, parsed] = await Promise.all([
-      db.collection('codeSent').doc(Buffer.from(key).toString('base64url')).create({ at: Date.now() }).then(() => false, () => true),
+      handover ? ref.create({ at: Date.now() }).then(() => false, () => true) : Promise.resolve(false),
       simpleParser(msg.source),
     ]);
     if (dup) return;
+    if (!handover) ref.create({ at: Date.now() }).catch(() => {});
     const code = extractCode(parsed.subject, parsed.text || parsed.html?.replace(/<[^>]+>/g, ' '));
     if (!code) { log(`إيميل نسك من غير كود: ${parsed.subject || ''}`); return; }
     const to = recipient(parsed, account);
-    await tgSend(tg.token, tg.chatId, codeMessage({ to, code, subject: parsed.subject, date, lag: Math.max(0, Math.round((Date.now() - date) / 1000)) }));
+    await tgSend(tg.token, tg.chatId, codeMessage({ to, code, subject: parsed.subject, date, lag: Math.max(0, Math.round((Date.now() - date) / 1000)), gm: Math.max(0, Math.round((seenAt - date) / 1000)) }));
     log(`✓ اتبعت كود (بعد ${Math.round((Date.now() - date) / 1000)} ثانية من وصوله)`);   // من غير الإيميل — سجلات GitHub عامة
   };
 
@@ -205,6 +211,9 @@ async function main() {
     for (const a of accs) { const i = a.indexOf(':'); await diagAccount({ account: a.slice(0, i).trim(), pass: a.slice(i + 1).replace(/\s+/g, ''), tg }).catch((e) => console.error(e.message)); }
     process.exit(0);
   }
+
+  // 🔥 نخلي الاتصال بتليجرام وFirestore سخن على طول، عشان أول كود مايستناش فتح اتصال جديد
+  setInterval(() => { fetch(`https://api.telegram.org/bot${tg.token}/getMe`).then((r) => r.arrayBuffer()).catch(() => {}); lease.get().catch(() => {}); }, 3000);
 
   await Promise.all(accs.map((a) => { const i = a.indexOf(':'); return watchAccount({ account: a.slice(0, i).trim(), pass: a.slice(i + 1).replace(/\s+/g, ''), db, tg: new Proxy({}, { get: (_, k) => tg[k] }), endAt, log }); }));
   process.exit(0);
