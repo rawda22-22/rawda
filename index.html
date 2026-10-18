@@ -169,6 +169,15 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 @media(max-width:520px){.box{grid-template-columns:1fr}}
 .box .hd{grid-column:1/-1;font-weight:700;font-size:14px}
 .split{background:#f4faf7;border:1px dashed #9fcdb6}.split .hd{color:var(--g)}
+.ndbar{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff8e6;border:1px solid #e3c77e;border-radius:12px;padding:8px 10px}
+.ndbar .chk{grid-column:auto;font-weight:700}
+.tgl{border:1px solid #e3c77e;background:#fff;border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;color:#7a5a12}
+.tgl.on{background:var(--gold);border-color:var(--gold);color:#1a1a1a;font-weight:700}
+.multi{background:#fffbf0;border:1px dashed #e3c77e}.multi .hd{color:#7a5a12}
+.mrow{grid-column:1/-1;display:grid;grid-template-columns:auto 1.2fr 1fr 1fr auto;gap:8px;align-items:end;background:#fff;border:1px solid var(--bd);border-radius:10px;padding:8px}
+.mrow .n{font-weight:700;color:#7a5a12;padding-bottom:8px}
+.mrow>button{align-self:center;justify-self:center}
+@media(max-width:520px){.mrow{grid-template-columns:auto 1fr 1fr auto}.mrow .f.d{grid-column:2/4}.mrow>button{grid-column:4;grid-row:1}.mrow .f:not(.d){grid-column:span 2}}
 .gcol{display:flex;flex-direction:column;gap:10px;border-radius:10px;padding:10px;background:#fff;border:1px solid var(--bd)}
 .gcol.m{border-top:3px solid var(--blue)}.gcol.w{border-top:3px solid var(--pink)}
 .money{background:#fffbf0;border:1px dashed #e3c77e}.money .hd{color:#8a5a00}
@@ -616,6 +625,16 @@ body:not(.cloud) .cloud-only{display:none!important}
     <form id="bf" autocomplete="off">
       <input type="hidden" id="bid">
       <div class="fg">
+        <div class="ndbar">
+          <label class="chk"><input type="checkbox" id="noData"> 📄 حجز بدون بيانات</label>
+          <button type="button" class="tgl" id="multiTgl" onclick="multiToggle()">🔁 أكتر من موعد</button>
+          <span class="hint" id="ndHint">من غير جوازات ولا تأشيرات — مش هيسحب إيميلات ومش هيدخل مراحل المنصة</span>
+        </div>
+        <div class="box multi" id="multiBox" style="display:none">
+          <div class="hd">🔁 المواعيد الإضافية لنفس العميل <span class="hint">(الموعد الأول هو اللي تحت في «اليوم والوقت» — وكل موعد هنا بيتسجل حجز لوحده بنفس البيانات والسعر)</span></div>
+          <div id="multiRows" style="display:contents"></div>
+          <div style="grid-column:1/-1"><button type="button" class="qchip" onclick="multiAdd()" style="font-size:14px;padding:6px 14px">＋ موعد كمان</button> <span class="hint" id="multiSum"></span></div>
+        </div>
         <div class="f"><label>اسم العميل *</label><input id="name" required></div>
         <div class="f"><label>رقم الهاتف *</label><input id="phone" type="tel" dir="ltr" required placeholder="+9665xxxxxxxx"></div>
         <div class="f"><label>عدد الرجال</label><input id="men" type="number" min="0" value="0"></div>
@@ -664,7 +683,6 @@ body:not(.cloud) .cloud-only{display:none!important}
           <select id="status"><option value="new">جديد</option><option value="confirmed">مؤكد</option><option value="done">تم الدخول</option><option value="cancelled">ملغي</option></select>
         </div>
         <div class="f"><label>ملاحظات</label><input id="notes"></div>
-        <label class="chk f full"><input type="checkbox" id="noData"> 📄 حجز بدون بيانات <span class="hint">(من غير جوازات ولا تأشيرات — مش هيسحب إيميلات من البنك ومش هيدخل مراحل المنصة)</span></label>
         <div class="f full"><span class="hint" id="auditInfo"></span></div>
       </div>
       <div class="mfoot">
@@ -1439,7 +1457,7 @@ const gColor = g => g==='m' ? 'var(--blue)' : 'var(--pink)';
 const hm = d => fmt12(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
 const who = e => e ? esc(empName(e)) : '';
 /* 👨‍💼 اسم الموظف صاحب الحجز بخط صغير — بيظهر جنب اسم العميل في كل المراحل */
-const empTag = b => (b && b.createdBy ? ` <span class="emptag">👨‍💼 ${esc(empName(b.createdBy))}</span>` : '') + (b && b.noData ? ` <span class="emptag">📄 بدون بيانات</span>` : '');
+const empTag = b => (b && b.createdBy ? ` <span class="emptag">👨‍💼 ${esc(empName(b.createdBy))}</span>` : '') + (b && b.noData ? ` <span class="emptag">📄 بدون بيانات</span>` : '') + (b && b.rep ? ` <span class="emptag" title="العميل ده حاجز أكتر من موعد">🔁 موعد ${b.rep.i} من ${b.rep.n}</span>` : '');
 function badgeFor(ms){
   const l=level(ms);
   if(l==='urgent') return `<span class="badge b-red">🔔 ${remText(ms)}</span>`;
@@ -2114,6 +2132,48 @@ $('#womenDate').addEventListener('input',()=>refreshOne('w'));
 $('#bulkChk').addEventListener('change',refreshBill);
 ['menSlot','womenSlot'].forEach(k=>$('#'+k).addEventListener('change',()=>{ $('#'+k).dataset.v=$('#'+k).value; $('#'+k.replace('Slot','')+'Warn').textContent=''; }));
 
+/* 🔁 أكتر من موعد لنفس العميل (حجز بدون بيانات بس): كل موعد إضافي بيتسجل حجز منفصل بنفس البيانات */
+let MULTI=false;
+function multiSync(){
+  const nd=$('#noData').checked, isNew=!$('#bid').value;
+  $('#multiTgl').style.display = nd && isNew ? '' : 'none';
+  $('#ndHint').style.display = nd ? '' : 'none';
+  if(!(nd && isNew)) MULTI=false;
+  $('#multiTgl').classList.toggle('on', MULTI);
+  $('#multiBox').style.display = MULTI ? '' : 'none';
+  if(MULTI && !$('#multiRows').children.length) multiAdd();
+  multiSum();
+}
+function multiToggle(){ MULTI=!MULTI; multiSync(); }
+function multiAdd(){
+  const box=$('#multiRows'), i=box.children.length;
+  const prev=[...box.querySelectorAll('.md')].pop()?.value || $('#date').value || todayStr();
+  const r=document.createElement('div'); r.className='mrow';
+  r.innerHTML=`<span class="n">#${i+2}</span>
+    <div class="f d"><label>📅 اليوم</label><input type="date" class="md" value="${addDays(prev,1)}"></div>
+    <div class="f"><label>🧔 وقت الرجال</label><select class="ms"></select></div>
+    <div class="f"><label>🧕 وقت النساء</label><select class="ws"></select></div>
+    <button type="button" class="ibtn" title="شيل الموعد ده" onclick="this.parentElement.remove();multiRenum()">✕</button>`;
+  box.appendChild(r);
+  r.querySelector('.md').addEventListener('input',()=>multiFill(r,false));
+  multiFill(r,false); multiSum();
+}
+function multiFill(r, keep){
+  const m=+$('#men').value||0, w=+$('#women').value||0, d=r.querySelector('.md').value, pref=$('#pref').value;
+  const ms=r.querySelector('.ms'), ws=r.querySelector('.ws');
+  fillSlotSelect(ms,'m',d,m,'', m ? (keep&&ms.value) || autoSlot('m',d,pref,m,'') : '');
+  fillSlotSelect(ws,'w',d,w,'', w ? (keep&&ws.value) || autoSlot('w',d,pref,w,'') : '');
+}
+function multiRenum(){ [...$('#multiRows').children].forEach((r,i)=>r.querySelector('.n').textContent='#'+(i+2)); multiSum(); }
+function multiRefresh(){ [...$('#multiRows').children].forEach(r=>multiFill(r,true)); }
+function multiSum(){ const n=$('#multiRows').children.length; $('#multiSum').textContent = MULTI ? `هيتسجل ${n+1} حجز (موعد) للعميل ده` : ''; }
+function multiRead(){
+  if(!MULTI) return [];
+  return [...$('#multiRows').children].map(r=>({date:r.querySelector('.md').value, ms:r.querySelector('.ms').value, ws:r.querySelector('.ws').value})).filter(x=>x.date);
+}
+$('#noData').addEventListener('change', multiSync);
+['men','women','pref'].forEach(k=>$('#'+k).addEventListener('input', ()=>{ if(MULTI) multiRefresh(); }));
+
 function openForm(id, noData){
   const b = id ? S.bookings.find(x=>x.id===id) : null;
   if(b && b.frozen){
@@ -2124,6 +2184,7 @@ function openForm(id, noData){
   $('#formTitle').textContent = b ? 'تعديل الحجز' : (noData ? '📄 حجز بدون بيانات' : 'حجز جديد');
   $('#bid').value = b?.id || '';
   $('#noData').checked = b ? !!b.noData : !!noData;
+  MULTI=false; $('#multiRows').innerHTML=''; multiSync();
   $('#name').value = b?.name || '';
   $('#phone').value = b?.phone || '';
   $('#men').value = b?.men ?? 0;
@@ -2151,6 +2212,7 @@ function openForm(id, noData){
   $('#delBtn').onclick = () => { closeOv('formOv'); delBooking(b.id); };
   $('#formOv').classList.add('on');
   restoreDraft(b?.id);
+  multiSync();
   setTimeout(()=>$('#name').focus(),50);
 }
 
@@ -2183,7 +2245,20 @@ function submitForm(sendAfter){
     if(data.status==='done') data.entered={m:!!m, w:!!w};
     else if(b.status==='done') data.entered={};   // رجّعوه من «تم الدخول» لحالة تانية
     Object.assign(b, data); toast('✓ تم تحديث الحجز');
-  } else { b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data}; S.bookings.push(b); toast('✓ تمت إضافة الحجز'); tgNotify(b); }
+  } else {
+    const extra = data.noData ? multiRead() : [];
+    if(MULTI && data.noData && !extra.length){ toast('🔁 حدد يوم الموعد الإضافي أو اقفل «أكتر من موعد»'); return; }
+    if(extra.some(x=>(m && !x.ms) || (w && !x.ws)) && !confirm('فيه موعد إضافي من غير وقت. تحفظ على أي حال؟')) return;
+    const rep = extra.length ? {id:uid(), n:extra.length+1} : null;
+    b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data, ...(rep?{rep:{...rep, i:1}}:{})}; S.bookings.push(b); tgNotify(b);
+    extra.forEach((x,k)=>{
+      const e={id:uid(), frozen:false, createdAt:Date.now()+k+1, payments:[], ...data, paid:0,
+        date:x.date, menDate:x.date, womenDate:x.date, menSlot:m?x.ms:'', womenSlot:w?x.ws:'', rep:{...rep, i:k+2}};
+      if(e.status==='done') e.status='confirmed';
+      S.bookings.push(e); tgNotify(e);
+    });
+    toast(extra.length ? `✓ اتسجل ${extra.length+1} مواعيد للعميل` : '✓ تمت إضافة الحجز');
+  }
   if(!b.noData) b.pax=fixRows(b.pax, paxN(b));   // بدون بيانات: مانلمسش أي صفوف قديمة عشان لو رجّعوه حجز عادي تفضل موجودة
   const sv=save(); closeOv('formOv'); renderAll();
   Promise.resolve(sv).then(()=>{ if(paxMissing(b)) allocEmails(b); });
