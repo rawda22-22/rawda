@@ -157,7 +157,9 @@ async function watchAccount({ account, pass, db, tg, endAt, log }) {
     client.on('error', (e) => console.error(mask(account), 'IMAP:', e.message));
     try {
       await client.connect();
-      const lock = await client.getMailboxLock('INBOX');
+      // «كل البريد» مش «الوارد»: لو فيه فلتر في الجيميل بيأرشف إيميلات نسك (مابتدخلش الوارد) برضه نشوفها
+      const all = (await client.list()).find((b) => b.specialUse === '\\All')?.path || 'INBOX';
+      const lock = await client.getMailboxLock(all);
       try {
         log(`متصل بـ ${mask(account)} — مستني الأكواد`);
         await fetchNew(client);
