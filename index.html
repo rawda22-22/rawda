@@ -259,6 +259,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button class="hbtn" onclick="openSearch()" title="بحث شامل في كل الحجوزات (اختصار: /)">🔍 بحث</button>
   <a class="hbtn arch" href="archive.html" target="_blank" title="أرشيف الاسكرينات — ارفع اسكرين التحويل وخد رقم الإيصال">🗂 الأرشيف</a>
   <button class="hbtn" id="logoutBtn" style="display:none" onclick="logout()" title="تسجيل الخروج">🚪</button>
+  <button class="hbtn" onclick="openForm(null,true)" title="حجز من غير جوازات ولا تأشيرات ولا إيميلات">＋ حجز بدون بيانات</button>
   <button class="hbtn pri" onclick="openForm()">＋ حجز جديد</button>
 </header>
 
@@ -663,6 +664,7 @@ body:not(.cloud) .cloud-only{display:none!important}
           <select id="status"><option value="new">جديد</option><option value="confirmed">مؤكد</option><option value="done">تم الدخول</option><option value="cancelled">ملغي</option></select>
         </div>
         <div class="f"><label>ملاحظات</label><input id="notes"></div>
+        <label class="chk f full"><input type="checkbox" id="noData"> 📄 حجز بدون بيانات <span class="hint">(من غير جوازات ولا تأشيرات — مش هيسحب إيميلات من البنك ومش هيدخل مراحل المنصة)</span></label>
         <div class="f full"><span class="hint" id="auditInfo"></span></div>
       </div>
       <div class="mfoot">
@@ -1437,7 +1439,7 @@ const gColor = g => g==='m' ? 'var(--blue)' : 'var(--pink)';
 const hm = d => fmt12(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
 const who = e => e ? esc(empName(e)) : '';
 /* 👨‍💼 اسم الموظف صاحب الحجز بخط صغير — بيظهر جنب اسم العميل في كل المراحل */
-const empTag = b => b && b.createdBy ? ` <span class="emptag">👨‍💼 ${esc(empName(b.createdBy))}</span>` : '';
+const empTag = b => (b && b.createdBy ? ` <span class="emptag">👨‍💼 ${esc(empName(b.createdBy))}</span>` : '') + (b && b.noData ? ` <span class="emptag">📄 بدون بيانات</span>` : '');
 function badgeFor(ms){
   const l=level(ms);
   if(l==='urgent') return `<span class="badge b-red">🔔 ${remText(ms)}</span>`;
@@ -2112,15 +2114,16 @@ $('#womenDate').addEventListener('input',()=>refreshOne('w'));
 $('#bulkChk').addEventListener('change',refreshBill);
 ['menSlot','womenSlot'].forEach(k=>$('#'+k).addEventListener('change',()=>{ $('#'+k).dataset.v=$('#'+k).value; $('#'+k.replace('Slot','')+'Warn').textContent=''; }));
 
-function openForm(id){
+function openForm(id, noData){
   const b = id ? S.bookings.find(x=>x.id===id) : null;
   if(b && b.frozen){
     if(!confirm('هذا الحجز ضمن دفعة مجمّدة. هل تريد فك تجميده وتعديله؟')) return;
     b.frozen=false; save(); renderAll();
   }
   const cur = b?.currency || S.settings.defCur;
-  $('#formTitle').textContent = b ? 'تعديل الحجز' : 'حجز جديد';
+  $('#formTitle').textContent = b ? 'تعديل الحجز' : (noData ? '📄 حجز بدون بيانات' : 'حجز جديد');
   $('#bid').value = b?.id || '';
+  $('#noData').checked = b ? !!b.noData : !!noData;
   $('#name').value = b?.name || '';
   $('#phone').value = b?.phone || '';
   $('#men').value = b?.men ?? 0;
@@ -2164,7 +2167,8 @@ function submitForm(sendAfter){
     status:$('#status').value, notes:$('#notes').value.trim(),
     currency:formCur(), price:+$('#price').value||0, discType:$('#discType').value, disc:+$('#disc').value||0,
     discNote:$('#discNote').value.trim(), bulkPct:formBulkPct(),
-    paid:+$('#paid').value||0, payMethod:$('#payMethod').value
+    paid:+$('#paid').value||0, payMethod:$('#payMethod').value,
+    noData:$('#noData').checked
   };
   if((m && !data.menSlot) || (w && !data.womenSlot)){
     if(!confirm('لم يُحدد وقت لإحدى الفئات. هل تريد الحفظ على أي حال؟')) return;
@@ -2180,7 +2184,7 @@ function submitForm(sendAfter){
     else if(b.status==='done') data.entered={};   // رجّعوه من «تم الدخول» لحالة تانية
     Object.assign(b, data); toast('✓ تم تحديث الحجز');
   } else { b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data}; S.bookings.push(b); toast('✓ تمت إضافة الحجز'); tgNotify(b); }
-  b.pax=fixRows(b.pax, paxN(b));
+  if(!b.noData) b.pax=fixRows(b.pax, paxN(b));   // بدون بيانات: مانلمسش أي صفوف قديمة عشان لو رجّعوه حجز عادي تفضل موجودة
   const sv=save(); closeOv('formOv'); renderAll();
   Promise.resolve(sv).then(()=>{ if(paxMissing(b)) allocEmails(b); });
   if(sendAfter) window.open(waUrl(b),'_blank');
@@ -3387,7 +3391,7 @@ const bankFree = () => mode==='cloud' && isAdmin() && BANK.list.length ? BANK.li
 /* النظام ده بيشتغل على الحجوزات اللي اتسجلت من يوم 10 أكتوبر 2026 وبعده بس (بتوقيت القاهرة).
    الحجوزات القديمة مالهاش صفوف ولا إيميلات — إلا لو حد كان دخّل لها بيانات بالفعل */
 const PAX_FROM = 1791579600000;   // 2026-10-10 00:00 القاهرة
-const paxOn = b => (+b.createdAt||0) >= PAX_FROM || (b.pax||[]).some(r=>r && (r.email||r.visa||r.pass));
+const paxOn = b => !b.noData && ((+b.createdAt||0) >= PAX_FROM || (b.pax||[]).some(r=>r && (r.email||r.visa||r.pass)));   // 📄 «حجز بدون بيانات» برّه الدورة دي خالص
 const paxN = b => (b.status==='cancelled' || !paxOn(b)) ? 0 : (+b.men||0) + (+b.women||0);
 const emptyRow = () => ({name:'', visa:'', pass:'', nat:'', email:''});
 const rowHasData = r => !!(r && (r.name || r.visa || r.pass || r.nat));
