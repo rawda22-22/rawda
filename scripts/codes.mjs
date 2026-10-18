@@ -65,6 +65,15 @@ async function diagAccount({ account, pass, tg }) {
       for (const m of ms) { const f = (m.envelope?.from || []).map((x) => x.address).join(' '); if (!SENDER.test(f)) continue; nk++;
         const p = await simpleParser(m.source), c = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' ')); if (c) withCode++; else if (!sample) sample = String(p.subject || '').slice(0, 60); }
       if (nk) console.log(`::notice::تشخيص ${mask(account)} ${path}: إيميلات نسك ${nk} • لقيت فيها كود ${withCode}${sample ? ` • مثال من غير كود: ${sample}` : ''}`);
+      // آخر إيميل نسك: بقاله قد إيه + لمين + تجربة إرسال حقيقية لتليجرام بنفس طريقة المراقب
+      const nm = ms.filter((m) => SENDER.test((m.envelope?.from || []).map((x) => x.address).join(' '))).pop();
+      if (nm) {
+        const p = await simpleParser(nm.source), c = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' ')), to = recipient(p, account);
+        const ago = Math.round((Date.now() - new Date(nm.internalDate).getTime()) / 60000);
+        console.log(`::notice::تشخيص ${mask(account)}: آخر إيميل نسك من ${ago} دقيقة • إلى ${mask(to)} • كود ${c ? 'موجود' : 'مش موجود'}`);
+        try { await tgSend(tg.token, tg.chatId, '🧪 تجربة إرسال (آخر كود اتلقى):\n' + codeMessage({ to, code: c || '—', subject: p.subject, date: new Date(nm.internalDate).getTime() })); console.log('::notice::تجربة الإرسال لتليجرام: نجحت'); }
+        catch (e) { console.log(`::error::تجربة الإرسال لتليجرام فشلت: ${e.message}`); }
+      }
       for (const m of ms.slice(-8)) {
         const p = await simpleParser(m.source), from = (m.envelope?.from || []).map((x) => x.address).join(' ');
         const code = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' '));
