@@ -1174,7 +1174,8 @@ function subscribe(){
     USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderAll();
   }, e=>console.warn('users:', e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'emailMeta','main'), d=>{ BANK.meta={total:0, next:0, low:30, ...(d.exists()?d.data():{})}; renderAll(); }, e=>console.warn('emailMeta:', e.code||e)));
-  if(isAdmin()) unsubs.push(fb.onSnapshot(fb.collection(db,'emailBank'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); if(x.email) a.push({email:x.email, seq:+x.seq, at:x.at}); }); BANK.list=a; renderAll(); }, e=>console.warn('emailBank:', e.code||e)));
+  /* 📧 قائمة البنك كاملة بتتقرا بس لما تفتح تبويب «بنك الإيميلات» — عشان كل فتحة للصفحة ماتصرفش آلاف القراءات من حصة Firebase */
+  if(currentTab()==='bank') bankWatch();
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
     const arr=[]; synced.bookings={};
@@ -1184,7 +1185,14 @@ function subscribe(){
     renderAll(); printFromUrl();
   }, cloudErr));
 }
-function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; stopPresence(); }
+function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; bankUnsub=null; BANK.list=[]; stopPresence(); }
+let bankUnsub=null;
+function bankWatch(){
+  if(mode!=='cloud' || !db || !fb || !isAdmin() || bankUnsub) return;
+  bankUnsub = fb.onSnapshot(fb.collection(db,'emailBank'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); if(x.email) a.push({email:x.email, seq:+x.seq, at:x.at}); }); BANK.list=a; renderAll(); },
+    e=>{ console.warn('emailBank:', e.code||e); if(e.code==='resource-exhausted') toast('⚠️ حصة Firebase المجانية خلصت النهارده — هترجع الساعة 10 الصبح'); bankUnsub=null; });
+  unsubs.push(()=>{ if(bankUnsub) bankUnsub(); });
+}
 
 /* ========= 🟢 حالة الموظف (نشط الآن / مفتوح / غير متصل) =========
    كل حساب فاتح الموقع بيسجّل نبضة (lastSeen) كل دقيقة في مستند حسابه، والمدير بيشوفها في قائمة الموظفين. */
@@ -1945,6 +1953,7 @@ function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderB
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
   if(!isAdmin() && ['fin','staff','log','bank'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(t==='bank') bankWatch();
   if(t==='fin' && !finUnlocked){
     if(FINPIN===undefined){ toast('⏳ لحظة… بيتأكد من قفل الحسابات'); return; }
     if(FINPIN){ askPin(); return; }
@@ -3955,6 +3964,7 @@ $('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').va
   $('#bankInWhy').innerHTML = r.why.length ? `<div style="background:#fdf2f2;border:1px solid #efb9b9;border-radius:10px;padding:8px 10px;margin-top:8px"><b style="color:var(--red)">⚠️ الإيميلات دي مش هتتضاف:</b>${r.why.slice(0,200).map(([e,w])=>`<div class="hint" style="display:block"><span dir="ltr">${esc(e)}</span> — ${esc(w)}</div>`).join('')}${r.why.length>200?`<div class="hint" style="display:block">… وكمان ${r.why.length-200}</div>`:''}</div>` : ''; });
 async function bankAdd(){
   if(!isAdmin()) return;
+  if(mode==='cloud' && !BANK.list.length && (+BANK.meta.total||0)>0){ bankWatch(); toast('⏳ لحظة… البنك لسه بيتحمّل — جرب تاني بعد ثواني'); return; }
   const r=parseEmails($('#bankIn').value);
   /* المحروقة اللي مش مع أي عميل حالياً (اتلغى حجزها أو اتبدلت) — ممكن تترجع للبنك بعد تأكيد */
   let add=[...r.ok];
