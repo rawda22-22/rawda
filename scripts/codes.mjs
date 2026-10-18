@@ -177,6 +177,7 @@ async function main() {
   initializeApp({ credential: cert(JSON.parse(raw)) });
   const db = getFirestore(), log = (m) => console.log('::notice::' + m);
   const diag = process.env.DIAG === 'true';
+  const force = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
   const minutes = +process.env.WATCH_MINUTES || 345, endAt = Date.now() + minutes * 60000;
 
   // 🔒 مراقب واحد بس في نفس الوقت (الاحتياطي بالساعة بيخرج لو فيه واحد شغال) — والتالي بيبدأ قبل ما اللي قبله يخلص بدقيقتين
@@ -185,7 +186,8 @@ async function main() {
   const lease = db.doc('meta/codesLease');
   const ok = diag || await db.runTransaction(async (t) => {
     const s = await t.get(lease), L = s.exists ? s.data() : null, now = Date.now();
-    const alive = L && L.runId !== runId && now - (L.beat || 0) < 90000 && (L.until || 0) > now + 3 * 60000;
+    // التشغيل اليدوي (أو تسليم المراقب اللي قبله) بياخد المكان على طول، والقديم بيخرج لوحده في النبضة الجاية
+    const alive = !force && L && L.runId !== runId && now - (L.beat || 0) < 90000 && (L.until || 0) > now + 3 * 60000;
     if (alive) return false;
     t.set(lease, { runId, until: endAt, beat: now }); return true;
   });
