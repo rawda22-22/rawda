@@ -583,6 +583,7 @@ body:not(.cloud) .cloud-only{display:none!important}
         <span class="sp"></span>
         <label class="hint">نبّهني لما يفضل أقل من</label><input id="bankLow" type="number" min="0" step="1" style="width:80px" onchange="bankSetLow()"><span class="hint">إيميل</span>
       </div>
+      <div id="bankInWhy"></div>
     </div>
     <div class="card">
       <h2>🔎 الإيميلات <span class="sp"></span>
@@ -3939,12 +3940,18 @@ const gKey = e => String(e||'').trim().toLowerCase();
 const paxEmailKeys = () => { const k=new Set(); S.bookings.forEach(b=>(b.pax||[]).forEach(r=>{ if(r && r.email) k.add(gKey(r.email)); })); return k; };
 function parseEmails(txt){
   const all=(String(txt).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(x=>x.toLowerCase());
-  const have=new Set([...bankList().map(x=>gKey(x.email)), ...paxEmailKeys()]), seen=new Set(), ok=[]; let dup=0, notG=0;
-  all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; return; } const k=gKey(e); if(have.has(k)||seen.has(k)){ dup++; return; } seen.add(k); ok.push(e); });
-  return {ok, dup, notG};
+  const have=new Set([...bankList().map(x=>gKey(x.email)), ...paxEmailKeys()]), seen=new Set(), ok=[], why=[]; let dup=0, notG=0;
+  const next=+bankMeta().next||0, inBank=new Map(bankList().map(x=>[gKey(x.email), x])), inPax=new Map();
+  S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r && r.email) inPax.set(gKey(r.email), {b, i}); }));
+  all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; why.push([e,'مش جيميل']); return; } const k=gKey(e);
+    if(have.has(k)||seen.has(k)){ dup++; const p=inPax.get(k), x=inBank.get(k);
+      why.push([e, seen.has(k) ? 'متكرر جوه اللي انت لازقه' : p ? `متسحب لحجز ${p.b.name} (فرد ${p.i+1})` : x ? (x.seq<=next ? `اتسحب قبل كده (#${x.seq}) — اتحرق` : `موجود في البنك ومتاح (#${x.seq})`) : 'موجود']); return; }
+    seen.add(k); ok.push(e); });
+  return {ok, dup, notG, why};
 }
 $('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').value);
-  $('#bankInInfo').textContent = $('#bankIn').value.trim() ? `${r.ok.length} إيميل جديد${r.dup?` • ${r.dup} مكرر`:''}${r.notG?` • ${r.notG} مش جيميل`:''}` : ''; });
+  $('#bankInInfo').textContent = $('#bankIn').value.trim() ? `${r.ok.length} إيميل جديد${r.dup?` • ${r.dup} مكرر`:''}${r.notG?` • ${r.notG} مش جيميل`:''}` : '';
+  $('#bankInWhy').innerHTML = r.why.length ? `<div style="background:#fdf2f2;border:1px solid #efb9b9;border-radius:10px;padding:8px 10px;margin-top:8px"><b style="color:var(--red)">⚠️ الإيميلات دي مش هتتضاف:</b>${r.why.slice(0,200).map(([e,w])=>`<div class="hint" style="display:block"><span dir="ltr">${esc(e)}</span> — ${esc(w)}</div>`).join('')}${r.why.length>200?`<div class="hint" style="display:block">… وكمان ${r.why.length-200}</div>`:''}</div>` : ''; });
 async function bankAdd(){
   if(!isAdmin()) return;
   const r=parseEmails($('#bankIn').value);
@@ -3966,7 +3973,7 @@ async function bankAdd(){
     } else {
       const B=localBank(); r.ok.forEach(email=>{ B.total++; B.list.push({email, seq:B.total, at:Date.now()}); }); save();
     }
-    $('#bankIn').value=''; $('#bankInInfo').textContent=''; toast(`✅ اتضاف ${r.ok.length} إيميل للبنك`); renderAll();
+    $('#bankIn').value=''; $('#bankInInfo').textContent=''; $('#bankInWhy').innerHTML=''; toast(`✅ اتضاف ${r.ok.length} إيميل للبنك`); renderAll();
     setTimeout(fillAllMissing, 1500);
   }catch(e){ cloudErr(e); console.error(e); toast('⚠️ الإضافة فشلت: '+(e.code||e.message||e)); renderAll(); }
 }
