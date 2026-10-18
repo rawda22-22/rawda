@@ -3604,18 +3604,30 @@ function paxRender(){
   const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
   $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>النوع</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
     (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${sxCell(b,r,i)}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
-      <td>${r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>` : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
+      <td>${adm ? `<div style="display:flex;gap:4px;align-items:center">${inp(i,'email',r.email,'الجيميل','dir="ltr" type="email" autocapitalize="off" spellcheck="false" style="min-width:210px"')}${r.email?`<button type="button" class="ibtn" onclick="apCopy(this,'${esc(r.email)}')" title="نسخ">📋</button>`:''}</div>`
+        : r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>` : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
   $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
 }
 $('#paxTable').addEventListener('change', e=>{ if(e.target.dataset.k==='sx'){ paxDirty=true; paxCollect(); paxRender(); } });
 $('#paxTable').addEventListener('input', e=>{ if(e.target.classList.contains('px')){ paxDirty=true; e.target.style.background=''; } });
 function paxCollect(){
   const b=paxB(); if(!b) return;
-  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='sx'){ if(r.sx!==v && r.eh && !slotsOf(v).includes(r.eh)) delete r.eh; r.sx=v; return; } if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
+  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='sx'){ if(r.sx!==v && r.eh && !slotsOf(v).includes(r.eh)) delete r.eh; r.sx=v; return; } if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k==='email'){ if(el.value===el.defaultValue) return; v=v.toLowerCase().replace(/\s+/g,''); } else if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
 }
 function paxSave(close=true){
   const b=paxB(); if(!b) return;
-  paxCollect(); b.pax=fixRows(b.pax, paxN(b)); paxDirty=false; save(); renderAll();
+  paxCollect();
+  /* ✍️ الإيميل اليدوي (للمدير): يتأكد إنه جيميل ومش مع فرد تاني */
+  if(isAdmin()){
+    const bad=[], dup=[], seen=new Map();
+    S.bookings.forEach(x=>{ if(x.id!==b.id) (x.pax||[]).forEach((r,i)=>{ if(r && r.email) seen.set(gKey(r.email), `${x.name} (فرد ${i+1})`); }); });
+    (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email);
+      if(!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(k)) bad.push(`فرد ${i+1}: ${r.email}`);
+      else if(seen.has(k)) dup.push(`فرد ${i+1}: ${r.email} ← مع ${seen.get(k)}`);
+      else seen.set(k, `نفس الحجز (فرد ${i+1})`); });
+    if(bad.length){ toast('⛔ إيميل مكتوب غلط: '+bad.join('، ')); return; }
+    if(dup.length && !confirm(`⚠️ الإيميل ده مستخدم مع فرد تاني:\n${dup.join('\n')}\n\nتحفظ برضه؟`)) return;
+  } b.pax=fixRows(b.pax, paxN(b)); paxDirty=false; save(); renderAll();
   if(close){ closeOv('paxOv'); PAXID=null; toast(`✓ اتحفظت بيانات الأفراد (${paxDone(b)}/${paxN(b)})`); } else paxRender();
 }
 function paxClose(){ if(paxDirty) paxSave(true); else { closeOv('paxOv'); PAXID=null; } }
