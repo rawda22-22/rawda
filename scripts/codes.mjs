@@ -146,7 +146,16 @@ async function main() {
     t.set(lease, { runId, until: endAt, beat: now }); return true;
   });
   if (!ok) { log('فيه مراقب أكواد شغال بالفعل — خروج'); return; }
-  if (!diag) setInterval(() => lease.set({ runId, until: endAt, beat: Date.now() }).catch(() => {}), 30000);
+  if (!diag) {
+    // نبض كل 30 ثانية — ولو مراقب جديد استلم مكاننا نخرج على طول (عشان مايبقاش فيه اتنين شغالين مع بعض)
+    setInterval(() => db.runTransaction(async (t) => {
+      const s = await t.get(lease), L = s.exists ? s.data() : null;
+      if (L && L.runId !== runId) return false;
+      t.set(lease, { runId, until: endAt, beat: Date.now() }); return true;
+    }).then((mine) => { if (!mine) { log('المراقب الجديد استلم — خروج'); process.exit(0); } }).catch(() => {}), 30000);
+    // خروج مضمون في الميعاد (قبل حد الـ 6 ساعات بتاع GitHub)
+    setTimeout(() => { log('خلص وقت المراقب — خروج'); process.exit(0); }, Math.max(0, endAt - Date.now()) + 30000);
+  }
 
   // تشغيل المراقب اللي بعده قبل النهاية بدقيقتين (عشان مفيش ولا ثانية من غير مراقبة)
   const repo = process.env.GITHUB_REPOSITORY, token = process.env.GH_TOKEN;
