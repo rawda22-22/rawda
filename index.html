@@ -3940,14 +3940,15 @@ const gKey = e => String(e||'').trim().toLowerCase();
 const paxEmailKeys = () => { const k=new Set(); S.bookings.forEach(b=>(b.pax||[]).forEach(r=>{ if(r && r.email) k.add(gKey(r.email)); })); return k; };
 function parseEmails(txt){
   const all=(String(txt).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(x=>x.toLowerCase());
-  const have=new Set([...bankList().map(x=>gKey(x.email)), ...paxEmailKeys()]), seen=new Set(), ok=[], why=[]; let dup=0, notG=0;
+  const have=new Set([...bankList().map(x=>gKey(x.email)), ...paxEmailKeys()]), seen=new Set(), ok=[], why=[], reuse=[]; let dup=0, notG=0;
   const next=+bankMeta().next||0, inBank=new Map(bankList().map(x=>[gKey(x.email), x])), inPax=new Map();
   S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r && r.email) inPax.set(gKey(r.email), {b, i}); }));
   all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; why.push([e,'مش جيميل']); return; } const k=gKey(e);
     if(have.has(k)||seen.has(k)){ dup++; const p=inPax.get(k), x=inBank.get(k);
+      if(!seen.has(k) && !p && x && x.seq<=next){ reuse.push(e); seen.add(k); }
       why.push([e, seen.has(k) ? 'متكرر جوه اللي انت لازقه' : p ? `متسحب لحجز ${p.b.name} (فرد ${p.i+1})` : x ? (x.seq<=next ? `اتسحب قبل كده (#${x.seq}) — اتحرق` : `موجود في البنك ومتاح (#${x.seq})`) : 'موجود']); return; }
     seen.add(k); ok.push(e); });
-  return {ok, dup, notG, why};
+  return {ok, dup, notG, why, reuse};
 }
 $('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').value);
   $('#bankInInfo').textContent = $('#bankIn').value.trim() ? `${r.ok.length} إيميل جديد${r.dup?` • ${r.dup} مكرر`:''}${r.notG?` • ${r.notG} مش جيميل`:''}` : '';
@@ -3955,8 +3956,13 @@ $('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').va
 async function bankAdd(){
   if(!isAdmin()) return;
   const r=parseEmails($('#bankIn').value);
-  if(!r.ok.length){ toast(r.dup||r.notG ? `مفيش إيميلات جديدة (${r.dup} مكرر • ${r.notG} مش جيميل)` : 'الصق الإيميلات الأول'); return; }
-  if(!confirm(`إضافة ${r.ok.length} إيميل للبنك؟${r.dup?`\n(${r.dup} مكرر هيتشالوا)`:''}${r.notG?`\n(${r.notG} مش جيميل هيتشالوا)`:''}`)) return;
+  /* المحروقة اللي مش مع أي عميل حالياً (اتلغى حجزها أو اتبدلت) — ممكن تترجع للبنك بعد تأكيد */
+  let add=[...r.ok];
+  if(r.reuse.length && confirm(`${r.reuse.length} إيميل من دول اتسحبوا قبل كده بس مش مع أي عميل دلوقتي (اتبدلوا أو الحجز اتلغى).\n\nترجّعهم للبنك برضه؟\n⚠️ لو كان اتعمل بيهم حساب على المنصة قبل كده ممكن مايشتغلوش`)) add=add.concat(r.reuse);
+  const blocked=r.dup-r.reuse.length;
+  if(!add.length){ toast(r.dup||r.notG ? `مفيش إيميلات تتضاف (${blocked} مع عملاء أو موجودة في البنك • ${r.notG} مش جيميل)` : 'الصق الإيميلات الأول'); return; }
+  if(!confirm(`إضافة ${add.length} إيميل للبنك؟${blocked?`\n(${blocked} مش هيتضافوا — مع عملاء حالياً أو موجودين في البنك)`:''}${r.notG?`\n(${r.notG} مش جيميل هيتشالوا)`:''}`)) return;
+  r.ok=add;
   try{
     if(mode==='cloud'){
       const mref=fb.doc(db,'emailMeta','main');
