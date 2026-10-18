@@ -49,7 +49,8 @@ async function diagAccount({ account, pass, tg }) {
   const client = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: account, pass }, logger: false });
   const L = [`🧪 <b>تشخيص أكواد نسك</b>`, `📮 ${h(account)}`];
   try { await client.connect(); }
-  catch (e) { await tgSend(tg.token, tg.chatId, L.concat(`❌ مش قادر يدخل الحساب: ${h(e.responseText || e.message)}`).join('\n')); return; }
+  catch (e) { console.log(`::error::تشخيص ${mask(account)}: الدخول فشل — ${e.responseText || e.message}`); await tgSend(tg.token, tg.chatId, L.concat(`❌ مش قادر يدخل الحساب: ${h(e.responseText || e.message)}`).join('\n')); return; }
+  console.log(`::notice::تشخيص ${mask(account)}: الدخول تمام`);
   L.push('✅ الدخول للحساب تمام');
   const boxes = await client.list();
   const pick = (u, fb) => boxes.find((b) => b.specialUse === u)?.path || fb;
@@ -59,6 +60,7 @@ async function diagAccount({ account, pass, tg }) {
       const ms = [];
       for await (const m of client.fetch({ since: new Date(Date.now() - 2 * 3600e3) }, { uid: true, envelope: true, internalDate: true, source: true })) ms.push(m);
       L.push('', `${name}: ${ms.length} إيميل في آخر ساعتين`);
+      console.log(`::notice::تشخيص ${mask(account)} ${path}: ${ms.length} إيميل في آخر ساعتين • منهم من نسك ${ms.filter((m) => SENDER.test((m.envelope?.from || []).map((x) => x.address).join(' '))).length}`);
       for (const m of ms.slice(-8)) {
         const p = await simpleParser(m.source), from = (m.envelope?.from || []).map((x) => x.address).join(' ');
         const code = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' '));
