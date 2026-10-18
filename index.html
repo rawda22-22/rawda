@@ -588,7 +588,8 @@ body:not(.cloud) .cloud-only{display:none!important}
       <h2>🔎 الإيميلات <span class="sp"></span>
         <input id="bankQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderBank()">
         <select id="bankF" class="ibtn" onchange="renderBank()"><option value="free">المتاحة</option><option value="used">المستخدمة</option><option value="">الكل</option></select>
-        <button class="ibtn" onclick="bankDupCheck()" title="يدوّر على أي إيميل متكرر في البنك أو في الحجوزات">🔍 فحص التكرار</button></h2>
+        <button class="ibtn" onclick="bankDupCheck()" title="يدوّر على أي إيميل متكرر في البنك أو في الحجوزات">🔍 فحص التكرار</button>
+        <button class="ibtn del" onclick="bankDelLast()" title="يحذف آخر إيميلات اتضافت للبنك (المتاحة بس — المسحوبة مابتتلمسش)">🗑 حذف آخر إضافة</button></h2>
       <div id="bankDup"></div>
       <div style="overflow-x:auto"><table class="curTable" id="bankTable"></table></div>
     </div>
@@ -3967,6 +3968,31 @@ async function bankSetLow(){
   const v=Math.max(0, Math.round(+$('#bankLow').value||0));
   try{ if(mode==='cloud') await fb.setDoc(fb.doc(db,'emailMeta','main'), {low:v}, {merge:true}); else { localBank().low=v; save(); }
     toast(`✓ هنبّهك لما يفضل أقل من ${v} إيميل`); renderAll(); }catch(e){ cloudErr(e); }
+}
+/* 🗑 حذف آخر N إيميل اتضافوا للبنك (أعلى أرقام) — المتاحة بس، والمسحوبة (المحروقة) عمرها ما بتتمسح */
+async function bankDelLast(){
+  if(!isAdmin()) return;
+  const raw=prompt('عايز تحذف آخر كام إيميل اتضافوا للبنك؟', '2000'); if(raw===null) return;
+  const n=Math.round(+String(raw).replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660)); if(!(n>0)){ toast('اكتب رقم صحيح'); return; }
+  const next=+bankMeta().next||0, all=[...bankList()].sort((a,b)=>b.seq-a.seq), last=all.slice(0,n);
+  const del=last.filter(x=>x.seq>next), burned=last.length-del.length;
+  if(!del.length){ toast('⛔ آخر الإيميلات دي كلها اتسحبت لعملاء — مش هينفع تتحذف'); return; }
+  const lo=del[del.length-1], hi=del[0];
+  if(!confirm(`هيتحذف ${del.length} إيميل من البنك نهائياً:\nمن #${lo.seq} (${lo.email})\nلحد #${hi.seq} (${hi.email})${burned?`\n\n⚠️ ${burned} منهم اتسحبوا لعملاء — دول مش هيتحذفوا`:''}${n>all.length?`\n\n(البنك فيه ${all.length} بس)`:''}\n\nالحذف مالوش رجوع. متأكد؟`)) return;
+  try{
+    if(mode==='cloud'){
+      toast(`⏳ جاري حذف ${del.length} إيميل…`);
+      for(let i=0;i<del.length;i+=400){ const batch=fb.writeBatch(db); del.slice(i,i+400).forEach(x=>batch.delete(fb.doc(db,'emailBank',bankId(x.seq)))); await batch.commit(); }
+      // العدّاد يرجع لآخر إيميل فاضل — عشان السحب مايلفّش على أرقام اتمسحت
+      const delSet=new Set(del.map(x=>x.seq)), newTop=all.filter(x=>!delSet.has(x.seq)).reduce((m,x)=>Math.max(m,x.seq), next);
+      const mref=fb.doc(db,'emailMeta','main');
+      await fb.runTransaction(db, async t=>{ const ms=await t.get(mref), m=ms.exists()?ms.data():{}; if((+m.total||0)<=hi.seq) t.set(mref, {total:Math.max(newTop, +m.next||0)}, {merge:true}); });
+    } else {
+      const B=localBank(), delSet=new Set(del.map(x=>x.seq)); B.list=B.list.filter(e=>!delSet.has(e.seq));
+      B.total=Math.max(+B.next||0, ...B.list.map(e=>e.seq)); save();
+    }
+    toast(`✅ اتحذف ${del.length} إيميل من البنك`); renderAll();
+  }catch(e){ cloudErr(e); toast('⚠️ الحذف وقف في النص — جرب تاني (اللي اتحذف خلاص مش هيرجع)'); renderAll(); }
 }
 async function bankDel(seq){
   const x=bankList().find(e=>e.seq===seq); if(!x || seq<=(+bankMeta().next||0)) return;
