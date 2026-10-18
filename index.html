@@ -3956,7 +3956,9 @@ async function bankAdd(){
       for(let i=0;i<r.ok.length;i+=300){
         const part=r.ok.slice(i,i+300);
         await fb.runTransaction(db, async t=>{
-          const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0, low:30}; let total=+m.total||0;
+          const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0, low:30};
+          // نبدأ بعد أعلى رقم موجود فعلاً في البنك — عشان مانكتبش فوق إيميل موجود (القواعد بتمنع التعديل)
+          let total=Math.max(+m.total||0, +m.next||0, ...bankList().map(x=>+x.seq||0));
           part.forEach(email=>{ total++; t.set(fb.doc(db,'emailBank',bankId(total)), {email, seq:total, at:Date.now(), by:myEmail()}); });
           t.set(mref, {total, next:+m.next||0, low:m.low===undefined?30:+m.low}, {merge:true});
         });
@@ -3966,7 +3968,7 @@ async function bankAdd(){
     }
     $('#bankIn').value=''; $('#bankInInfo').textContent=''; toast(`✅ اتضاف ${r.ok.length} إيميل للبنك`); renderAll();
     setTimeout(fillAllMissing, 1500);
-  }catch(e){ cloudErr(e); toast('⚠️ الإضافة فشلت — اتأكد إن قواعد Firestore اتنشرت'); }
+  }catch(e){ cloudErr(e); console.error(e); toast('⚠️ الإضافة فشلت: '+(e.code||e.message||e)); renderAll(); }
 }
 /* 🔍 فحص التكرار: البنك + كل الإيميلات اللي في الحجوزات (نفس الإيميل بالظبط) */
 function bankDupCheck(){
