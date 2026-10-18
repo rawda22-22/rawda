@@ -47,33 +47,34 @@ async function diagAccount({ account, pass, tg }) {
   const { ImapFlow } = await import('imapflow');
   const { simpleParser } = await import('mailparser');
   const client = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: account, pass }, logger: false });
+  const notes = [], note = (x) => notes.push(x);
   const L = [`🧪 <b>تشخيص أكواد نسك</b>`, `📮 ${h(account)}`];
   try { await client.connect(); }
   catch (e) { console.log(`::error::تشخيص ${mask(account)}: الدخول فشل — ${e.responseText || e.message}`); await tgSend(tg.token, tg.chatId, L.concat(`❌ مش قادر يدخل الحساب: ${h(e.responseText || e.message)}`).join('\n')); return; }
-  console.log(`::notice::تشخيص ${mask(account)}: الدخول تمام`);
+  note(`الدخول تمام`);
   L.push('✅ الدخول للحساب تمام');
   const boxes = await client.list();
   const pick = (u, fb) => boxes.find((b) => b.specialUse === u)?.path || fb;
-  console.log(`::notice::تشخيص ${mask(account)}: الفولدرات ${boxes.map((b) => b.path + (b.specialUse ? '(' + b.specialUse + ')' : '')).join(' | ')}`);
+  note(`الفولدرات ${boxes.map((b) => b.path + (b.specialUse ? '(' + b.specialUse + ')' : '')).join(' | ')}`);
   for (const [name, path] of [['📥 الوارد', 'INBOX'], ['🚫 السبام', pick('\\Junk', '[Gmail]/Spam')], ['🗂 كل البريد', pick('\\All', '[Gmail]/All Mail')]]) {
     const lock = await client.getMailboxLock(path).catch(() => null); if (!lock) { L.push('', `${name}: مش لاقيه`); continue; }
     try {
       const ms = [];
       for await (const m of client.fetch({ since: new Date(Date.now() - 2 * 3600e3) }, { uid: true, envelope: true, internalDate: true, source: true })) ms.push(m);
       L.push('', `${name}: ${ms.length} إيميل في آخر ساعتين`);
-      console.log(`::notice::تشخيص ${mask(account)} ${path}: ${ms.length} إيميل في آخر ساعتين • منهم من نسك ${ms.filter((m) => SENDER.test((m.envelope?.from || []).map((x) => x.address).join(' '))).length}`);
+      note(`${path}: ${ms.length} إيميل في آخر ساعتين • منهم من نسك ${ms.filter((m) => SENDER.test((m.envelope?.from || []).map((x) => x.address).join(' '))).length}`);
       let nk = 0, withCode = 0, sample = '';
       for (const m of ms) { const f = (m.envelope?.from || []).map((x) => x.address).join(' '); if (!SENDER.test(f)) continue; nk++;
         const p = await simpleParser(m.source), c = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' ')); if (c) withCode++; else if (!sample) sample = String(p.subject || '').slice(0, 60); }
-      if (nk) console.log(`::notice::تشخيص ${mask(account)} ${path}: إيميلات نسك ${nk} • لقيت فيها كود ${withCode}${sample ? ` • مثال من غير كود: ${sample}` : ''}`);
+      if (nk) note(`${path}: إيميلات نسك ${nk} • لقيت فيها كود ${withCode}${sample ? ` • مثال من غير كود: ${sample}` : ''}`);
       // آخر إيميل نسك: بقاله قد إيه + لمين + تجربة إرسال حقيقية لتليجرام بنفس طريقة المراقب
       const nm = ms.filter((m) => SENDER.test((m.envelope?.from || []).map((x) => x.address).join(' '))).pop();
       if (nm) {
         const p = await simpleParser(nm.source), c = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' ')), to = recipient(p, account);
         const ago = Math.round((Date.now() - new Date(nm.internalDate).getTime()) / 60000);
-        console.log(`::notice::تشخيص ${mask(account)}: آخر إيميل نسك من ${ago} دقيقة • إلى ${mask(to)} • كود ${c ? 'موجود' : 'مش موجود'}`);
-        try { await tgSend(tg.token, tg.chatId, '🧪 تجربة إرسال (آخر كود اتلقى):\n' + codeMessage({ to, code: c || '—', subject: p.subject, date: new Date(nm.internalDate).getTime() })); console.log('::notice::تجربة الإرسال لتليجرام: نجحت'); }
-        catch (e) { console.log(`::error::تجربة الإرسال لتليجرام فشلت: ${e.message}`); }
+        note(`آخر إيميل نسك من ${ago} دقيقة • إلى ${mask(to)} • كود ${c ? 'موجود' : 'مش موجود'}`);
+        try { await tgSend(tg.token, tg.chatId, '🧪 تجربة إرسال (آخر كود اتلقى):\n' + codeMessage({ to, code: c || '—', subject: p.subject, date: new Date(nm.internalDate).getTime() })); note('تليجرام: نجح'); }
+        catch (e) { note(`تليجرام فشل: ${e.message}`); }
       }
       for (const m of ms.slice(-8)) {
         const p = await simpleParser(m.source), from = (m.envelope?.from || []).map((x) => x.address).join(' ');
@@ -84,6 +85,7 @@ async function diagAccount({ account, pass, tg }) {
     } finally { lock.release(); }
   }
   await client.logout().catch(() => {});
+  console.log(`::notice::تشخيص ${mask(account)} ⇐ ${notes.join(' ‖ ')}`.slice(0, 3900));
   await tgSend(tg.token, tg.chatId, L.join('\n').slice(0, 4000));
 }
 
