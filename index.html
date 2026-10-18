@@ -2085,6 +2085,21 @@ function refreshBill(){
     lbl.innerHTML = c.n>=min ? `🎁 تطبيق خصم المجموعات <b>${S.settings.bulkPct}%</b> (${c.n} أفراد)` : `<span class="hint">خصم المجموعات ${S.settings.bulkPct}% يُطبّق تلقائياً من ${min} أفراد فأكثر</span>`;
   } else chk.parentElement.style.display='none';
   const eq = CODES.filter(x=>x!==c.cur).map(x=>money(conv(c.total,c.cur,x),x)).join(' • ');
+  const N=multiN();
+  if(N>1){   // 🔁 سعر الفرد للموعد الواحد ← الإجمالي = صافي الموعد × عدد المواعيد، والمدفوع من الإجمالي
+    const one=calc({...d, paid:0}), G=round2(one.total*N), P=+d.paid||0, R=round2(G-P);
+    $('#bill').innerHTML = `
+    <div><span>${one.n} فرد × ${M(one.price)}</span><span>${M(one.sub)}</span></div>
+    ${one.manual>0?`<div><span>🎁 خصم ${d.discType==='percent'?d.disc+'%':''}</span><span>− ${M(one.manual)}</span></div>`:''}
+    ${one.bulk>0?`<div><span>🎁 خصم مجموعات ${d.bulkPct}%</span><span>− ${M(one.bulk)}</span></div>`:''}
+    <div><span>صافي الموعد الواحد</span><span>${M(one.total)}</span></div>
+    <div class="tot"><span>🔁 الإجمالي (${N} مواعيد × ${M(one.total)})</span><span>${M(G)}</span></div>
+    <div><span>المدفوع</span><span>${M(P)}</span></div>
+    ${R<0?`<div class="rem"><span>⚠️ مدفوع زيادة</span><span>${M(-R)}</span></div>`:
+      R>0?`<div class="rem"><span>المتبقي</span><span>${M(R)}</span></div>`:`<div class="ok"><span>✅ تم السداد بالكامل</span><span></span></div>`}`;
+    const pl=$('#price').closest('.f').querySelector('label'); if(pl) pl.textContent='سعر الفرد (للموعد الواحد)';
+    return;
+  }
   $('#bill').innerHTML = `
     <div><span>${c.n} فرد × ${M(c.price)}</span><span>${M(c.sub)}</span></div>
     ${c.manual>0?`<div><span>🎁 خصم ${d.discType==='percent'?d.disc+'%':''}</span><span>− ${M(c.manual)}</span></div>`:''}
@@ -2093,9 +2108,8 @@ function refreshBill(){
     ${c.total>0?`<div class="eq"><span>يعادل تقريباً</span><span>${eq}</span></div>`:''}
     <div><span>المدفوع</span><span>${M(c.paid)}</span></div>
     ${c.over>0?`<div class="rem"><span>⚠️ مدفوع زيادة</span><span>${M(c.over)}</span></div>`:
-      c.rem>0?`<div class="rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>`:`<div class="ok"><span>✅ تم السداد بالكامل</span><span></span></div>`}
-    ${multiN()>1?`<div class="eq"><span>🔁 ده إجمالي ${multiN()} مواعيد — كل موعد</span><span>≈ ${M(round2(c.total/multiN()))}</span></div>`:''}`;
-  const pl=$('#price').closest('.f').querySelector('label'); if(pl) pl.textContent = multiN()>1 ? `سعر الفرد (إجمالي الـ ${multiN()} مواعيد)` : 'سعر الفرد';
+      c.rem>0?`<div class="rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>`:`<div class="ok"><span>✅ تم السداد بالكامل</span><span></span></div>`}`;
+  const pl=$('#price').closest('.f').querySelector('label'); if(pl) pl.textContent='سعر الفرد';
 }
 const multiN = () => (MULTI && $('#noData').checked && !$('#bid').value) ? $('#multiRows').children.length+1 : 1;
 function renderDiscChips(){
@@ -2106,8 +2120,8 @@ function renderDiscChips(){
 }
 function setDisc(t,v){ $('#discType').value=t; $('#disc').value=v; refreshBill(); }
 function payQuick(k){
-  const c=calc({...formDraft(), paid:0});
-  $('#paid').value = k==='full' ? c.total : k==='half' ? round2(c.total/2) : 0;
+  const c=calc({...formDraft(), paid:0}), T=round2(c.total*multiN());   // مع أكتر من موعد: الإجمالي كله
+  $('#paid').value = k==='full' ? T : k==='half' ? round2(T/2) : 0;
   refreshBill();
 }
 let prevCur='SAR';
@@ -2170,8 +2184,6 @@ function multiFill(r, keep){
 function multiRenum(){ [...$('#multiRows').children].forEach((r,i)=>r.querySelector('.n').textContent='#'+(i+2)); multiSum(); }
 function multiRefresh(){ [...$('#multiRows').children].forEach(r=>multiFill(r,true)); }
 function multiSum(){ const n=$('#multiRows').children.length; $('#multiSum').textContent = MULTI ? `هيتسجل ${n+1} حجز (موعد) للعميل ده` : ''; refreshBill(); }
-/* 💰 السعر والخصم والمدفوع في الفورم = إجمالي كل المواعيد ← بيتقسموا بالتساوي (والكسور بتروح على الموعد الأول) */
-function splitN(v, n){ const p=round2((+v||0)/n), first=round2((+v||0)-p*(n-1)); return i => i===0 ? first : p; }
 function multiRead(){
   if(!MULTI) return [];
   return [...$('#multiRows').children].map(r=>({date:r.querySelector('.md').value, ms:r.querySelector('.ms').value, ws:r.querySelector('.ws').value})).filter(x=>x.date);
@@ -2255,8 +2267,10 @@ function submitForm(sendAfter){
     if(MULTI && data.noData && !extra.length){ toast('🔁 حدد يوم الموعد الإضافي أو اقفل «أكتر من موعد»'); return; }
     if(extra.some(x=>(m && !x.ms) || (w && !x.ws)) && !confirm('فيه موعد إضافي من غير وقت. تحفظ على أي حال؟')) return;
     const rep = extra.length ? {id:uid(), n:extra.length+1} : null, N=extra.length+1;
-    const sp=splitN(data.price,N), sd=data.discType==='amount' ? splitN(data.disc,N) : ()=>data.disc, spd=splitN(data.paid,N);
-    const part = i => N>1 ? {price:sp(i), disc:sd(i), paid:spd(i)} : {};
+    // السعر والخصم للموعد الواحد (كل موعد بسعره كامل) — والمدفوع من الإجمالي بيتوزع على المواعيد بالترتيب
+    const oneT=calc({...data, paid:0}).total; let left=+data.paid||0;
+    const paidOf = i => { const v = i===N-1 ? left : Math.min(left, oneT); left=round2(left-v); return round2(v); };
+    const part = i => N>1 ? {paid:paidOf(i)} : {};
     b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data, ...part(0), ...(rep?{rep:{...rep, i:1}}:{})}; S.bookings.push(b); tgNotify(b);
     extra.forEach((x,k)=>{
       const e={id:uid(), frozen:false, createdAt:Date.now()+k+1, payments:[], ...data, ...part(k+1),
