@@ -61,6 +61,10 @@ async function diagAccount({ account, pass, tg }) {
       for await (const m of client.fetch({ since: new Date(Date.now() - 2 * 3600e3) }, { uid: true, envelope: true, internalDate: true, source: true })) ms.push(m);
       L.push('', `${name}: ${ms.length} إيميل في آخر ساعتين`);
       console.log(`::notice::تشخيص ${mask(account)} ${path}: ${ms.length} إيميل في آخر ساعتين • منهم من نسك ${ms.filter((m) => SENDER.test((m.envelope?.from || []).map((x) => x.address).join(' '))).length}`);
+      let nk = 0, withCode = 0, sample = '';
+      for (const m of ms) { const f = (m.envelope?.from || []).map((x) => x.address).join(' '); if (!SENDER.test(f)) continue; nk++;
+        const p = await simpleParser(m.source), c = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' ')); if (c) withCode++; else if (!sample) sample = String(p.subject || '').slice(0, 60); }
+      if (nk) console.log(`::notice::تشخيص ${mask(account)} ${path}: إيميلات نسك ${nk} • لقيت فيها كود ${withCode}${sample ? ` • مثال من غير كود: ${sample}` : ''}`);
       for (const m of ms.slice(-8)) {
         const p = await simpleParser(m.source), from = (m.envelope?.from || []).map((x) => x.address).join(' ');
         const code = extractCode(p.subject, p.text || p.html?.replace(/<[^>]+>/g, ' '));
