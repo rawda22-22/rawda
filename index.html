@@ -2093,8 +2093,11 @@ function refreshBill(){
     ${c.total>0?`<div class="eq"><span>يعادل تقريباً</span><span>${eq}</span></div>`:''}
     <div><span>المدفوع</span><span>${M(c.paid)}</span></div>
     ${c.over>0?`<div class="rem"><span>⚠️ مدفوع زيادة</span><span>${M(c.over)}</span></div>`:
-      c.rem>0?`<div class="rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>`:`<div class="ok"><span>✅ تم السداد بالكامل</span><span></span></div>`}`;
+      c.rem>0?`<div class="rem"><span>المتبقي</span><span>${M(c.rem)}</span></div>`:`<div class="ok"><span>✅ تم السداد بالكامل</span><span></span></div>`}
+    ${multiN()>1?`<div class="eq"><span>🔁 ده إجمالي ${multiN()} مواعيد — كل موعد</span><span>≈ ${M(round2(c.total/multiN()))}</span></div>`:''}`;
+  const pl=$('#price').closest('.f').querySelector('label'); if(pl) pl.textContent = multiN()>1 ? `سعر الفرد (إجمالي الـ ${multiN()} مواعيد)` : 'سعر الفرد';
 }
+const multiN = () => (MULTI && $('#noData').checked && !$('#bid').value) ? $('#multiRows').children.length+1 : 1;
 function renderDiscChips(){
   const c=formCur(), sym=CUR[c].sym;
   $('#discChips').innerHTML = [['percent',10,'10%'],['percent',15,'15%'],['percent',20,'20%'],
@@ -2133,7 +2136,7 @@ $('#bulkChk').addEventListener('change',refreshBill);
 ['menSlot','womenSlot'].forEach(k=>$('#'+k).addEventListener('change',()=>{ $('#'+k).dataset.v=$('#'+k).value; $('#'+k.replace('Slot','')+'Warn').textContent=''; }));
 
 /* 🔁 أكتر من موعد لنفس العميل (حجز بدون بيانات بس): كل موعد إضافي بيتسجل حجز منفصل بنفس البيانات */
-let MULTI=false;
+var MULTI=false;   // var عشان refreshBill ممكن تتنادى قبل السطر ده
 function multiSync(){
   const nd=$('#noData').checked, isNew=!$('#bid').value;
   $('#multiTgl').style.display = nd && isNew ? '' : 'none';
@@ -2166,7 +2169,9 @@ function multiFill(r, keep){
 }
 function multiRenum(){ [...$('#multiRows').children].forEach((r,i)=>r.querySelector('.n').textContent='#'+(i+2)); multiSum(); }
 function multiRefresh(){ [...$('#multiRows').children].forEach(r=>multiFill(r,true)); }
-function multiSum(){ const n=$('#multiRows').children.length; $('#multiSum').textContent = MULTI ? `هيتسجل ${n+1} حجز (موعد) للعميل ده` : ''; }
+function multiSum(){ const n=$('#multiRows').children.length; $('#multiSum').textContent = MULTI ? `هيتسجل ${n+1} حجز (موعد) للعميل ده` : ''; refreshBill(); }
+/* 💰 السعر والخصم والمدفوع في الفورم = إجمالي كل المواعيد ← بيتقسموا بالتساوي (والكسور بتروح على الموعد الأول) */
+function splitN(v, n){ const p=round2((+v||0)/n), first=round2((+v||0)-p*(n-1)); return i => i===0 ? first : p; }
 function multiRead(){
   if(!MULTI) return [];
   return [...$('#multiRows').children].map(r=>({date:r.querySelector('.md').value, ms:r.querySelector('.ms').value, ws:r.querySelector('.ws').value})).filter(x=>x.date);
@@ -2249,10 +2254,12 @@ function submitForm(sendAfter){
     const extra = data.noData ? multiRead() : [];
     if(MULTI && data.noData && !extra.length){ toast('🔁 حدد يوم الموعد الإضافي أو اقفل «أكتر من موعد»'); return; }
     if(extra.some(x=>(m && !x.ms) || (w && !x.ws)) && !confirm('فيه موعد إضافي من غير وقت. تحفظ على أي حال؟')) return;
-    const rep = extra.length ? {id:uid(), n:extra.length+1} : null;
-    b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data, ...(rep?{rep:{...rep, i:1}}:{})}; S.bookings.push(b); tgNotify(b);
+    const rep = extra.length ? {id:uid(), n:extra.length+1} : null, N=extra.length+1;
+    const sp=splitN(data.price,N), sd=data.discType==='amount' ? splitN(data.disc,N) : ()=>data.disc, spd=splitN(data.paid,N);
+    const part = i => N>1 ? {price:sp(i), disc:sd(i), paid:spd(i)} : {};
+    b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data, ...part(0), ...(rep?{rep:{...rep, i:1}}:{})}; S.bookings.push(b); tgNotify(b);
     extra.forEach((x,k)=>{
-      const e={id:uid(), frozen:false, createdAt:Date.now()+k+1, payments:[], ...data, paid:0,
+      const e={id:uid(), frozen:false, createdAt:Date.now()+k+1, payments:[], ...data, ...part(k+1),
         date:x.date, menDate:x.date, womenDate:x.date, menSlot:m?x.ms:'', womenSlot:w?x.ws:'', rep:{...rep, i:k+2}};
       if(e.status==='done') e.status='confirmed';
       S.bookings.push(e); tgNotify(e);
