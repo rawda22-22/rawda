@@ -20,6 +20,6 @@ for (const [id, { data, m }] of found) {
   const match = RX.test(String(data.name || ''));
   log('DELETED', id, 'match', match, 'seenAt -' + m + 'min', 'n', (+data.men || 0) + (+data.women || 0), 'date', data.date, 'status', data.status);
   const ex = (await db.doc('bookings/' + id).get()).exists;
-  if (match && !ex) { await db.doc('bookings/' + id).create(data); log('RESTORED', id); } else log('exists now', ex);
+  if (id === 'mveyykzpowfmr' && !ex) { await db.doc('bookings/' + id).create(data); log('RESTORED', id); } else log('exists now', ex);
 }
 if (!found.size) log('nothing deleted found in the last hour');
