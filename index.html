@@ -1189,7 +1189,7 @@ function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; bankUnsub=null; BANK.
 let bankUnsub=null;
 function bankWatch(){
   if(mode!=='cloud' || !db || !fb || !isAdmin() || bankUnsub) return;
-  bankUnsub = fb.onSnapshot(fb.collection(db,'emailBank'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); if(x.email) a.push({email:x.email, seq:+x.seq, at:x.at}); }); BANK.list=a; renderAll(); },
+  bankUnsub = fb.onSnapshot(fb.collection(db,'emailBank'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); if(x.email) a.push({email:x.email, seq:+x.seq, at:x.at}); }); BANK.list=a; renderAll(); bankHealGap(); },
     e=>{ console.warn('emailBank:', e.code||e); if(e.code==='resource-exhausted') toast('⚠️ حصة Firebase المجانية خلصت النهارده — هترجع الساعة 10 الصبح'); bankUnsub=null; });
   unsubs.push(()=>{ if(bankUnsub) bankUnsub(); });
 }
@@ -3536,7 +3536,10 @@ async function allocEmails(b, quiet){
         if(!need) return {got:0, short:0, pax};
         const start=+m.next||0, total=+m.total||0, got=[]; let next=start;
         const taken=paxEmailKeys(); pax.forEach(r=>{ if(r.email) taken.add(gKey(r.email)); });
-        while(got.length<need && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); const em=es.exists() && es.data().email; if(em && !taken.has(gKey(em))){ got.push(em); taken.add(gKey(em)); } }
+        let miss=0;
+        while(got.length<need && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); const em=es.exists() && es.data().email;
+          if(!es.exists()){ if(++miss>40) throw {code:'bank-gap'}; } else miss=0;
+          if(em && !taken.has(gKey(em))){ got.push(em); taken.add(gKey(em)); } }
         if(next===start) return {got:0, short:need, pax};
         let k=0; pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
         t.update(mref, {next});
@@ -3561,8 +3564,33 @@ async function allocEmails(b, quiet){
     }
     if(res.got) renderAll();
     return res;
-  }catch(e){ console.error(e); if(!quiet) toast('⚠️ تعذر سحب الإيميلات: '+(e.code||e.message)); return {got:0, short:-1}; }
+  }catch(e){ console.error(e);
+    if(e && e.code==='bank-gap'){ if(isAdmin()){ bankWatch(); toast('⏳ بنصلّح ترقيم البنك… جرب تاني بعد ثواني'); } else if(!quiet) toast('⚠️ البنك محتاج المدير يفتح تبويب «بنك الإيميلات» مرة — بلّغه'); return {got:0, short:-1}; }
+    if(!quiet) toast('⚠️ تعذر سحب الإيميلات: '+(e.code||e.message)); return {got:0, short:-1}; }
   finally{ allocBusy.delete(b.id); }
+}
+/* 🩹 فجوة في البنك: لو إيميلات اتمسحت ما بين آخر إيميل اتسحب وأول إيميل متاح، السحب كان بيلف على كل رقم ممسوح
+   واحد واحد جوه الـ transaction (آلاف القراءات) فبيفشل ومابيسحبش. هنا العدّاد بيقفز لحد قبل أول إيميل متاح على طول.
+   بيشتغل لوحده لما المدير يفتح تبويب البنك أو يضيف/يحذف إيميلات. */
+let healBusy=false;
+async function bankHealGap(){
+  if(mode!=='cloud' || !isAdmin() || healBusy || !BANK.list.length) return;
+  const next=+BANK.meta.next||0, avail=BANK.list.filter(x=>x.seq>next);
+  const target = avail.length ? Math.min(...avail.map(x=>x.seq))-1 : Math.max(next, ...BANK.list.map(x=>x.seq));
+  if(target<=next) return;
+  healBusy=true;
+  try{
+    const mref=fb.doc(db,'emailMeta','main'); let jumped=false;
+    await fb.runTransaction(db, async t=>{
+      const ms=await t.get(mref), m=ms.exists()?ms.data():{}, cur=+m.next||0;
+      if(target<=cur || target>(+m.total||0)) return;
+      // نتأكد إن الأرقام اللي هنقفز عليها ممسوحة فعلاً (من القائمة اللي متحملة)
+      if(BANK.list.some(x=>x.seq>cur && x.seq<=target)) return;
+      t.update(mref, {next:target}); jumped=true;
+    });
+    if(jumped){ BANK.meta.next=target; console.info('bank gap healed →', target); setTimeout(fillAllMissing, 500); }
+  }catch(e){ console.warn('bankHealGap:', e.code||e); }
+  finally{ healBusy=false; }
 }
 /* بعد إضافة إيميلات: كمّل الحجوزات اللي كانت ناقصة (اللي لسه ماتمتش) */
 async function fillAllMissing(){
