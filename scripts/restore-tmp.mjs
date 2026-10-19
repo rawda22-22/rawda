@@ -14,12 +14,12 @@ for (const m of [2, 4, 6, 8, 10, 13, 16, 20, 25, 30, 35, 40, 45, 50, 55, 58]) {
     const snap = await db.runTransaction(t => t.get(db.collection('bookings')), { readOnly: true, readTime: rt });
     let gone = 0;
     snap.docs.forEach(d => { if (!live.has(d.id)) { gone++; if (!found.has(d.id)) found.set(d.id, { data: d.data(), m }); } });
-    log('readTime -' + m + 'min docs', snap.size, 'deleted-since', gone);
   } catch (e) { log('readTime -' + m + ' failed', e.message); }
 }
 for (const [id, { data, m }] of found) {
   const match = RX.test(String(data.name || ''));
   log('DELETED', id, 'match', match, 'seenAt -' + m + 'min', 'n', (+data.men || 0) + (+data.women || 0), 'date', data.date, 'status', data.status);
-  if (match) { await db.doc('bookings/' + id).create(data); log('RESTORED', id); }
+  const ex = (await db.doc('bookings/' + id).get()).exists;
+  if (match && !ex) { await db.doc('bookings/' + id).create(data); log('RESTORED', id); } else log('exists now', ex);
 }
 if (!found.size) log('nothing deleted found in the last hour');
