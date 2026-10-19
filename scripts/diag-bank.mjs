@@ -2,6 +2,7 @@
 import admin from 'firebase-admin';
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
 const db = admin.firestore();
+const _l = console.log; console.log = (...a) => _l('::notice::' + a.join(' '));
 const meta = (await db.doc('emailMeta/main').get()).data() || {};
 console.log('META', JSON.stringify(meta));
 const bank = await db.collection('emailBank').select('seq').get();
