@@ -3734,7 +3734,11 @@ function parseMRZ(t){
     if(!m) continue;
     const doc=m[1], chk=+m[2].replace('O','0'), nat=m[3].replace(/</g,'');
     const ok = mrzCheck(doc)===chk;
-    return {pass:doc.replace(/</g,''), nat, ok};
+    // الجنس بعد تاريخ الميلاد: جواز (6 أرقام + تحقق + M/F) — التأشيرة السعودية (8 أرقام + تحقق + 1 ذكر / 2 أنثى)
+    const rest=l.slice(m.index+13).replace(/O/g,'0'); let sx='';
+    const a=rest.match(/^\d{6}\d([MF])/), v=rest.match(/^\d{8}\d([12])/);
+    if(a) sx = a[1]==='M'?'m':'w'; else if(v) sx = v[1]==='1'?'m':'w';
+    return {pass:doc.replace(/</g,''), nat, ok, sx};
   }
   return null;
 }
@@ -3742,7 +3746,7 @@ function parseMRZ(t){
 function mrzName(t){
   const L=t.split(/\n/).map(mrzFix).filter(x=>x.length>=28 && /<{2,}/.test(x));
   for(let i=0;i<L.length;i++){
-    const l=L[i]; if(/\d{6}/.test(l.slice(10))) continue;           // ده السطر التاني (فيه تواريخ)
+    const l=L[i].replace(/^<+/,''); if(/\d{6}/.test(l.slice(10))) continue;           // ^<+ : PDF عربي بيقلب السطر فالـ <<< بتيجي في الأول           // ده السطر التاني (فيه تواريخ)
     const m=l.match(/^[A-Z0-9<]{2}[A-Z]{3}([A-Z<]+?)<*$/); if(!m || !m[1].includes('<<')) continue;
     const [sur, giv=''] = m[1].split('<<');
     const nm=[giv.replace(/</g,' '), sur.replace(/</g,' ')].join(' ').replace(/\s+/g,' ').trim();
@@ -3752,7 +3756,7 @@ function mrzName(t){
 }
 function parseVisa(raw){
   const t=String(raw||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toUpperCase();
-  const r={name:'', visa:'', pass:'', nat:''};
+  const r={name:'', visa:'', pass:'', nat:'', sx:''};
   let m = t.match(/(?:VISA\s*(?:NO|NUMBER|NUM|#)\.?|رقم\s*التأشيرة|رقم\s*التاشيرة)\s*[:：\-]?\s*([0-9]{10})\b/);
   if(m) r.visa=m[1];
   // احتياطي: رقم من 10 أرقام بيبدأ بـ 6 — بعيد عن سطور MRZ (عشان مايلقطش تاريخ الميلاد)
@@ -3767,6 +3771,7 @@ function parseVisa(raw){
   if(!r.nat){ m = t.match(/الجنسية\s*[:：\-]?\s*([؀-ۿ][؀-ۿ ]{1,20})/); if(m) r.nat=m[1].trim(); }
   if(!r.nat && z && NAT_EN[z.nat]) r.nat=NAT_EN[z.nat];
   r.name=mrzName(t);
+  r.sx = (z && z.sx) || sxVal((t.match(/(?:SEX|GENDER)\s*[:：\-]?\s*(MALE|FEMALE|M|F)\b/)||[])[1]) || sxVal((t.match(/(?:الجنس|النوع)\s*[:：\-]?\s*(ذكر|أنثى|انثى)/)||[])[1]);
   return r;
 }
 /* تجهيز صورة الموبايل قبل القراءة: تكبير + أبيض وأسود + تباين أعلى (والجزء السفلي لوحده عشان سطر MRZ) */
@@ -3780,10 +3785,10 @@ async function prepImg(src, crop){
   for(let i=0;i<a.length;i+=4){ let v=0.299*a[i]+0.587*a[i+1]+0.114*a[i+2]; v=Math.max(0,Math.min(255,(v-140)*1.8+140)); a[i]=a[i+1]=a[i+2]=v; }
   g.putImageData(d,0,0); return cv;
 }
-const mergeV = (a, b) => ({name:a.name||b.name, visa:a.visa||b.visa, pass:a.pass||b.pass, nat:a.nat||b.nat});
+const mergeV = (a, b) => ({name:a.name||b.name, visa:a.visa||b.visa, pass:a.pass||b.pass, nat:a.nat||b.nat, sx:a.sx||b.sx});
 async function ocrVisa(src){
   let r=parseVisa(await ocr(await prepImg(src)));
-  if(!(r.visa && r.pass && r.nat && r.name)) r=mergeV(r, parseVisa(await ocr(await prepImg(src, true))));
+  if(!(r.visa && r.pass && r.nat && r.name && r.sx)) r=mergeV(r, parseVisa(await ocr(await prepImg(src, true))));
   if(!(r.visa && r.pass && r.nat && r.name)) r=mergeV(r, parseVisa(await ocr(src)));
   return r;
 }
@@ -3822,8 +3827,13 @@ const HDR = {
   pass:/(جواز|passport|pass ?no|pp ?no)/i,
   visa:/(تأشير|تاشير|visa)/i,
   border:/(حدود|border)/i,
-  nat:/(جنسي|nationality|nat\.?$|country)/i
+  nat:/(جنسي|nationality|nat\.?$|country)/i,
+  sx:/^(الجنس|جنس|النوع|نوع الفرد|gender|sex)$/i,
+  name2:/^(الاسم|اسم|name)(\s|$)/i
 };
+/* 👨/👩 قيمة الجنس من أي شكل: ذكر/أنثى • M/F • Male/Female • رجل/امرأة • 1/2 */
+const sxVal = v => { v=String(v??'').trim().toUpperCase(); if(!v) return '';
+  if(/^(ذكر|رجل|رجال|M|MALE|1)$/.test(v)) return 'm'; if(/^(أنثى|انثى|انثي|أنثي|امرأة|إمرأة|امراة|سيدة|نساء|F|FEMALE|2)$/.test(v)) return 'w'; return ''; };
 const normH = h => cellTxt(h).replace(/[ً-ْـ]/g,'').replace(/[:#*\(\)]/g,' ').replace(/\s+/g,' ').trim();
 /* بيلاقي صف العناوين والأعمدة — ولو مفيش عناوين بيخمّن من شكل البيانات */
 function sheetCols(rows){
@@ -3833,7 +3843,8 @@ function sheetCols(rows){
       else if(c.border===undefined && HDR.border.test(t)) c.border=k;
       else if(c.pass===undefined && HDR.pass.test(t)) c.pass=k;
       else if(c.nat===undefined && HDR.nat.test(t)) c.nat=k;
-      else if(HDR.name.test(t)) (c.names=c.names||[]).push(k); });
+      else if(c.sx===undefined && HDR.sx.test(t)) c.sx=k;
+      else if((HDR.name.test(t) || HDR.name2.test(t)) && !/محرم|mahram/i.test(t)) (c.names=c.names||[]).push(k); });
     if((c.pass!==undefined || c.visa!==undefined || c.border!==undefined) && (c.names || c.pass!==undefined)){ c.head=h; return c; }
   }
   // من غير عناوين: نشوف كل عمود فيه إيه
@@ -3845,6 +3856,7 @@ function sheetCols(rows){
     else if(c.border===undefined && share(/^[34]\d{9}$/)>.6) c.border=k;
     else if(c.pass===undefined && share(/^[A-Z]{1,2}\d{6,9}$|^\d{7,9}$/)>.6) c.pass=k;
     else if(vals.filter(isLatinName).length/vals.length>.6 || vals.filter(v=>/^[؀-ۿ ]{5,}$/.test(v)&&v.includes(' ')).length/vals.length>.6) c.names.push(k);
+    else if(c.sx===undefined && vals.filter(v=>sxVal(v) && !/^\d$/.test(v)).length/vals.length>.8) c.sx=k;
     else if(c.nat===undefined && vals.filter(v=>NAT_EN[v.toUpperCase()]||/^(مصر|مصري|السعودية|السودان|الأردن|سوريا|فلسطين|العراق|اليمن|ليبيا)/.test(v)).length/vals.length>.6) c.nat=k;
   }
   return (c.pass!==undefined || c.visa!==undefined || c.border!==undefined) ? c : null;
@@ -3860,7 +3872,7 @@ function sheetRecs(rows){
     const visa = c.visa!==undefined ? cleanNo(r[c.visa]) : '', border = c.border!==undefined ? cleanNo(r[c.border]) : '';
     const pass = c.pass!==undefined ? cleanNo(r[c.pass]) : '';
     const natRaw = c.nat!==undefined ? cleanName(r[c.nat]) : '';
-    const rec={ name: isLatinName(name)?name.toUpperCase():name, pass, visa: (/^\d{6,}$/.test(visa)?visa:'') || (/^\d{6,}$/.test(border)?border:''), nat: natFix(natRaw) };
+    const rec={ name: isLatinName(name)?name.toUpperCase():name, pass, visa: (/^\d{6,}$/.test(visa)?visa:'') || (/^\d{6,}$/.test(border)?border:''), nat: natFix(natRaw), sx: c.sx!==undefined ? sxVal(cellTxt(r[c.sx])) : '' };
     if(rec.pass || rec.visa) out.push(rec);
   });
   return out;
@@ -3883,7 +3895,8 @@ function pdfTableRecs(items){
     if(!(pass && visa)) return;
     const name=(t.match(/[A-Z][A-Z'\-]+(?: [A-Z][A-Z'\-]+){1,6}/g)||[]).filter(x=>!/^(PASSPORT|VISA|BORDER|NAME|NATIONALITY)\b/.test(x)).sort((a,b)=>b.length-a.length)[0]||'';
     const natW=Object.keys(NAT_EN).find(k=>k.length>3 && t.includes(k));
-    out.push({name, pass, visa, nat:natW?NAT_EN[natW]:''});
+    const sx = /\b(FEMALE)\b|أنثى|انثى/.test(t) ? 'w' : /\b(MALE)\b|ذكر/.test(t) ? 'm' : '';
+    out.push({name, pass, visa, nat:natW?NAT_EN[natW]:'', sx});
   });
   return out;
 }
@@ -3895,7 +3908,8 @@ function whereUsed(r){
     if((b.pax||[]).some(x=>x && ((r.pass && x.pass===r.pass) || (r.visa && x.visa===r.visa)))) return b; }
   return null;
 }
-function fillRow(bb, k, r){ ['name','visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } }); }
+function fillRow(bb, k, r){ ['name','visa','pass','nat'].forEach(f=>{ if(r[f] && !bb.pax[k][f]){ bb.pax[k][f]=r[f]; paxHi.add(k+f); } });
+  const x=bb.pax[k]; if(r.sx && x.sx!==r.sx){ x.sx=r.sx; if(x.eh && !slotsOf(r.sx).includes(x.eh)) delete x.eh; } }
 /* بيرجع {done, left}: done = اتحطوا في صفوف • left = محتاجين اختيار (الشيت أكبر من الحجز) */
 function placeRecs(recs, fromList){
   const bb=paxB(); if(!bb) return {done:0, left:[]};
@@ -3925,9 +3939,9 @@ function pickRender(){
   const bb=paxB(); if(!bb) return; const free=bb.pax.filter(x=>!x.visa && !x.pass && !x.name).length, sel=PICK.filter(x=>x.on).length;
   const q=nmKey($('#pickQ').value);
   $('#pickInfo').innerHTML=`الشيت فيه <b>${PICK.length}</b> فرد مش موجودين في الحجز • الصفوف الفاضية: <b>${free}</b> • اخترت <b>${sel}</b>${sel>free?' <b style="color:var(--red)">— أكتر من الصفوف الفاضية</b>':''}`;
-  $('#pickTable').innerHTML=`<thead><tr><th></th><th>الاسم</th><th>الجواز</th><th>التأشيرة/الحدود</th><th>الجنسية</th></tr></thead><tbody>${PICK.map((r,i)=>({r,i})).filter(({r})=>!q||nmKey(r.name).includes(q)||nmKey(r.pass).includes(q)||(r.visa||'').includes(q)).map(({r,i})=>`<tr style="${r.used?'opacity:.55':''}">
+  $('#pickTable').innerHTML=`<thead><tr><th></th><th>الاسم</th><th>الجواز</th><th>التأشيرة/الحدود</th><th>الجنسية</th><th>الجنس</th></tr></thead><tbody>${PICK.map((r,i)=>({r,i})).filter(({r})=>!q||nmKey(r.name).includes(q)||nmKey(r.pass).includes(q)||(r.visa||'').includes(q)).map(({r,i})=>`<tr style="${r.used?'opacity:.55':''}">
     <td><input type="checkbox" ${r.on?'checked':''} onchange="PICK[${i}].on=this.checked;pickRender()" style="width:20px;height:20px"></td>
-    <td>${esc(r.name||'—')}${r.used?`<div class="hint">مسجّل في حجز ${esc(r.used.name)}</div>`:''}</td><td dir="ltr">${esc(r.pass||'—')}</td><td dir="ltr">${esc(r.visa||'—')}</td><td>${esc(r.nat||'—')}</td></tr>`).join('')}</tbody>`;
+    <td>${esc(r.name||'—')}${r.used?`<div class="hint">مسجّل في حجز ${esc(r.used.name)}</div>`:''}</td><td dir="ltr">${esc(r.pass||'—')}</td><td dir="ltr">${esc(r.visa||'—')}</td><td>${esc(r.nat||'—')}</td><td>${r.sx==='m'?'👨':r.sx==='w'?'👩':'—'}</td></tr>`).join('')}</tbody>`;
   $('#pickOk').textContent=`✓ إضافة ${sel||''} المختارين`;
 }
 function pickApply(){
