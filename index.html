@@ -4277,8 +4277,8 @@ const earlyTag = b => earlyOn(b) ? ` <span class="badge" style="background:#fff3
    الحسابات: السيستم بيخصم SYS_FEE جنيه على الفرد ← عمولة الموظف بتتحسب بنظامه العادي بس على المبلغ بعد الخصم ده.
    b.sys.prev = حالة الخطوات قبل التحويل عشان لو اتلغى يرجع زي ما كان */
 const SYS_FEE = 70;
-const isSys = b => !!(b && b.sys);
-const sysTag = b => isSys(b) ? ' <span class="badge" style="background:#e8e4ff;color:#4b3aa8">🖥 حجز سيستم</span>' : '';
+const isSys = b => !!(b && (b.sys || b.noData));   // 📄 أي «حجز بدون بيانات» = حجز سيستم تلقائي (كل موعد حجز لوحده فالخصم على كل موعد)
+const sysTag = b => isSys(b) && !b.noData ? ' <span class="badge" style="background:#e8e4ff;color:#4b3aa8">🖥 حجز سيستم</span>' : '';
 const sysBtn = (b, attr='') => !isAdmin() || !paxN(b) || b.status==='cancelled' || b.status==='done' ? '' : isSys(b)
   ? `<button class="btn sec sm" ${attr} onclick="${attr?'event.stopPropagation();':''}bkSys('${b.id}')" title="يرجع حجز عادي على المنصة">↩️ إلغاء حجز السيستم</button>`
   : `<button class="btn sm" ${attr} style="background:#e8e4ff;color:#4b3aa8" onclick="${attr?'event.stopPropagation();':''}bkSys('${b.id}')" title="اتعذّر رفعه على المنصة — يتحجز بطريقة السيستم">🖥 حجز سيستم</button>`;
