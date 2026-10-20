@@ -2916,7 +2916,8 @@ function costAt(d){
   return c;
 }
 /* تكلفة الحجز بعملة معيّنة = عدد الأفراد × تكلفة الفرد يوم الزيارة */
-const bookingCost = (b, to, cb=calc(b)) => { const c=costAt(b.date||''); return c ? cb.n * conv(+c.amt||0, c.cur, to) : 0; };
+const sysCost = (b, to, cb=calc(b)) => isSys(b) ? conv(SYS_FEE*cb.n, 'EGP', to) : 0;   // 🖥 خصم السيستم على الفرد — مصروف على الشركة
+const bookingCost = (b, to, cb=calc(b)) => { const c=costAt(b.date||''); return (c ? cb.n * conv(+c.amt||0, c.cur, to) : 0) + sysCost(b, to, cb); };
 /* عمولة الموظف على الحجز (بالجنيه) */
 const commOf = (b, c) => commCalc(b, (b.createdBy||'').toLowerCase(), c).amt;
 const expIn = (f, t) => FIN.expenses.filter(x=>(!f||x.date>=f) && (!t||x.date<=t));
@@ -3122,7 +3123,7 @@ function reportData(ym, basis){
     const cc_=commCalc(b, e, c), pe=cc_.pe, cmode=cc_.id, cm=cc_.amt;
     T.n++; T.persons+=c.n; T.men+=c.men; T.women+=c.women; T.comm+=cm;
     T.sub+=cv(b,c.sub); T.disc+=cv(b,c.disc); T.total+=cv(b,c.total); T.paid+=cv(b,pd); T.rem+=cv(b,c.rem);
-    const cost=bookingCost(b,B,c); T.cost+=cost;
+    const cost=bookingCost(b,B,c); T.cost+=cost; T.sys=(T.sys||0)+sysCost(b,B,c);
     const x=E[e]||(E[e]={email:e,cm:commMode(e),n:0,persons:0,total:0,paid:0,rem:0,comm:0,tiers:{}}); x.n++; x.persons+=c.n; x.total+=cv(b,c.total); x.paid+=cv(b,pd); x.rem+=cv(b,c.rem); x.comm+=cc_.bal;
     if(cmode){ x.cm=x.cm||cmode; const t=x.tiers[cc_.key]||(x.tiers[cc_.key]={lbl:cc_.lbl, rl:cc_.rl, bk:0, p:0, amt:0}); t.bk++; t.p+=c.n; t.amt+=cc_.bal; }
     const dd=D[d]||(D[d]={d,n:0,persons:0,total:0,paid:0}); dd.n++; dd.persons+=c.n; dd.total+=cv(b,c.total); dd.paid+=cv(b,pd);
@@ -3158,6 +3159,7 @@ function profitBox(R){
     <div style="font-weight:700;margin-bottom:4px">📈 الأرباح — ${R.label}</div>
     ${line('صافي المبيعات', moneyB(T.total), 'var(--tx)')}
     ${line(`− تكلفة الأفراد (${T.persons} فرد)`, moneyB(T.cost), 'var(--red)')}
+    ${T.sys?`<div class="hint" style="margin:-2px 0 4px">منها 🖥 خصم السيستم (${SYS_FEE} ج.م/فرد): ${moneyB(T.sys)}</div>`:''}
     ${line('= مجمل الربح', moneyB(T.gross), T.gross<0?'var(--red)':'var(--g)')}
     ${T.commB?line('− عمولات وحصص الموظفين', moneyB(T.commB), 'var(--red)'):''}
     ${line('− المصروفات', moneyB(T.exp), 'var(--red)')}
