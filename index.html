@@ -636,6 +636,7 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="fg">
         <div class="ndbar">
           <label class="chk"><input type="checkbox" id="noData"> 📄 حجز بدون بيانات</label>
+          <label class="chk" title="الحجز هيتعمل بطريقة السيستم — مفيش رفع على المنصة، والعمولة بعد خصم 70 ج.م على الفرد"><input type="checkbox" id="sysChk"> 🖥 حجز سيستم</label>
           <button type="button" class="tgl" id="multiTgl" onclick="multiToggle()">🔁 أكتر من موعد</button>
           <span class="hint" id="ndHint">من غير جوازات ولا تأشيرات — مش هيسحب إيميلات ومش هيدخل مراحل المنصة</span>
         </div>
@@ -2252,6 +2253,9 @@ function multiRead(){
   return [...$('#multiRows').children].map(r=>({date:r.querySelector('.md').value, ms:r.querySelector('.ms').value, ws:r.querySelector('.ws').value})).filter(x=>x.date);
 }
 $('#noData').addEventListener('change', multiSync);
+/* 🖥 خانة «حجز سيستم»: «بدون بيانات» = سيستم دايمًا فالخانة بتتعلّم وتتقفل */
+function sysChkSync(){ const nd=$('#noData').checked, c=$('#sysChk'); if(nd){ c.dataset.was=c.checked?'1':''; c.checked=true; } else if(c.disabled){ c.checked=c.dataset.was==='1'; } c.disabled=nd; }
+$('#noData').addEventListener('change', sysChkSync);
 ['men','women','pref'].forEach(k=>$('#'+k).addEventListener('input', ()=>{ if(MULTI) multiRefresh(); }));
 
 function openForm(id, noData){
@@ -2264,6 +2268,7 @@ function openForm(id, noData){
   $('#formTitle').textContent = b ? 'تعديل الحجز' : (noData ? '📄 حجز بدون بيانات' : 'حجز جديد');
   $('#bid').value = b?.id || '';
   $('#noData').checked = b ? !!b.noData : !!noData;
+  $('#sysChk').disabled=false; $('#sysChk').checked = b ? isSys(b) : !!noData; sysChkSync();
   MULTI=false; $('#multiRows').innerHTML=''; multiSync();
   $('#name').value = b?.name || '';
   $('#phone').value = b?.phone || '';
@@ -2343,6 +2348,7 @@ function submitForm(sendAfter){
     });
     toast(extra.length ? `✓ اتسجل ${extra.length+1} مواعيد للعميل` : '✓ تمت إضافة الحجز');
   }
+  if(!b.noData){ const on=$('#sysChk').checked; if(on!==!!b.sys){ sysSet(b, on); if(on && tgOn()) tgSend(`🖥 <b>حجز سيستم</b>\n👤 ${tgEsc(b.name)} • 👥 ${paxN(b)||((+b.men||0)+(+b.women||0))}\nمفيش رفع على المنصة — الطباعة قبل الموعد بس`).catch(e=>console.error(e)); } }
   if(!b.noData) b.pax=fixRows(b.pax, paxN(b));   // بدون بيانات: مانلمسش أي صفوف قديمة عشان لو رجّعوه حجز عادي تفضل موجودة
   const sv=save(); closeOv('formOv'); renderAll();
   Promise.resolve(sv).then(()=>{ if(paxMissing(b)) allocEmails(b); });
@@ -4282,23 +4288,31 @@ const sysTag = b => isSys(b) && !b.noData ? ' <span class="badge" style="backgro
 const sysBtn = (b, attr='') => !isAdmin() || !paxN(b) || b.status==='cancelled' || b.status==='done' ? '' : isSys(b)
   ? `<button class="btn sec sm" ${attr} onclick="${attr?'event.stopPropagation();':''}bkSys('${b.id}')" title="يرجع حجز عادي على المنصة">↩️ إلغاء حجز السيستم</button>`
   : `<button class="btn sm" ${attr} style="background:#e8e4ff;color:#4b3aa8" onclick="${attr?'event.stopPropagation();':''}bkSys('${b.id}')" title="اتعذّر رفعه على المنصة — يتحجز بطريقة السيستم">🖥 حجز سيستم</button>`;
-function bkSys(id){
-  const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
-  const n=paxN(b);
-  if(!isSys(b)){
-    if(!confirm(`تحويل «${b.name}» لـ «حجز سيستم»؟\n\n• هيتشال من خطوات المنصة (الحسابات / الموعد / التأكيد) ويروح على طول للطباعة قبل الموعد\n• عمولة الموظف هتتحسب بعد خصم ${SYS_FEE} جنيه × ${n} فرد = ${SYS_FEE*n} جنيه`)) return;
+/* تشغيل / إلغاء «حجز سيستم» على حجز (من غير أسئلة) — بيستخدمه الزرار وخانة الفورم */
+function sysSet(b, on){
+  if(on && !b.sys){
     const now={at:Date.now(), by:myEmail()}, gs=groupsOf(b);
     b.sys={...now, prev:{acct:b.acct||null, booked:b.booked||null, slotBk:b.slotBk||null, conf:b.conf||null, status:b.status||null}};
     b.acct=b.acct||now; b.slotBk={...(b.slotBk||{})}; b.conf={...(b.conf||{})};
     gs.forEach(g=>{ if(!b.slotBk[g]) b.slotBk[g]=now; if(!b.conf[g]) b.conf[g]=now; });
     if(b.status==='new') b.status='confirmed';
     delete b.early;
-  } else {
-    if(!confirm(`إلغاء «حجز سيستم» لـ «${b.name}»؟ هيرجع حجز عادي على المنصة والعمولة ترجع تتحسب من غير خصم.`)) return;
+  } else if(!on && b.sys){
     const P=b.sys.prev||{};
     ['acct','booked','slotBk','conf'].forEach(k=>{ if(P[k]) b[k]=P[k]; else delete b[k]; });
     if(P.status && b.status!=='done' && b.status!=='cancelled') b.status=P.status;
     delete b.sys;
+  }
+}
+function bkSys(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
+  const n=paxN(b);
+  if(!isSys(b)){
+    if(!confirm(`تحويل «${b.name}» لـ «حجز سيستم»؟\n\n• هيتشال من خطوات المنصة (الحسابات / الموعد / التأكيد) ويروح على طول للطباعة قبل الموعد\n• عمولة الموظف هتتحسب بعد خصم ${SYS_FEE} جنيه × ${n} فرد = ${SYS_FEE*n} جنيه`)) return;
+    sysSet(b, true);
+  } else {
+    if(!confirm(`إلغاء «حجز سيستم» لـ «${b.name}»؟ هيرجع حجز عادي على المنصة والعمولة ترجع تتحسب من غير خصم.`)) return;
+    sysSet(b, false);
   }
   save(); renderAll(); if(BKID===id) bkRender();
   toast(isSys(b) ? `🖥 «${b.name}» بقى حجز سيستم — هيظهر في «طباعة الباركود» قبل الموعد` : `↩️ «${b.name}» رجع حجز عادي على المنصة`);
