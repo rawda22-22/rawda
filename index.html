@@ -1513,7 +1513,7 @@ function apptRow(a){
   return `<div class="appt ar ${l}" style="--gc:${gColor(a.g)}">
     <div class="when">${rel?`<span class="rel">${rel}</span>`:''}<span class="dn">${dayName(a.date)}</span><span class="dd">${dayDate(a.date)}</span><span class="tm">${hm(a.dt)}</span></div>
     <div style="min-width:0">
-      <div class="r1"><span class="nm">${esc(b.name)}</span>${empTag(b)}${gLabel(a.g)}<span class="badge b-gray">👥 ${a.n}</span>${earlyTag(b)}${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}${badgeFor(ms)}${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
+      <div class="r1"><span class="nm">${esc(b.name)}</span>${empTag(b)}${gLabel(a.g)}<span class="badge b-gray">👥 ${a.n}</span>${earlyTag(b)}${sysTag(b)}${b.frozen?'<span class="badge b-frz">❄️</span>':''}${isSplit(b)?'<span class="badge b-amb" title="الرجال والنساء في يومين مختلفين">📆 يومين</span>':''}${badgeFor(ms)}${c.rem>0?`<span class="badge ${PAY[c.st][1]}">💰 متبقي ${money(c.rem,c.cur)}</span>`:'<span class="badge b-paid">✅ مدفوع</span>'}</div>
       <div class="r2">${stageMini(b)}
         <div class="acts">
           ${isAdmin() && acctDone(b) && !allBarred(b) && !gDone(b,'slotBk',a.g) ? `<button class="btn pri sm" onclick="bkOpen('${b.id}')" title="الحساب اتعمل — افتح الأفراد وعلّم «اتحجز موعده»">📅 حجز</button>` : ''}
@@ -2882,21 +2882,25 @@ const rateLbl = (p, r) => p.unit==='pct' ? `${num(r)}% من الصافي` : `${n
 /* عمولة حجز معيّن لموظف معيّن (بالجنيه) */
 /* amt = اللي بيروح للموظف من الحجز (بيتخصم من ربح الشركة) • bal = رصيد الموظف في كشف حسابه: + له على الشركة • − عليه للشركة */
 function commCalc(b, e, c=calc(b)){
-  const pe=round2(conv(+b.price||0, c.cur, 'EGP')), nv=cmAt(e, b.date||'');
+  /* 🖥 حجز سيستم: بنخصم SYS_FEE جنيه على الفرد من سعر الفرد ومن الصافي قبل حساب العمولة */
+  const sf = isSys(b) ? SYS_FEE : 0;
+  const pe=Math.max(0, round2(conv(+b.price||0, c.cur, 'EGP') - sf)), nv=cmAt(e, b.date||'');
+  const tot=Math.max(0, round2(conv(c.total, c.cur, 'EGP') - sf*c.n));
+  const R = o => sf && o.lbl ? {...o, sys:sf*c.n, lbl:o.lbl+` (🖥 سيستم: بعد خصم ${SYS_FEE} ج.م/فرد)`, key:(o.key||'')+'|sys'} : o;
   if(nv){
     if(nv.type==='none') return {id:'', pe, amt:0, bal:0};
-    const tot=round2(conv(c.total, c.cur, 'EGP')), r=+nv.rate||0;
+    const r=+nv.rate||0;
     if(nv.type==='tier'){ const ti=tierIdx(nv.tiers, pe), tr=+nv.tiers[ti].rate||0, a=round2(tr*c.n);
-      return {id:'n:tier', type:'tier', pe, amt:a, bal:a, rate:tr, ti, lbl:tierLbl(nv.tiers, ti), rl:`${num(tr)} ج.م للفرد`, key:`tier|${nv.tiers[ti].min}|${tr}`}; }
-    if(nv.type==='give'){ const a=round2(tot*r/100); return {id:'n:give', type:'give', pe, amt:a, bal:a, rate:r, lbl:'نسبة للموظف من الصافي', rl:`${num(r)}% من الصافي`, key:`give|${r}`}; }
-    const fee=round2(r*c.n); return {id:'n:take', type:'take', pe, fee, amt:round2(tot-fee), bal:-fee, rate:r, lbl:'مبلغ للشركة على الفرد', rl:`${num(r)} ج.م للشركة / فرد`, key:`take|${r}`};
+      return R({id:'n:tier', type:'tier', pe, amt:a, bal:a, rate:tr, ti, lbl:tierLbl(nv.tiers, ti), rl:`${num(tr)} ج.م للفرد`, key:`tier|${nv.tiers[ti].min}|${tr}`}); }
+    if(nv.type==='give'){ const a=round2(tot*r/100); return R({id:'n:give', type:'give', pe, amt:a, bal:a, rate:r, lbl:'نسبة للموظف من الصافي', rl:`${num(r)}% من الصافي`, key:`give|${r}`}); }
+    const fee=round2(r*c.n); return R({id:'n:take', type:'take', pe, fee, amt:round2(tot-fee), bal:-fee, rate:r, lbl:'مبلغ للشركة على الفرد', rl:`${num(r)} ج.م للشركة / فرد`, key:`take|${r}`});
   }
   // قبل تاريخ النظام الجديد: بالنظام القديم (الشرائح) المتسجل للموظف
   const lid=(USERS[e]&&USERS[e].comm)||'', id=planOf(lid)?lid:'';
   if(!id) return {id:'', pe, amt:0, bal:0};
   const p=planOf(id), v=planVer(p, b.date||''), ti=tierIdx(v.tiers, pe), r=+v.tiers[ti].rate||0;
-  const amt = p.unit==='pct' ? round2(conv(c.total, c.cur, 'EGP')*r/100) : r*c.n;
-  return {id, pe, amt, bal:amt, rate:r, ti, lbl:tierLbl(v.tiers, ti), rl:rateLbl(p, r), key:v.from+'|'+ti};
+  const amt = p.unit==='pct' ? round2(tot*r/100) : r*c.n;
+  return R({id, pe, amt, bal:amt, rate:r, ti, lbl:tierLbl(v.tiers, ti), rl:rateLbl(p, r), key:v.from+'|'+ti});
 }
 function planText(p, d){ const v=planVer(p, d||todayStr()); return v.tiers.map((t,i)=>`${tierLbl(v.tiers,i)} = ${rateLbl(p,t.rate)}`).join(' • '); }
 /* ========= 🧮 التكاليف والمصروفات (للمدير بس) =========
@@ -4216,6 +4220,38 @@ const inBkWin = b => { const t=firstAppt(b); return t!==null && (!!b.early || t-
 /* ⚡ تشغيل مبكر (b.early): المدير يقدر يطلّع حجز في «مطلوب على المنصة» و«لوحة التشغيل» قبل قاعدة الـ10 أيام — ويلغيه في أي وقت */
 const earlyOn = b => !!b.early && (()=>{ const t=firstAppt(b); return t!==null && t-Date.now() > BK_WIN_D*864e5; })();
 const earlyTag = b => earlyOn(b) ? ` <span class="badge" style="background:#fff3d6;color:#8a5a00">⚡ مبكر • فاضل ${Math.ceil((firstAppt(b)-Date.now())/864e5)} يوم</span>` : '';
+/* 🖥 حجز سيستم (b.sys): لما الحجز يتعذّر رفعه على المنصة المدير بيحوّله «حجز سيستم» —
+   مفيش رفع بيانات ولا حجز موعد ولا تأكيد: بيروح على طول لـ «طباعة الباركود» قبل الموعد.
+   الحسابات: السيستم بيخصم SYS_FEE جنيه على الفرد ← عمولة الموظف بتتحسب بنظامه العادي بس على المبلغ بعد الخصم ده.
+   b.sys.prev = حالة الخطوات قبل التحويل عشان لو اتلغى يرجع زي ما كان */
+const SYS_FEE = 70;
+const isSys = b => !!(b && b.sys);
+const sysTag = b => isSys(b) ? ' <span class="badge" style="background:#e8e4ff;color:#4b3aa8">🖥 حجز سيستم</span>' : '';
+const sysBtn = (b, attr='') => !isAdmin() || !paxN(b) || b.status==='cancelled' || b.status==='done' ? '' : isSys(b)
+  ? `<button class="btn sec sm" ${attr} onclick="${attr?'event.stopPropagation();':''}bkSys('${b.id}')" title="يرجع حجز عادي على المنصة">↩️ إلغاء حجز السيستم</button>`
+  : `<button class="btn sm" ${attr} style="background:#e8e4ff;color:#4b3aa8" onclick="${attr?'event.stopPropagation();':''}bkSys('${b.id}')" title="اتعذّر رفعه على المنصة — يتحجز بطريقة السيستم">🖥 حجز سيستم</button>`;
+function bkSys(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
+  const n=paxN(b);
+  if(!isSys(b)){
+    if(!confirm(`تحويل «${b.name}» لـ «حجز سيستم»؟\n\n• هيتشال من خطوات المنصة (الحسابات / الموعد / التأكيد) ويروح على طول للطباعة قبل الموعد\n• عمولة الموظف هتتحسب بعد خصم ${SYS_FEE} جنيه × ${n} فرد = ${SYS_FEE*n} جنيه`)) return;
+    const now={at:Date.now(), by:myEmail()}, gs=groupsOf(b);
+    b.sys={...now, prev:{acct:b.acct||null, booked:b.booked||null, slotBk:b.slotBk||null, conf:b.conf||null, status:b.status||null}};
+    b.acct=b.acct||now; b.slotBk={...(b.slotBk||{})}; b.conf={...(b.conf||{})};
+    gs.forEach(g=>{ if(!b.slotBk[g]) b.slotBk[g]=now; if(!b.conf[g]) b.conf[g]=now; });
+    if(b.status==='new') b.status='confirmed';
+    delete b.early;
+  } else {
+    if(!confirm(`إلغاء «حجز سيستم» لـ «${b.name}»؟ هيرجع حجز عادي على المنصة والعمولة ترجع تتحسب من غير خصم.`)) return;
+    const P=b.sys.prev||{};
+    ['acct','booked','slotBk','conf'].forEach(k=>{ if(P[k]) b[k]=P[k]; else delete b[k]; });
+    if(P.status && b.status!=='done' && b.status!=='cancelled') b.status=P.status;
+    delete b.sys;
+  }
+  save(); renderAll(); if(BKID===id) bkRender();
+  toast(isSys(b) ? `🖥 «${b.name}» بقى حجز سيستم — هيظهر في «طباعة الباركود» قبل الموعد` : `↩️ «${b.name}» رجع حجز عادي على المنصة`);
+  if(tgOn()) tgSend(`${isSys(b)?'🖥 <b>اتحوّل لحجز سيستم</b>':'↩️ <b>رجع حجز عادي على المنصة</b>'}\n👤 ${tgEsc(b.name)} • 👥 ${n}${isSys(b)?'\nمفيش رفع على المنصة — الطباعة قبل الموعد بس':''}`).catch(e=>console.error(e));
+}
 function bkEarly(id){
   const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
   if(b.early) delete b.early; else b.early=true;
@@ -4251,10 +4287,10 @@ function renderBookQueue(){
       <div class="acts">${adm?`<button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button>`:'<span class="hint">بلّغ المدير يحدد موعد جديد</span>'}</div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${earlyTag(b)}${adm&&b.exTo?` <span class="badge b-new">👷 محال لـ ${esc(empName(b.exTo))}</span>`:''}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
+      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${earlyTag(b)}${sysTag(b)}${adm&&b.exTo?` <span class="badge b-new">👷 محال لـ ${esc(empName(b.exTo))}</span>`:''}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
         <div class="sub">${bkMini(b)}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
-      <div class="acts">${adm?`${earlyOn(b)?`<button class="ibtn" onclick="event.stopPropagation();bkEarly('${b.id}')" title="إلغاء التشغيل المبكر">↩️ إلغاء المبكر</button>`:''}${exSel(b,'onclick="event.stopPropagation()"')}<button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button>`:''}<button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
+      <div class="acts">${adm?`${sysBtn(b,'data-s')}${earlyOn(b)?`<button class="ibtn" onclick="event.stopPropagation();bkEarly('${b.id}')" title="إلغاء التشغيل المبكر">↩️ إلغاء المبكر</button>`:''}${exSel(b,'onclick="event.stopPropagation()"')}<button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button>`:''}<button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
   const W=S.bookings.filter(b=>needBook(b) && !paxReady(b)), F=S.bookings.filter(b=>((needBook(b) && paxReady(b)) || needSlot(b)) && !inBkWin(b));
   if(adm && (W.length || F.length)){ card.style.display='';
     $('#bkList').insertAdjacentHTML('beforeend', `<div class="hint" style="display:block;margin-top:8px">${W.length?`📝 بياناته ناقصة (مش هيظهر هنا غير لما تكمل): ${W.map(b=>`<a href="#" onclick="event.preventDefault();paxOpen('${b.id}')">${esc(b.name)} (${paxReadyN(b)}/${paxN(b)})</a>`).join(' • ')}`:''}${W.length&&F.length?' • ':''}${F.length?`⏳ ${F.length} حجز موعده بعد أكتر من ${BK_WIN_D} أيام (تقدر تطلّع أي واحد فيهم هنا بزرار «⚡ تشغيل مبكر» جنبه في «⏰ المواعيد القادمة»)`:''}</div>`); }
@@ -4280,6 +4316,7 @@ function bkRender(){
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
     <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>`;
   $('#bkHead').insertAdjacentHTML('beforeend', ldPanel(b));
+  if(isAdmin()) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${sysTag(b)}${sysBtn(b)}<span class="hint">${isSys(b)?'مفيش رفع على المنصة — الطباعة قبل الموعد بس':'لو اتعذّر رفعه على المنصة'}</span></div>`);
   if(isAdmin() && earlyOn(b)) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${earlyTag(b)}<button class="btn sec sm" onclick="bkEarly('${b.id}')">↩️ إلغاء التشغيل المبكر</button></div>`);
   if(isAdmin()) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>👷 إحالة التنفيذ لـ:</b>${exSel(b,'style="flex:1;min-width:150px"')}</div>`);
   else if(b.exTo===myEmail()) $('#bkHead').insertAdjacentHTML('beforeend', '<div style="margin-top:6px"><span class="badge b-new">👷 الحجز ده محال ليك تنفذه على المنصة</span></div>');
@@ -4468,6 +4505,7 @@ function opActs(a){
   if(adm && (a.st==='acct' || a.st==='slot') && a.left>BK_WIN_D*36e5*24) A.push(b.early
     ? `<button class="btn sec sm" onclick="bkEarly('${b.id}')" title="يرجع يستنى قبل الموعد بـ ${BK_WIN_D} أيام">↩️ إلغاء التشغيل المبكر</button>`
     : `<button class="btn gold sm" onclick="bkEarly('${b.id}')" title="يظهر في «مطلوب على المنصة» دلوقتي من غير ما يستنى الـ${BK_WIN_D} أيام">⚡ تشغيل مبكر</button>`);
+  if(adm && (a.st!=='enter' || isSys(b)) && a.lv!=='late') A.push(sysBtn(b));
   if(adm) A.push(`<button class="ibtn" onclick="editDate('${b.id}')" title="فتح / تعديل الحجز">✏️</button>`);
   return A.join('');
 }
@@ -4486,7 +4524,7 @@ function renderOps(){
   const card = a => { const b=a.b;
     const when = a.gs.map(g=>`<span class="badge ${g==='m'?'b-men':'b-women'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}</span>`).join(' ');
     const ld = ldPanel(b);
-    return `<div class="opc ${a.lv}"><div class="t"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)}${earlyTag(b)} ${when}</div>
+    return `<div class="opc ${a.lv}"><div class="t"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)}${earlyTag(b)}${sysTag(b)} ${when}</div>
       ${a.why?`<div class="why">${a.why}</div>`:''}${ld?`<div style="margin-top:4px">${ld}</div>`:''}
       <div class="acts">${opActs(a)}</div>${paxN(b)&&acctDone(b)?apPeople(b,'op'+b.id):''}</div>`; };
   const html = OP_ST.map(s=>{ const L=F.filter(a=>a.st===s.k).sort((x,y)=>rank[x.lv]-rank[y.lv] || x.dt-y.dt); if(!L.length) return '';
@@ -4557,11 +4595,11 @@ function barOpen(id, g){
   const b=S.bookings.find(x=>x.id===id);
   if(!b || !canSee(b)){ toast('⛔ الحجز ده مش بتاعك'); return; }
   const dt=gDt(b,g); if(!dt || dt-Date.now()>BAR_H*36e5){ toast('🔒 الطباعة بتفتح قبل الموعد بـ 3 ساعات'); renderBar(); return; }
-  const P=visitPax(b).filter(r=>r.email);
-  $('#barTitle').firstChild.textContent = '🖨 '+(b.name||'');
+  const P=visitPax(b).filter(r=>r.email || (isSys(b) && (r.name||r.pass)));
+  $('#barTitle').firstChild.textContent = '🖨 '+(b.name||'')+(isSys(b)?' — 🖥 حجز سيستم':'');
   $('#barBody').innerHTML = P.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:right;padding:6px">#</th><th style="text-align:right;padding:6px">اسم العميل</th><th style="text-align:right;padding:6px">البريد الإلكتروني</th></tr></thead><tbody>
     ${P.map((r,i)=>`<tr style="border-top:1px solid var(--bd)"><td style="padding:6px">${i+1}</td><td style="padding:6px">${esc(r.name||'—')}</td>
-      <td style="padding:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></td></tr>`).join('')}</tbody></table>`
+      <td style="padding:6px">${r.email?`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>`:`<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.pass)}')" title="رقم الجواز — اضغط للنسخ"><span class="v" dir="ltr">🛂 ${esc(r.pass)}</span><span class="c">📋</span></button>`}</td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">مفيش إيميلات في الحجز ده</div>';
   BARCUR={id, g};
   $('#barOv').classList.add('on');
