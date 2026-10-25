@@ -41,8 +41,10 @@ section.sec{display:none}section.sec.on{display:block;animation:fade .25s}
 .stat span{color:var(--mu);font-size:13px}
 .stat b{display:block;font-size:24px;margin-top:4px;color:var(--c,var(--tx))}
 .stat small{font-size:12px;color:var(--mu);font-weight:400}
-.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}
-@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}.grid2>*{min-width:0}
+@media(max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+/* 📱 أي جدول عريض جوه كارت بيتسكرول لوحده بدل ما يوسّع الصفحة كلها */
+.card{min-width:0;max-width:100%}.tblw{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:16px}
 .card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .card h2 .sp{flex:1}
@@ -139,6 +141,9 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .pcard.made{background:#f1faf5;border-color:#9fd6bb}
 .pcard.nv{background:#fdf2f2;border-color:#efb9b9}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
+.ibtn.ms{color:#6a3fb0;border-color:#d6c6f2}.ibtn.ms.on{background:#6a3fb0;color:#fff;border-color:#6a3fb0}
+.badge.msb{background:#efe7fc;color:#5a2fa0}
+.msbar{margin-top:8px;padding:9px 12px;border-radius:12px;background:#efe7fc;border:2px solid #b89be8;color:#4a2590;font-weight:700;font-size:15px}.msbar b{font-size:19px}.msbar.ok{background:#e3f4ec;border-color:#9fd6bb;color:var(--g)}
 .ldpan>summary::-webkit-details-marker{display:none}
 .bill .ldpan div{display:block;padding:0}.bill .ldpan .ph{display:flex;justify-content:flex-start}
 .bill .ldpan .ldbox,.bill .ldpan .ldone{display:block}
@@ -146,6 +151,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .ldone{padding:8px 0;border-bottom:1px dashed #ecd49a}.ldone:last-child{border-bottom:0}
 .ldnm{font-weight:800;color:#8a5a00;font-size:15px;margin-bottom:4px}
 .ldln{display:flex!important;align-items:center;gap:8px;width:100%;border:0;background:none;padding:5px 2px;font:inherit;cursor:pointer;text-align:right;color:var(--tx)}
+.ldtg{background:#229ED9;color:#fff;border-color:#229ED9;font-weight:700}
 .ldln b{flex:1;font-size:15px;overflow-wrap:anywhere;text-align:left}.ldln .c{opacity:.6}.ldln.done b{color:var(--g)}.ldln.miss b{color:var(--mu);font-weight:500}
 .ldbadge{white-space:normal!important;border-radius:10px!important;max-width:100%;line-height:1.5}
 .ldsel{width:100%}
@@ -316,7 +322,7 @@ body:not(.cloud) .cloud-only{display:none!important}
       </div>
       <div class="card">
         <h2>🧩 أقرب الدفعات <span class="sp"></span><button class="ibtn" onclick="switchTab('groups')">عرض الكل</button></h2>
-        <div id="groupsMini"></div>
+        <div id="groupsMini" class="tblw"></div>
       </div>
     </div>
   </section>
@@ -1159,7 +1165,9 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((_,rej)=>setTimeout(
 async function loadProfile(u){
   const em=u.email.toLowerCase(), ref=fb.doc(db,'users',em);
   let snap=null;
-  try{ snap=await withTimeout(fb.getDoc(ref), 12000); }
+  /* ⚡ الأول من النسخة المحفوظة على الجهاز (فوري حتى لو النت ضعيف) — والسيرفر بيتابع بعدها في subscribe */
+  try{ const c=await fb.getDocFromCache(ref); if(c && c.exists()){ const d=c.data(); if(d.active!==false) return {...d, email:em}; } }catch(e){}
+  try{ snap=await withTimeout(fb.getDoc(ref), 20000); }
   catch(e){ if(e.code!=='permission-denied') throw e; }
   if(snap && snap.exists()){ const d=snap.data(); return d.active===false ? null : {...d, email:em}; }
   /* أول دخول لصاحب الحساب (المكتوب في قواعد Firestore) — بيسجّل نفسه كمدير */
@@ -1169,7 +1177,7 @@ async function loadProfile(u){
   try{ await withTimeout(fb.getDoc(fb.doc(db,'meta','settings')), 12000);
     setTimeout(()=>toast('⚠️ انشر قواعد Firestore الجديدة عشان حسابات الموظفين تشتغل'), 1500);
     return {email:em, name:em.split('@')[0], role:'admin', active:true, legacy:true};
-  }catch(e){ return null; }
+  }catch(e){ if(e.code==='timeout' || e.code==='unavailable' || !navigator.onLine) throw e; return null; }
 }
 const synced = { bookings:{}, settings:'' };   // آخر نسخة معروفة من السيرفر لحساب الفروقات
 
@@ -1187,12 +1195,25 @@ async function initCloud(){
     if(!u){ unsubscribe(); lockFin(); ME=null; USERS={}; S.bookings=[]; synced.bookings={}; renderAll(); showLogin(false); return; }
     showLogin(true); $('#loginBtn').textContent='جارٍ التحقق من الصلاحية...';
     try{ ME = await loadProfile(u); }
-    catch(e){ console.error(e); ME=null; $('#loginErr').textContent = e.code==='timeout'||!navigator.onLine ? 'لا يوجد اتصال بالإنترنت — حاول تاني' : 'تعذر التحقق من الحساب ('+(e.code||e.message)+')'; await fb.signOut(auth); return; }
+    catch(e){ console.error(e); ME=null;
+      /* 📶 النت ضعيف/مقطوع: مانطلّعش المستخدم من حسابه — نفضل نحاول لحد ما النت يرجع */
+      if(e.code==='timeout' || e.code==='unavailable' || !navigator.onLine){ $('#loginErr').textContent='📶 النت ضعيف — بنحاول نوصل تاني... (مش محتاج تدخل من جديد)'; profRetry(u); return; }
+      $('#loginErr').textContent = 'تعذر التحقق من الحساب ('+(e.code||e.message)+')'; await fb.signOut(auth); return; }
     if(!ME){ $('#loginErr').textContent='⛔ الحساب ده مش مفعّل — كلّم المدير يضيفك من شاشة الموظفين'; await fb.signOut(auth); return; }
     ROLE = ME.role==='admin' ? 'admin' : 'staff';
     applyRole(); hideLogin(); subscribe();
   });
 }
+let profRetryT=null;
+function profRetry(u){
+  clearTimeout(profRetryT);
+  profRetryT=setTimeout(async()=>{ if(user!==u) return;
+    try{ ME=await loadProfile(u); }catch(e){ return profRetry(u); }
+    if(!ME){ $('#loginErr').textContent='⛔ الحساب ده مش مفعّل — كلّم المدير يضيفك من شاشة الموظفين'; fb.signOut(auth); return; }
+    $('#loginErr').textContent=''; ROLE = ME.role==='admin' ? 'admin' : 'staff'; applyRole(); hideLogin(); subscribe();
+  }, navigator.onLine ? 4000 : 8000);
+}
+window.addEventListener('online', ()=>{ if(user && !ME) profRetry(user); });
 function subscribe(){
   unsubscribe(); setSync('connecting'); startPresence();
   FIN={costs:[], expenses:[], plans:[], advances:[], statements:[], periods:[], period:null};
@@ -1214,6 +1235,8 @@ function subscribe(){
   unsubs.push(fb.onSnapshot(fb.doc(db,'users',myEmail()), d=>{
     const p=d.exists()?d.data():null;
     if(!p && ME?.legacy) return;
+    /* نسخة من الكاش المحلي (قبل ما السيرفر يرد) مش دليل إن الحساب اتمسح — مانطلّعش حد بسببها */
+    if(d.metadata.fromCache && (!p || p.active===false)) return;
     if(!p || p.active===false){ $('#loginErr').textContent='⛔ تم إيقاف الحساب ده'; fb.signOut(auth); return; }
     ME={...p, email:myEmail()}; const r=p.role==='admin'?'admin':'staff';
     if(r!==ROLE){ ROLE=r; toast(r==='admin'?'⭐ بقيت مدير':'👤 صلاحيتك اتغيرت لموظف'); applyRole(); setTimeout(subscribe); return; }
@@ -4199,6 +4222,10 @@ function syncSlot(b){
 const sxSort = (b, P) => P.map((r,i)=>[r,i]).sort((x,y)=>(paxSx(b,x[0])==='m'?0:1)-(paxSx(b,y[0])==='m'?0:1) || x[1]-y[1]).map(x=>x[0]);
 const visitPax = b => grpSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>!r.nv));
 const nvPax = b => grpSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv));
+/* 🛤 «حجز مسار» لكل فرد (r.ms) — الفرد ده ليس له زيارة بس مطلوب له حجز مسار • r.msd = اتحجز المسار خلاص */
+const msPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv && r.ms);
+const msLeft = b => msPax(b).filter(r=>!r.msd).length;
+const msTag = b => { const n=msPax(b).length, l=msLeft(b); return !n ? '' : l ? ` <span class="badge msb">🛤 مطلوب ${l} حجز مسار</span>` : ` <span class="badge b-green">🛤 المسار اتحجز (${n})</span>`; };
 /* 👑 لو فيه قادة: كل قائد وتحته التابعين له، وبعدهم اللي مش تابعين لحد (وجوه كل جزء الرجال قبل السيدات) */
 function grpSort(b, P){
   const base=sxSort(b, P); if(!(b.pax||[]).some(r=>r && r.lead)) return base;
@@ -4223,7 +4250,25 @@ function ldPanel(b){
   const two = n => String(n||'').trim().split(/\s+/).slice(0,2).join(' ');
   const ln = (ic,v) => v ? `<button type="button" class="ldln" data-v="${esc(v)}" onclick="event.stopPropagation();apCopy(this,this.dataset.v)"><span>${ic}</span><b dir="ltr">${esc(v)}</b><span class="c">📋</span></button>` : `<div class="ldln miss"><span>${ic}</span><b>— ناقص —</b></div>`;
   return `<details class="ldpan" style="margin-top:8px"><summary class="btn gold sm" style="display:inline-flex;list-style:none;cursor:pointer">👑 القادة (${L.length})</summary><div class="ldbox">${
-    L.map(li=>{ const r=b.pax[li]; return `<div class="ldone"><div class="ldnm">👑 ${esc(two(r.name)||('فرد '+(li+1)))}</div>${ln('📧',r.email)}${ln('🛂',r.pass)}${ln('📄',r.visa)}</div>`; }).join('')}</div></details>`;
+    L.map(li=>{ const r=b.pax[li]; return `<div class="ldone"><div class="ldnm">👑 ${esc(two(r.name)||('فرد '+(li+1)))}</div>${ln('📧',r.email)}${ln('🛂',r.pass)}${ln('📄',r.visa)}</div>`; }).join('')}
+    <div class="ldone" style="text-align:center"><button type="button" class="btn sm ldtg" onclick="event.stopPropagation();ldTg('${b.id}',this)">✈️ إرسال القادة على تليجرام</button></div></div></details>`;
+}
+/* ✈️ إرسال القادة (الاسم + الإيميل + الجواز + التأشيرة) على تليجرام — كل قيمة بتتنسخ بلمسة من جوه تليجرام */
+async function ldTg(id, btn){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  const L=leadIdx(b); if(!L.length){ toast('مفيش قادة في الحجز ده'); return; }
+  if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل — فعّله من الإعدادات'); return; }
+  const v = x => x ? `<code>${tgEsc(x)}</code>` : '— ناقص —';
+  const M=ldMap(b).M, two = n => String(n||'').trim().split(/\s+/).slice(0,2).join(' ');
+  const when = groupsOf(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}`).join('\n');
+  const txt = `👑 <b>قادة المجموعات (${L.length})</b>\n👤 ${tgEsc(b.name)} • 👥 ${paxN(b)}${when?`\n${when}`:''}\n`+
+    L.map((li,k)=>{ const r=b.pax[li], F=(b.pax||[]).filter(x=>M.get(x)===li);
+      return `\n<b>${k+1}) 👑 ${tgEsc(r.name||('فرد '+(li+1)))}</b>\n📧 ${v(r.email)}\n🛂 ${v(r.pass)}\n📄 ${v(r.visa)}${F.length?`\n👥 تابعين (${F.length}): ${F.map(x=>tgEsc(two(x.name)||'—')).join('، ')}`:''}`; }).join('\n')+
+    (user?.email?`\n\nبواسطة: ${byName()}`:'');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ جارٍ الإرسال...'; }
+  try{ await tgSend(txt); toast(`✈️ اتبعت ${L.length} قائد على تليجرام`); if(btn) btn.textContent='✅ اتبعت — ابعت تاني'; }
+  catch(e){ console.error(e); toast('⚠️ الإرسال لتليجرام فشل: '+(e.message||'')); if(btn) btn.textContent='✈️ إرسال القادة على تليجرام'; }
+  finally{ if(btn) btn.disabled=false; }
 }
 /* عنوان فاصل «👨 الرجال» / «👩 السيدات» قبل أول فرد من كل فئة (لو الحجز فيه الاتنين) */
 const sxHead = (b, P, k) => { const both=(+b.men||0)>0 && (+b.women||0)>0; if(!both) return ''; const g=paxSx(b,P[k]);
@@ -4353,7 +4398,7 @@ function renderBookQueue(){
       <div class="acts">${adm?`<button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button>`:'<span class="hint">بلّغ المدير يحدد موعد جديد</span>'}</div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${earlyTag(b)}${sysTag(b)}${adm&&b.exTo?` <span class="badge b-new">👷 محال لـ ${esc(empName(b.exTo))}</span>`:''}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}</div>
+      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${earlyTag(b)}${sysTag(b)}${adm&&b.exTo?` <span class="badge b-new">👷 محال لـ ${esc(empName(b.exTo))}</span>`:''}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}${msTag(b)}</div>
         <div class="sub">${bkMini(b)}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
       <div class="acts">${adm?`${sysBtn(b,'data-s')}${earlyOn(b)?`<button class="ibtn" onclick="event.stopPropagation();bkEarly('${b.id}')" title="إلغاء التشغيل المبكر">↩️ إلغاء المبكر</button>`:''}${exSel(b,'onclick="event.stopPropagation()"')}<button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button>`:''}<button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
@@ -4380,7 +4425,7 @@ function bkRender(){
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length, nvN=b.pax.filter(r=>r.nv).length;
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
-    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>`;
+    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${msPax(b).length?`<div class="msbar ${msLeft(b)?'':'ok'}">${msLeft(b)?`🛤 مطلوب عدد <b>${msLeft(b)}</b> حجز مسار${msLeft(b)<msPax(b).length?` <span class="hint">(اتحجز ${msPax(b).length-msLeft(b)} من ${msPax(b).length})</span>`:''} — احجزهم النهارده`:`✅ اتحجز المسار للكل (${msPax(b).length})`}</div>`:''}`;
   $('#bkHead').insertAdjacentHTML('beforeend', ldPanel(b));
   if(isAdmin()) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${sysTag(b)}${sysBtn(b)}<span class="hint">${isSys(b)?'مفيش رفع على المنصة — الطباعة قبل الموعد بس':'لو اتعذّر رفعه على المنصة'}</span></div>`);
   if(isAdmin() && earlyOn(b)) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${earlyTag(b)}<button class="btn sec sm" onclick="bkEarly('${b.id}')">↩️ إلغاء التشغيل المبكر</button></div>`);
@@ -4401,7 +4446,9 @@ function bkRender(){
         <button type="button" class="ibtn ld ${r.lead?'on':''}" onclick="bkLead(${i})" title="اختار الفرد ده قائد لمجموعة">👑 قائد</button>
         <button type="button" class="ibtn ${r.made?'ok':''}" onclick="bkMade(${i})">${r.made?'✅ اتعمل حسابه':'⬜ اتعمل حسابه'}</button>
         <button type="button" class="ibtn ${r.bk?'ok':''}" onclick="bkSlot(${i})" ${r.nv?'disabled':''}>${r.bk?'✅ اتحجز موعده':'📅 اتحجز موعده'}</button>
-        <button type="button" class="ibtn nv ${r.nv?'on':''}" onclick="bkNv(${i})">🚫 ليس له زيارة</button></div>
+        <button type="button" class="ibtn nv ${r.nv?'on':''}" onclick="bkNv(${i})">🚫 ليس له زيارة</button>
+        <button type="button" class="ibtn ms ${r.ms?'on':''}" onclick="bkMs(${i})" title="ليس له زيارة — ومطلوب له حجز مسار">🛤 حجز مسار</button>${r.ms?`
+        <button type="button" class="ibtn ${r.msd?'ok':''}" onclick="bkMsd(${i})">${r.msd?'✅ اتحجز المسار':'⬜ اتحجز المسار'}</button>`:''}</div>
       ${ldPick(r,i)}${row(i,'name','👤 الاسم',r.name,/^[A-Z ]+$/.test(r.name||''))}${row(i,'pass','🛂 الجواز',r.pass,true)}${row(i,'visa','📄 التأشيرة',r.visa,true)}${row(i,'email','📧 الإيميل',r.email,true)}${pwRow(b)}${row(i,'nat','🌍 الجنسية',r.nat)}
     </div>`; }).join('');
   $('#bkDoneBtn').textContent = acctDone(b) ? '↩️ إلغاء «تم إنشاء الحسابات»' : `✅ تم إنشاء الحسابات${made<n?` (${made}/${n})`:''}`;
@@ -4421,7 +4468,7 @@ async function bkCopy(el){
 const bkNext = i => { const C=[...document.querySelectorAll('#bkPeople .pcard')], k=C.findIndex(c=>+c.dataset.i===i); return k>=0 ? C[k+1] : null; };
 function bkMade(i){
   const b=bkB(); if(!b || !b.pax[i]) return;
-  b.pax[i].made=!b.pax[i].made; if(b.pax[i].made) delete b.pax[i].nv; else delete b.pax[i].bk; if(acctDone(b)) syncSlot(b); save(); bkRender(); renderAll();
+  b.pax[i].made=!b.pax[i].made; if(b.pax[i].made){ delete b.pax[i].nv; delete b.pax[i].ms; delete b.pax[i].msd; } else delete b.pax[i].bk; if(acctDone(b)) syncSlot(b); save(); bkRender(); renderAll();
   if(b.pax[i].made){ const next=bkNext(i); if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
 function bkSlot(i){
@@ -4433,10 +4480,27 @@ function bkSlot(i){
 }
 function bkNv(i){
   const b=bkB(); if(!b || !b.pax[i]) return;
-  if(b.pax[i].nv) delete b.pax[i].nv; else { b.pax[i].nv=true; b.pax[i].made=false; delete b.pax[i].bk; } if(acctDone(b)) syncSlot(b);
+  if(b.pax[i].nv){ delete b.pax[i].nv; delete b.pax[i].ms; delete b.pax[i].msd; } else { b.pax[i].nv=true; b.pax[i].made=false; delete b.pax[i].bk; } if(acctDone(b)) syncSlot(b);
   save(); bkRender(); renderBookQueue(); renderNoVisit();
   if(b.pax[i].nv){ const next=bkNext(i); if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
+/* 🛤 حجز مسار: بيعلّم الفرد «ليس له زيارة» + مطلوب له مسار (ولو اتضغط تاني بيشيل المسار بس ويفضل «ليس له زيارة») */
+function bkMs(i){
+  const b=bkB(); if(!b || !b.pax[i]) return; const r=b.pax[i];
+  if(r.ms){ delete r.ms; delete r.msd; }
+  else { r.ms=true; if(!r.nv){ r.nv=true; r.made=false; delete r.bk; } }
+  if(acctDone(b)) syncSlot(b);
+  save(); bkRender(); renderBookQueue(); renderNoVisit();
+  if(r.ms){ const next=bkNext(i); if(next) next.scrollIntoView({behavior:'smooth', block:'start'}); }
+}
+function bkMsd(i){ const b=bkB(); if(!b || !b.pax[i] || !b.pax[i].ms) return; msDone(b, i); bkRender(); }
+/* علامة «اتحجز المسار» — من شاشة الحجز أو من تبويب «ممنوع الزيارة» */
+function msDone(b, i){
+  const r=b.pax[i]; r.msd=!r.msd; if(r.msd) r.msdAt=Date.now(); else delete r.msdAt;
+  save(); renderAll();
+  if(r.msd && !msLeft(b) && tgOn()) tgSend(`🛤 <b>تم حجز المسار</b>\n👤 ${tgEsc(b.name)} • ${msPax(b).length} فرد${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+}
+function nvMsd(id, i){ const b=S.bookings.find(x=>x.id===id); if(!b || !b.pax[i] || !b.pax[i].ms) return; if(!isAdmin() && b.exTo!==myEmail()) return; msDone(b, i); }
 async function bkDone(){
   const b=bkB(); if(!b) return;
   if(acctDone(b)){ if(!confirm('إلغاء «تم إنشاء الحسابات» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.acct; delete b.booked; save(); renderAll(); bkRender(); return; }
@@ -4446,9 +4510,11 @@ async function bkDone(){
   const nvN=b.pax.filter(r=>r.nv).length, vN=n-nvN;
   if(nvN && !confirm(vN ? `🚫 ${nvN} ليس لهم زيارة هيروحوا تبويب «ممنوع الزيارة هذا العام»\nو ${vN} بس هيكملوا للمواعيد. تمام؟` : `🚫 كل أفراد الحجز (${n}) ليس لهم زيارة — الحجز كله هيروح «ممنوع الزيارة هذا العام». تمام؟`)) return;
   b.pax.forEach(r=>{ if(!r.nv) r.made=true; }); b.acct={at:Date.now(), by:myEmail()}; syncSlot(b);
+  const msN=msLeft(b);
   save(); closeOv('bkOv'); BKID=null; renderAll();
   toast(vN ? `✅ اتعملت الحسابات — ${b.name}${nvN?` • 🚫 ${nvN} ممنوع الزيارة`:''} • احجز الموعد من «المواعيد»` : `🚫 ${b.name} — الحجز كله اتنقل «ممنوع الزيارة هذا العام»`);
-  if(tgOn()) tgSend(`✅ <b>تم إنشاء الحسابات على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${vN} ليهم زيارة (الموعد لسه ماتحجزش)${nvN?`\n🚫 ${nvN} ممنوع الزيارة هذا العام`:''}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+  if(msN) setTimeout(()=>toast(`🛤 مطلوب عدد ${msN} حجز مسار لـ «${b.name}» — احجزهم النهارده`), 2600);
+  if(tgOn()) tgSend(`✅ <b>تم إنشاء الحسابات على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${vN} ليهم زيارة (الموعد لسه ماتحجزش)${nvN?`\n🚫 ${nvN} ممنوع الزيارة هذا العام`:''}${msN?`\n🛤 <b>مطلوب ${msN} حجز مسار</b>`:''}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
 
 /* ========= 🚦 مراحل تنفيذ الحجز =========
@@ -4512,12 +4578,12 @@ function renderNoVisit(){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)}
         ${b.phone?`<span class="hint" dir="ltr">${esc(b.phone)}</span>`:''}
         <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} من ${paxN(b)}</span>
-        ${v?`<span class="badge b-green">✓ ${v} مكمّلين للزيارة</span>`:'<span class="badge b-gray">الحجز كله ممنوع</span>'}
+        ${v?`<span class="badge b-green">✓ ${v} مكمّلين للزيارة</span>`:'<span class="badge b-gray">الحجز كله ممنوع</span>'}${msTag(b)}
         ${isAdmin()&&b.createdBy?`<span class="hint">👤 ${who(b.createdBy)}</span>`:''}
         <span class="sp" style="flex:1"></span><span class="hint">${b.acct?.at?fmtDate(dstr(new Date(b.acct.at))):''}</span>
         ${isAdmin()?`<button class="ibtn" onclick="bkOpen('${b.id}')">📲 فتح الحجز</button>`:''}</div>
       <div style="display:grid;gap:6px;margin-top:8px">${P.map(r=>`<div class="pcard nv" style="margin:0;padding:8px;font-size:14px">
-        <b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
+        ${r.ms?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="badge ${r.msd?'b-green':'msb'}">🛤 ${r.msd?'المسار اتحجز':'مطلوب حجز مسار'}</span>${isAdmin()||b.exTo===myEmail()?`<button type="button" class="ibtn ${r.msd?'ok':''}" onclick="nvMsd('${b.id}',${b.pax.indexOf(r)})">${r.msd?'↩️ لسه':'✅ اتحجز المسار'}</button>`:''}</div>`:''}<b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
   box.innerHTML = html || `<div class="empty">${q?'مفيش نتايج':'✅ مفيش حد ممنوع من الزيارة'}</div>`;
 }
 
@@ -4618,7 +4684,7 @@ function renderPast(){
   const adm=isAdmin();
   const cp = (lbl,v,ltr) => v ? `<button type="button" class="cp" onclick="apCopy(this,'${esc(v)}')"><span class="l">${lbl}</span><span class="v" ${ltr?'dir="ltr"':''}>${esc(v)}</span><span class="c">📋</span></button>` : '';
   const people = b => { const P=grpSort(b, (b.pax||[]).slice(0,paxN(b)).filter(r=>r.name||r.email||r.pass||r.visa)); if(!P.length) return '';
-    return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 الأفراد (${P.length})</summary><div style="margin-top:8px">${P.map((r,i)=>`<div class="pcard ${r.nv?'nv':''} ${r.lead?'lead':''}" style="padding:8px"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}${r.nv?' <span style="color:var(--red)">🚫 ليس له زيارة</span>':''}</b></div>
+    return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--g)">👥 الأفراد (${P.length})</summary><div style="margin-top:8px">${P.map((r,i)=>`<div class="pcard ${r.nv?'nv':''} ${r.lead?'lead':''}" style="padding:8px"><div class="ph"><b>فرد ${i+1}${r.lead?' <span style="color:#8a5a00">👑 قائد المجموعة</span>':''}${r.nv?' <span style="color:var(--red)">🚫 ليس له زيارة</span>':''}${r.ms?` <span class="badge ${r.msd?'b-green':'msb'}">🛤 ${r.msd?'المسار اتحجز':'حجز مسار'}</span>`:''}</b></div>
       ${cp('👤 الاسم',r.name)}${cp('🛂 الجواز',r.pass,true)}${cp('📄 التأشيرة',r.visa,true)}${cp('📧 الإيميل',r.email,true)}${cp('🔑 كلمة السر',b.pw,true)}${cp('🌍 الجنسية',r.nat)}</div>`).join('')}</div></details>`; };
   const html = L.slice(0,PAST_N).map(b=>{ const open=pastOpen(b), col=open?'var(--amb)':b.status==='done'?'var(--g)':'#9aa5a0';
     const when = groupsOf(b).map(g=>`<span class="badge ${g==='m'?'b-new':'b-amb'}" style="font-weight:600">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}${entered(b,g)?' ✓':noShow(b,g)?' 🚫':''}</span>`).join(' ');
