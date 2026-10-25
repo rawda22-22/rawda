@@ -4855,7 +4855,8 @@ function renderAppts(){
   const q=normAr(($('#apQ')?.value||'').trim());
   const apHit = a => { const b=a.b; return normAr([b.name, b.phone, b.createdBy, b.createdBy&&empName(b.createdBy), ...(b.pax||[]).flatMap(r=>[r.name, r.email, r.pass, r.visa, r.nat])].filter(Boolean).join(' | ')).includes(q); };
   const L = q ? all.filter(apHit) : apFilter==='now' ? need : all;
-  $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, G=a.gs.join(',');
+  const msSeen=new Set(); /* 🛤 مربع المسار يظهر مرة واحدة بس لو الحجز متقسم على أكتر من كارت */
+  $('#apList').innerHTML = L.length ? L.map(a=>{ const b=a.b, G=a.gs.join(','), msHtml=msSeen.has(b.id)?'':(msSeen.add(b.id), msBox(b));
     const sBtn = !adm ? (a.sDone ? `<span class="badge b-green">📅 الموعد اتحجز</span>` : `<span class="badge b-amb">📅 الموعد لسه ماتحجزش</span>`) : a.sDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','slotBk','${G}')">📅 اتحجز</button>`
       : `<button class="btn pri sm" onclick="stMark('${b.id}','slotBk','${G}')">📅 تم حجز الموعد</button>`;
     const cBtn = !a.sDone ? `<button class="btn sec sm" disabled>🔒 التأكيد بعد حجز الموعد</button>` : a.cDone ? `<button class="btn sm" style="background:#e3f4ec;color:var(--g)" onclick="stMark('${b.id}','conf','${G}')">✔️ اتأكد</button>`
@@ -4866,7 +4867,7 @@ function renderAppts(){
       : `<button class="btn sec sm" disabled title="الطباعة بتفتح قبل الموعد بـ 3 ساعات">🔒 الطباعة ${opensText(a.ms-BAR_H*36e5)}</button>`;
     const urgent=apNeed(a);
     return `<div class="card" style="padding:12px;margin-bottom:10px;border-right:5px solid ${urgent?'var(--red)':a.cDone&&a.bDone?'var(--g)':'var(--blue)'}">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} ${a.gs.map(g=>`<span class="badge b-gray">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}</span>`).join(' ')}${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
+      ${msHtml}<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(b.name)}</b>${empTag(b)} ${a.gs.map(g=>`<span class="badge b-gray">${g==='m'?'👨 رجال':'👩 نساء'} ${+b[g==='m'?'men':'women']}</span>`).join(' ')}${nvPax(b).length?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvPax(b).length} ممنوع الزيارة</span>`:''}
         <span class="sp" style="flex:1"></span>${apWhen(b,a.gs)} ${badgeFor(a.ms)}</div>
       ${apPeople(b, b.id)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${sBtn}${cBtn}${bBtn}<button class="btn sec sm" onclick="apTg('${b.id}','${G}',this)">📨 ابعت الأسماء والإيميلات على تليجرام</button>${adm?`<button class="btn sec sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button>`:''}</div></div>`; }).join('')
