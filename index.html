@@ -143,7 +143,7 @@ td .slot{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .ibtn.nv{color:var(--red);border-color:#efb9b9}.ibtn.nv.on{background:var(--red);color:#fff;border-color:var(--red)}
 .ibtn.ms{color:#6a3fb0;border-color:#d6c6f2}.ibtn.ms.on{background:#6a3fb0;color:#fff;border-color:#6a3fb0}
 .badge.msb{background:#efe7fc;color:#5a2fa0}
-.msbar{margin-top:8px;padding:9px 12px;border-radius:12px;background:#efe7fc;border:2px solid #b89be8;color:#4a2590;font-weight:700;font-size:15px}.msbar b{font-size:19px}.msbar.ok{background:#e3f4ec;border-color:#9fd6bb;color:var(--g)}
+.msbar{margin-top:8px;padding:9px 12px;border-radius:12px;background:#efe7fc;border:2px solid #b89be8;color:#4a2590;font-weight:700;font-size:15px}.msbar b{font-size:19px}.msbar .msx{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;font-size:17px}.msbar.ok{background:#e3f4ec;border-color:#9fd6bb;color:var(--g)}
 .ldpan>summary::-webkit-details-marker{display:none}
 .bill .ldpan div{display:block;padding:0}.bill .ldpan .ph{display:flex;justify-content:flex-start}
 .bill .ldpan .ldbox,.bill .ldpan .ldone{display:block}
@@ -4225,7 +4225,13 @@ const nvPax = b => grpSort(b, (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv));
 /* 🛤 «حجز مسار» لكل فرد (r.ms) — الفرد ده ليس له زيارة بس مطلوب له حجز مسار • r.msd = اتحجز المسار خلاص */
 const msPax = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.nv && r.ms);
 const msLeft = b => msPax(b).filter(r=>!r.msd).length;
-const msTag = b => { const n=msPax(b).length, l=msLeft(b); return !n ? '' : l ? ` <span class="badge msb">🛤 مطلوب ${l} حجز مسار</span>` : ` <span class="badge b-green">🛤 المسار اتحجز (${n})</span>`; };
+/* 👨👩 عدد الرجال والسيدات في المسار (المتبقي لو لسه فيه، أو الكل لو خلص) */
+const msSx = b => { const l=msLeft(b), P=msPax(b).filter(r=>l?!r.msd:true), m=P.filter(r=>paxSx(b,r)==='m').length, w=P.length-m;
+  return [m?`👨 ${m} رجال`:'', w?`👩 ${w} سيدات`:''].filter(Boolean).join(' • '); };
+const msTag = b => { const n=msPax(b).length, l=msLeft(b); return !n ? '' : l ? ` <span class="badge msb">🛤 مطلوب ${l} مسار (${msSx(b)})</span>` : ` <span class="badge b-green">🛤 المسار اتحجز (${n})</span>`; };
+/* 🛤 مربع المسار الكبير في أعلى الحجز */
+const msBox = b => { const n=msPax(b).length, l=msLeft(b); if(!n) return '';
+  return `<div class="msbar ${l?'':'ok'}" style="margin:0 0 10px;font-size:16px">${l?`🛤 مطلوب <b>${l}</b> حجز مسار — احجزهم النهارده${l<n?` <span class="hint">(اتحجز ${n-l} من ${n})</span>`:''}`:`✅ اتحجز المسار للكل (${n})`}<div class="msx">${msSx(b)}</div></div>`; };
 /* 👑 لو فيه قادة: كل قائد وتحته التابعين له، وبعدهم اللي مش تابعين لحد (وجوه كل جزء الرجال قبل السيدات) */
 function grpSort(b, P){
   const base=sxSort(b, P); if(!(b.pax||[]).some(r=>r && r.lead)) return base;
@@ -4424,8 +4430,8 @@ function bkRender(){
   const b=bkB(); if(!b) return;
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length, nvN=b.pax.filter(r=>r.nv).length;
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨':'👩'} ${b[g==='m'?'men':'women']} • ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
-  $('#bkHead').innerHTML = `<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
-    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>${msPax(b).length?`<div class="msbar ${msLeft(b)?'':'ok'}">${msLeft(b)?`🛤 مطلوب عدد <b>${msLeft(b)}</b> حجز مسار${msLeft(b)<msPax(b).length?` <span class="hint">(اتحجز ${msPax(b).length-msLeft(b)} من ${msPax(b).length})</span>`:''} — احجزهم النهارده`:`✅ اتحجز المسار للكل (${msPax(b).length})`}</div>`:''}`;
+  $('#bkHead').innerHTML = `${msBox(b)}<b style="font-size:17px">${esc(b.name)}</b>${empTag(b)}${acctDone(b)?' <span class="badge b-green">✅ الحسابات اتعملت</span>':''}<div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' &nbsp; ')}</div>
+    <div style="margin-top:4px;display:block">خلص <b>${made}</b> من <b>${n}</b>${nvN?` • <span style="color:var(--red)">🚫 ${nvN} ليس له زيارة</span>`:''}</div>`;
   $('#bkHead').insertAdjacentHTML('beforeend', ldPanel(b));
   if(isAdmin()) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${sysTag(b)}${sysBtn(b)}<span class="hint">${isSys(b)?'مفيش رفع على المنصة — الطباعة قبل الموعد بس':'لو اتعذّر رفعه على المنصة'}</span></div>`);
   if(isAdmin() && earlyOn(b)) $('#bkHead').insertAdjacentHTML('beforeend', `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${earlyTag(b)}<button class="btn sec sm" onclick="bkEarly('${b.id}')">↩️ إلغاء التشغيل المبكر</button></div>`);
