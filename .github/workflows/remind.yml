@@ -4,7 +4,7 @@ name: Appointment reminders
 # جدولة GitHub (cron) بتتأخر ساعات، فالـ job هنا "مراقب" شغال حوالي 5 ساعات ونص ويفحص كل 20 ثانية،
 # ولما يخلص بيشغّل اللي بعده بنفسه على طول. الـ cron بالساعة مجرد احتياطي لو السلسلة وقفت لأي سبب.
 # محتاج Secret واحد: FIREBASE_SERVICE_ACCOUNT  (Settings → Secrets and variables → Actions)
-# اختياري (Variables): APP_TZ (الافتراضي Africa/Cairo) و SITE_URL (لو الموقع على دومين خاص)
+# المواعيد بتتحسب بتوقيت السعودية (Asia/Riyadh) دايماً. اختياري (Variables): SITE_URL (لو الموقع على دومين خاص)
 
 on:
   schedule:

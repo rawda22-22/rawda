@@ -331,7 +331,8 @@ async function main() {
   initializeApp({ credential: cert(JSON.parse(raw)) });
   const [owner, repo] = (process.env.GITHUB_REPOSITORY || '/').split('/');
   const siteUrl = process.env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : '');
-  const opts = { db: getFirestore(), tz: process.env.APP_TZ || 'Africa/Cairo', siteUrl, log: (m) => console.log('::notice::' + m) };
+  // مواعيد الروضة دايماً بتوقيت السعودية (مش بتتأثر بالتوقيت الشتوي في مصر)
+  const opts = { db: getFirestore(), tz: 'Asia/Riyadh', siteUrl, log: (m) => console.log('::notice::' + m) };
   const watchMin = +process.env.WATCH_MINUTES || 0;
   try {
     const res = watchMin > 0 ? await watch({ ...opts, minutes: watchMin }) : await run(opts);

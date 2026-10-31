@@ -1008,12 +1008,19 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const pad = n => String(n).padStart(2, '0');
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const dstr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const todayStr = () => dstr(new Date());
+/* 🇸🇦 كل مواعيد الروضة بتوقيت السعودية (UTC+3 ثابت طول السنة — مفيش توقيت صيفي/شتوي هناك).
+   زمان كنا بنقرا الموعد بتوقيت الجهاز، وده كان شغال لما مصر كانت صيفي (+3 زي السعودية)،
+   لكن بعد التوقيت الشتوي مصر بقت +2 فكل الحسابات بقت متأخرة ساعة. دلوقتي الموعد بيتقرا بتوقيت السعودية
+   أياً كان توقيت الجهاز، والعدادات (الباركود قبل 3 ساعات، التأكيد قبل 48 ساعة، المتبقي...) بقت مظبوطة. */
+const KSA_OFF = 3*36e5;
+const ksaMs = (d, t) => Date.parse(`${d}T${String(t||'00:00').slice(0,5)}:00+03:00`);
+const ksaDstr = ms => new Date(+ms + KSA_OFF).toISOString().slice(0,10);
+const todayStr = () => ksaDstr(Date.now());
 function addDays(d, n){ const x=new Date(d+'T00:00'); x.setDate(x.getDate()+n); return dstr(x); }
 const dayDiff = (a, b) => Math.round((new Date(b+'T12:00') - new Date(a+'T12:00')) / 864e5);
 function fmt12(t){ if(!t) return '—'; let [h,m]=t.split(':').map(Number); const ap=h<12?'ص':'م'; h=h%12||12; return `${h}:${pad(m)} ${ap}`; }
 function fmtDate(d, long){
-  const t = todayStr(), tm = dstr(new Date(Date.now()+864e5));
+  const t = todayStr(), tm = addDays(t,1);
   if(!long && d===t) return 'اليوم'; if(!long && d===tm) return 'غداً';
   return new Date(d+'T00:00').toLocaleDateString('ar-u-nu-latn', long?{weekday:'long',day:'numeric',month:'long'}:{weekday:'short',day:'numeric',month:'short'});
 }
@@ -1411,7 +1418,7 @@ function used(date, slot, g, exId){
   return S.bookings.filter(b => b.id!==exId && gDate(b,g)===date && b.status!=='cancelled' && (g==='m'?b.menSlot:b.womenSlot)===slot)
     .reduce((s,b)=> s + (+(g==='m'?b.men:b.women)||0), 0);
 }
-const isPast = (date, slot) => new Date(date+'T'+slot).getTime() < Date.now();
+const isPast = (date, slot) => ksaMs(date, slot) < Date.now();
 function autoSlot(g, date, pref, count, exId){
   if(!count || !date) return '';
   const list = slotsOf(g); if(!list.length) return '';
@@ -1432,8 +1439,8 @@ function appts(){
   for(const b of S.bookings){
     if(b.status==='cancelled' || b.status==='done' || !canSee(b)) continue;
     if(opsHidden(b)){ hiddenAppts++; continue; }
-    if(+b.men && b.menSlot && !entered(b,'m')){ const d=gDate(b,'m'); out.push({b, g:'m', slot:b.menSlot, n:+b.men, date:d, dt:new Date(d+'T'+b.menSlot)}); }
-    if(+b.women && b.womenSlot && !entered(b,'w')){ const d=gDate(b,'w'); out.push({b, g:'w', slot:b.womenSlot, n:+b.women, date:d, dt:new Date(d+'T'+b.womenSlot)}); }
+    if(+b.men && b.menSlot && !entered(b,'m')){ const d=gDate(b,'m'); out.push({b, g:'m', slot:b.menSlot, n:+b.men, date:d, dt:new Date(ksaMs(d, b.menSlot))}); }
+    if(+b.women && b.womenSlot && !entered(b,'w')){ const d=gDate(b,'w'); out.push({b, g:'w', slot:b.womenSlot, n:+b.women, date:d, dt:new Date(ksaMs(d, b.womenSlot))}); }
   }
   return out.sort((a,c)=>a.dt-c.dt);
 }
@@ -1538,7 +1545,10 @@ function printFromUrl(){
 /* ========= العرض ========= */
 const gLabel = g => g==='m' ? '<span class="badge b-men">🧔 رجال</span>' : '<span class="badge b-women">🧕 نساء</span>';
 const gColor = g => g==='m' ? 'var(--blue)' : 'var(--pink)';
-const hm = d => fmt12(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+/* الساعة بتوقيت السعودية (زي ما الموعد متسجل) */
+const hm = d => { const x=new Date(+d + KSA_OFF); return fmt12(`${pad(x.getUTCHours())}:${pad(x.getUTCMinutes())}`); };
+/* نفس اللحظة بتوقيت جهازك (مصر) */
+const hmLocal = d => { d=new Date(+d); return fmt12(`${pad(d.getHours())}:${pad(d.getMinutes())}`); };
 const who = e => e ? esc(empName(e)) : '';
 /* 👨‍💼 اسم الموظف صاحب الحجز بخط صغير — بيظهر جنب اسم العميل في كل المراحل */
 const empTag = b => (b && b.createdBy ? ` <span class="emptag">👨‍💼 ${esc(empName(b.createdBy))}</span>` : '') + (b && b.noData ? ` <span class="emptag">📄 بدون بيانات</span>` : '') + (b && b.rep ? ` <span class="emptag" title="العميل ده حاجز أكتر من موعد">🔁 موعد ${b.rep.i} من ${b.rep.n}</span>` : '');
@@ -1581,7 +1591,7 @@ const dayName = d => new Date(d+'T00:00').toLocaleDateString('ar-u-nu-latn',{wee
 const dayDate = d => new Date(d+'T00:00').toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'long'});
 function apptRow(a){
   const ms=a.dt-Date.now(), l=level(ms), b=a.b, c=calc(b);
-  const rel = a.date===todayStr() ? 'اليوم' : a.date===dstr(new Date(Date.now()+864e5)) ? 'غداً' : '';
+  const rel = a.date===todayStr() ? 'اليوم' : a.date===addDays(todayStr(),1) ? 'غداً' : '';
   return `<div class="appt ar ${l}" style="--gc:${gColor(a.g)}">
     <div class="when">${rel?`<span class="rel">${rel}</span>`:''}<span class="dn">${dayName(a.date)}</span><span class="dd">${dayDate(a.date)}</span><span class="tm">${hm(a.dt)}</span></div>
     <div style="min-width:0">
@@ -1611,7 +1621,7 @@ function renderUpcoming(){
     && ((+b.men && !b.menSlot) || (+b.women && !b.womenSlot)));
   let lastD='', html='';
   list.forEach(a=>{ if(a.date!==lastD){ lastD=a.date; const n=list.filter(x=>x.date===a.date).length;
-      html+=`<div class="dsep"><b>${dayName(a.date)}</b> ${dayDate(a.date)}${a.date===todayStr()?' • اليوم':a.date===dstr(new Date(Date.now()+864e5))?' • غداً':''}<span>${n} موعد</span></div>`; }
+      html+=`<div class="dsep"><b>${dayName(a.date)}</b> ${dayDate(a.date)}${a.date===todayStr()?' • اليوم':a.date===addDays(todayStr(),1)?' • غداً':''}<span>${n} موعد</span></div>`; }
     html+=apptRow(a); });
   if(noSlot.length) html+=`<div class="dsep" style="color:var(--red)"><b>⚠️ حجوزات من غير ساعة</b><span>${noSlot.length}</span></div>`+noSlot.map(b=>`<div class="appt" style="--gc:var(--red);margin-bottom:6px"><div class="info"><b>${esc(b.name)}</b> <span class="hint">${b.date?fmtDate(b.date,true):'من غير تاريخ'} • محتاج تحديد ساعة الموعد عشان يظهر في القائمة</span></div><div class="acts"><button class="ibtn" onclick="openForm('${b.id}')">✏️ تعديل</button></div></div>`).join('');
   $('#upcoming').innerHTML = html || `<div class="empty">لا توجد مواعيد قادمة<br><br><button class="btn pri" onclick="openForm()">＋ إضافة حجز</button></div>`;
@@ -1653,8 +1663,8 @@ const otherDay = (b,g) => gDate(b,g)!==b.date ? ` • 📅 ${fmtDate(gDate(b,g))
 /* أقرب موعد لسه ما فاتش عليه أكتر من ساعة (للترتيب) — null لو مفيش */
 function nextDt(b){
   const cut=Date.now()-36e5, t=[];
-  if(+b.men && b.menSlot && !entered(b,'m')) t.push(+new Date(gDate(b,'m')+'T'+b.menSlot));
-  if(+b.women && b.womenSlot && !entered(b,'w')) t.push(+new Date(gDate(b,'w')+'T'+b.womenSlot));
+  if(+b.men && b.menSlot && !entered(b,'m')) t.push(ksaMs(gDate(b,'m'), b.menSlot));
+  if(+b.women && b.womenSlot && !entered(b,'w')) t.push(ksaMs(gDate(b,'w'), b.womenSlot));
   const up=t.filter(x=>x>cut).sort((x,y)=>x-y);
   return up.length ? up[0] : null;
 }
@@ -1817,7 +1827,7 @@ const noShow = (b, g) => !!(b.noShow && b.noShow[g]);
 const liveGroups = b => groupsOf(b).filter(g=>!noShow(b,g));
 const dueCalc = b => portionCalc(b, liveGroups(b));
 const dueOn = b => b.status!=='cancelled' && !allBarred(b) && liveGroups(b).length>0;
-const gStart = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return +new Date(gDate(b,g)+'T'+(sl||'00:00')); };
+const gStart = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return ksaMs(gDate(b,g), sl||'00:00'); };
 const firstDt = b => Math.min(...(liveGroups(b).length?liveGroups(b):groupsOf(b)).map(g=>gStart(b,g)));
 const missedGroups = b => b.status==='done' ? [] : liveGroups(b).filter(g=>!entered(b,g) && gStart(b,g) < Date.now());
 const lateRem = b => servedCalc(b).rem;
@@ -2007,7 +2017,7 @@ function printLog(){
 function renderClock(){
   const d=new Date(); let hij='';
   try{ hij=' • '+d.toLocaleDateString('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}); }catch(e){}
-  $('#clock').textContent = d.toLocaleDateString('ar-u-nu-latn',{weekday:'long',day:'numeric',month:'long'}) + hij + ' • ' + hm(d);
+  $('#clock').textContent = d.toLocaleDateString('ar-u-nu-latn',{weekday:'long',day:'numeric',month:'long'}) + hij + ' • 🇸🇦 ' + hm(d) + (hm(d)!==hmLocal(d) ? ' • 🇪🇬 ' + hmLocal(d) : '');
 }
 function fillCurSelects(){
   const opts = CODES.map(c=>`<option value="${c}">${CUR[c].flag} ${CUR[c].name}</option>`).join('');
@@ -4527,7 +4537,7 @@ async function bkDone(){
    1) 👤 إنشاء حساب على المنصة (b.acct) • 2) 📅 حجز الموعد لكل فئة (b.slotBk[g] — أو b.booked القديمة) • 3) ✔️ تأكيد الموعد — بيفتح قبل الموعد بـ 48 ساعة (b.conf[g])
    4) 🖨 طباعة الباركود — بتفتح قبل الموعد بـ 3 ساعات (b.bar[g]). المرحلة 3 و 4 لكل فئة لوحدها (رجال / نساء) لأن ممكن يكونوا في يومين مختلفين. */
 const CONF_H = 48, BAR_H = 3;
-const gDt = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return sl ? +new Date(gDate(b,g)+'T'+sl) : null; };
+const gDt = (b, g) => { const sl=g==='m'?b.menSlot:b.womenSlot; return sl ? ksaMs(gDate(b,g), sl) : null; };
 const stGroups = b => groupsOf(b).filter(g=>gDt(b,g)!==null);
 const gDone = (b, k, g) => k==='slotBk' ? !!((b.slotBk && b.slotBk[g]) || b.booked) : !!(b[k] && b[k][g]);
 function stages(b){
@@ -4606,7 +4616,7 @@ const OP_ST = [
   {k:'enter', ic:'🚪', l:'مستني الدخول'},
 ];
 let opsF='all';
-const dayOf = t => dstr(new Date(t));
+const dayOf = t => ksaDstr(t);
 function opItem(b){
   if(!canSee(b) || b.status==='cancelled' || b.status==='done' || allBarred(b)) return null;
   const gs=groupsOf(b).filter(g=>!entered(b,g) && !noShow(b,g)); if(!gs.length) return null;
@@ -4628,7 +4638,7 @@ function opItem(b){
   else if(st==='conf'){ if(left<=CONF_H*H){ lv='now'; why='✔️ التأكيد مفتوح — أكّد دلوقتي'; } else { lv=left<=4*24*H?'soon':'later'; why=`التأكيد بيفتح ${opensText(left-CONF_H*H)}`; } }
   else if(st==='bar'){ if(left<=BAR_H*H){ lv='now'; why='🖨 الطباعة مفتوحة — اطبع دلوقتي'; } else { lv=left<=24*H?'soon':'later'; why=`الطباعة بتفتح ${opensText(left-BAR_H*H)}`; } }
   else { if(left<=0){ lv='now'; why='🚪 وقت الدخول — علّم «دخلوا» بعد ما يدخلوا'; } else { lv=left<=24*H?'soon':'later'; why=`الموعد ${remText(left)}`; } }
-  return {b, gs, sg, dt, left, st, lv, why, today: dayOf(dt)===todayStr(), tmrw: dayOf(dt)===dstr(new Date(Date.now()+864e5))};
+  return {b, gs, sg, dt, left, st, lv, why, today: dayOf(dt)===todayStr(), tmrw: dayOf(dt)===addDays(todayStr(),1)};
 }
 function opActs(a){
   const b=a.b, adm=isAdmin(), G=a.sg.join(','), open=k=>a.sg.filter(g=>!gDone(b,k,g));
@@ -5023,7 +5033,7 @@ $('#impFile').addEventListener('change', async e=>{
   e.target.value='';
 });
 function addDemo(){
-  const t=todayStr(), tm=addDays(t,1), nextH=pad((new Date().getHours()+2)%24)+':00';
+  const t=todayStr(), tm=addDays(t,1), nextH=pad((new Date(Date.now()+KSA_OFF).getUTCHours()+2)%24)+':00';
   const demo=[['أحمد العتيبي','+966501112233',2,3,t,t,nextH,'SAR','amount',0,'full'],['محمد عبدالله','+201012345678',4,0,t,t,nextH,'EGP','amount',50,'zero'],
     ['عائلة الشهري','+966503334455',3,4,tm,tm,'08:00','SAR','percent',0,'half'],['فاطمة حسن','+201001234567',0,2,tm,tm,'09:00','EGP','percent',10,'full'],
     ['Yusuf Ibrahim','+14155550123',1,1,tm,tm,'22:00','USD','amount',0,'zero'],
