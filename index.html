@@ -1133,6 +1133,11 @@ const empName = e => { e=String(e||'').toLowerCase(); return (USERS[e]&&USERS[e]
    لو مفيش tabs متسجلة للموظف بيشوف كل تبويبات الموظفين زي الأول • «لوحة التحكم» دايمًا ظاهرة */
 const STAFF_TABS = [['appts','المواعيد'],['bar','طباعة الباركود'],['groups','الدفعات'],['past','الحجوزات المنتهية'],['ops','لوحة التشغيل'],['list','الحجوزات'],['nv','ممنوع الزيارة']];
 const ADMIN_TABS = ['fin','staff','log','bank','settings'];
+/* 📲 «مطلوب على المنصة» كامل (bk): صلاحية إضافية المدير بيفتحها لأي موظف من «🗂 التبويبات» —
+   الموظف بيشوف كل الحجوزات المطلوبة على المنصة وينفذها زي المدير (مش المحال ليه بس).
+   مقفولة افتراضيًا: لازم المدير يعلّم عليها بنفسه • أدوات المدير (الإحالة/المبكر/السيستم/التعديل) بتفضل للمدير بس */
+const bkAll = () => isAdmin() || (Array.isArray(ME?.tabs) && ME.tabs.includes('bk'));
+const canEx = b => bkAll() || b.exTo===myEmail();
 function tabAllowed(t){
   if(isAdmin()) return true;
   if(ADMIN_TABS.includes(t)) return false;
@@ -1149,14 +1154,15 @@ function openTabs(k){
   const L=Array.isArray(u.tabs) ? u.tabs : STAFF_TABS.map(x=>x[0]);
   $('#tabsTtl').firstChild.textContent = `التبويبات اللي تظهر لـ ${u.name||loginName(e)}`;
   $('#tabsChk').innerHTML = `<label style="display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;opacity:.7"><input type="checkbox" checked disabled> لوحة التحكم <span class="hint">(دايمًا)</span></label>`
-    + STAFF_TABS.map(([t,l])=>`<label style="display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;cursor:pointer"><input type="checkbox" value="${t}" ${L.includes(t)?'checked':''}> ${l}</label>`).join('');
+    + STAFF_TABS.map(([t,l])=>`<label style="display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;cursor:pointer"><input type="checkbox" value="${t}" ${L.includes(t)?'checked':''}> ${l}</label>`).join('')
+    + `<label style="display:flex;gap:8px;align-items:center;padding:8px 10px;border:2px solid var(--blue);border-radius:10px;cursor:pointer"><input type="checkbox" value="bk" ${Array.isArray(u.tabs)&&u.tabs.includes('bk')?'checked':''}> 📲 مطلوب على المنصة <span class="hint">(كل الحجوزات — مش المحال ليه بس)</span></label>`;
   $('#tabsOv').classList.add('on');
 }
 const tabsAll = v => document.querySelectorAll('#tabsChk input[value]').forEach(x=>x.checked=v);
 async function tabsSave(){
   const e=tabsEdit, u=USERS[e]; if(!u || !isAdmin()) return;
   const tabs=[...document.querySelectorAll('#tabsChk input[value]:checked')].map(x=>x.value);
-  try{ await fb.updateDoc(fb.doc(db,'users',e), {tabs}); closeOv('tabsOv'); toast(`🗂 اتحفظت تبويبات ${u.name||loginName(e)} (${tabs.length+1})`); }
+  try{ await fb.updateDoc(fb.doc(db,'users',e), {tabs}); closeOv('tabsOv'); toast(`🗂 اتحفظت تبويبات ${u.name||loginName(e)} (${tabs.filter(t=>t!=='bk').length+1})${tabs.includes('bk')?' + 📲 مطلوب على المنصة':''}`); }
   catch(err){ console.error(err); toast('⚠️ '+(err.code?authMsg(err.code):err.message)); }
 }
 function applyRole(){
@@ -2563,7 +2569,7 @@ function renderStaff(){
       <div class="acts">
         <button class="ibtn ${commMode(e)?'money':''}" onclick="openCm('${k}')" title="نظام العمولة">💵 ${esc(commMode(e)?cmName(e):'بدون عمولة')}</button>
         <button class="ibtn ${u.hideOps?'del':''}" onclick="toggleOps('${k}')" title="إظهار / إخفاء عملاء الموظف ده من شاشة التشغيل (المواعيد القادمة)">${u.hideOps?'🙈 مخفي من التشغيل':'👁 ظاهر في التشغيل'}</button>
-        ${u.role==='admin'?'':`<button class="ibtn" onclick="openTabs('${k}')" title="التبويبات اللي تظهر للموظف ده">🗂 التبويبات ${Array.isArray(u.tabs)?`(${u.tabs.length+1})`:'(الكل)'}</button>`}
+        ${u.role==='admin'?'':`<button class="ibtn" onclick="openTabs('${k}')" title="التبويبات اللي تظهر للموظف ده">🗂 التبويبات ${Array.isArray(u.tabs)?`(${u.tabs.filter(t=>t!=='bk').length+1})`:'(الكل)'}</button>${Array.isArray(u.tabs)&&u.tabs.includes('bk')?' <span class="badge b-new" title="بيشوف كل «مطلوب على المنصة» وينفذها">📲 المنصة</span>':''}`}
         <button class="ibtn" onclick="staffAct('name','${k}')" title="تغيير الاسم">✏️</button>
         ${me?'':`<button class="ibtn" onclick="staffAct('role','${k}')">${u.role==='admin'?'👤 خليه موظف':'⭐ خليه مدير'}</button>
         <button class="ibtn ${off?'ok':'del'}" onclick="staffAct('active','${k}')">${off?'✅ تفعيل':'⛔ إيقاف'}</button>`}
@@ -4399,10 +4405,10 @@ let BKID=null;
 const bkB = () => S.bookings.find(x=>x.id===BKID);
 function renderBookQueue(){
   const card=$('#bkCard'); if(!card) return;
-  const adm=isAdmin();
-  $('#bkTitle').textContent = adm ? '📲 مطلوب على المنصة (حساب / موعد)' : '📲 محال ليك على المنصة (حساب / موعد)';
+  const adm=isAdmin(), all=bkAll();
+  $('#bkTitle').textContent = all ? '📲 مطلوب على المنصة (حساب / موعد)' : '📲 محال ليك على المنصة (حساب / موعد)';
   $('#bkSub').textContent = adm ? '— البيانات كاملة والموعد خلال 10 أيام' : '— نفّذها زي المدير: انسخ البيانات للمنصة وعلّم على كل فرد';
-  const L=S.bookings.filter(b=>(adm || b.exTo===myEmail()) && ((needBook(b) && paxReady(b) && inBkWin(b)) || (needSlot(b) && inBkWin(b)))).sort((a,b)=>needSlot(a)-needSlot(b) || apptPassed(a)-apptPassed(b) || (nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
+  const L=S.bookings.filter(b=>canEx(b) && ((needBook(b) && paxReady(b) && inBkWin(b)) || (needSlot(b) && inBkWin(b)))).sort((a,b)=>needSlot(a)-needSlot(b) || apptPassed(a)-apptPassed(b) || (nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
   card.style.display = L.length ? '' : 'none';
   $('#bkCount').textContent = L.length ? `${L.length} حجز` : '';
   $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
@@ -4414,7 +4420,7 @@ function renderBookQueue(){
       <div class="acts">${adm?`<button class="btn pri sm" onclick="editDate('${b.id}')">✏️ تعديل الموعد</button><button class="ibtn" onclick="dueCancel('${b.id}')">ملغي</button>`:'<span class="hint">بلّغ المدير يحدد موعد جديد</span>'}</div></div>`;
     return `<div class="appt" style="--gc:var(--blue);cursor:pointer" onclick="bkOpen('${b.id}')">
       <div class="time" style="font-size:20px">👥 ${n}</div>
-      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${earlyTag(b)}${sysTag(b)}${adm&&b.exTo?` <span class="badge b-new">👷 محال لـ ${esc(empName(b.exTo))}</span>`:''}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}${msTag(b)}</div>
+      <div class="info"><div class="nm">${esc(b.name)}${empTag(b)}${earlyTag(b)}${sysTag(b)}${all&&b.exTo?` <span class="badge b-new">👷 محال لـ ${esc(b.exTo===myEmail()?'ليك':empName(b.exTo))}</span>`:''}${needSlot(b)?` <span class="badge b-amb">👤 الحساب اتعمل • 📅 الموعد ${bkdN(b)}/${visitPax(b).length}</span>`:made?` <span class="badge b-green">${made}/${n} اتعمل</span>`:''}${msTag(b)}</div>
         <div class="sub">${bkMini(b)}</div>
         <div class="sub">${nx!==null?badgeFor(nx-Date.now()):''} ${miss?`<span class="badge b-amb">⚠️ ${miss} من غير إيميل</span>`:d<n?`<span class="badge b-amb">بيانات ${d}/${n}</span>`:'<span class="badge b-green">✓ البيانات كاملة</span>'}</div></div>
       <div class="acts">${adm?`${sysBtn(b,'data-s')}${earlyOn(b)?`<button class="ibtn" onclick="event.stopPropagation();bkEarly('${b.id}')" title="إلغاء التشغيل المبكر">↩️ إلغاء المبكر</button>`:''}${exSel(b,'onclick="event.stopPropagation()"')}<button class="ibtn" onclick="event.stopPropagation();editDate('${b.id}')" title="تعديل الحجز / الموعد">✏️</button>`:''}<button class="btn pri sm" onclick="event.stopPropagation();bkOpen('${b.id}')">${needSlot(b)?'📅 احجز الموعد':'📲 ابدأ'}</button></div></div>`; }).join('');
@@ -4432,7 +4438,7 @@ const apptPassed = b => { const gs=groupsOf(b).filter(g=>!entered(b,g) && !noSho
 function editDate(id){ document.querySelectorAll('.overlay.on').forEach(o=>o.classList.remove('on')); BKID=null; openForm(id); }
 function bkOpen(id){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
-  if(!isAdmin() && b.exTo!==myEmail()){ toast('⛔ الحجز ده مش محال ليك'); return; }
+  if(!canEx(b)){ toast('⛔ الحجز ده مش محال ليك'); return; }
   BKID=id; b.pax=fixRows(b.pax, paxN(b)); $('#bkEditBtn').style.display = isAdmin() ? '' : 'none'; bkRender(); $('#bkOv').classList.add('on');
   if(paxMissing(b)>0) Promise.resolve(save()).then(()=>allocEmails(b)).then(()=>{ if(BKID===id) bkRender(); });
 }
@@ -4516,7 +4522,7 @@ function msDone(b, i){
   save(); renderAll();
   if(r.msd && !msLeft(b) && tgOn()) tgSend(`🛤 <b>تم حجز المسار</b>\n👤 ${tgEsc(b.name)} • ${msPax(b).length} فرد${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
-function nvMsd(id, i){ const b=S.bookings.find(x=>x.id===id); if(!b || !b.pax[i] || !b.pax[i].ms) return; if(!isAdmin() && b.exTo!==myEmail()) return; msDone(b, i); }
+function nvMsd(id, i){ const b=S.bookings.find(x=>x.id===id); if(!b || !b.pax[i] || !b.pax[i].ms) return; if(!canEx(b)) return; msDone(b, i); }
 async function bkDone(){
   const b=bkB(); if(!b) return;
   if(acctDone(b)){ if(!confirm('إلغاء «تم إنشاء الحسابات» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.acct; delete b.booked; save(); renderAll(); bkRender(); return; }
@@ -4599,7 +4605,7 @@ function renderNoVisit(){
         <span class="sp" style="flex:1"></span><span class="hint">${b.acct?.at?fmtDate(dstr(new Date(b.acct.at))):''}</span>
         ${isAdmin()?`<button class="ibtn" onclick="bkOpen('${b.id}')">📲 فتح الحجز</button>`:''}</div>
       <div style="display:grid;gap:6px;margin-top:8px">${P.map(r=>`<div class="pcard nv" style="margin:0;padding:8px;font-size:14px">
-        ${r.ms?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="badge ${r.msd?'b-green':'msb'}">🛤 ${r.msd?'المسار اتحجز':'مطلوب حجز مسار'}</span>${isAdmin()||b.exTo===myEmail()?`<button type="button" class="ibtn ${r.msd?'ok':''}" onclick="nvMsd('${b.id}',${b.pax.indexOf(r)})">${r.msd?'↩️ لسه':'✅ اتحجز المسار'}</button>`:''}</div>`:''}<b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
+        ${r.ms?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="badge ${r.msd?'b-green':'msb'}">🛤 ${r.msd?'المسار اتحجز':'مطلوب حجز مسار'}</span>${canEx(b)?`<button type="button" class="ibtn ${r.msd?'ok':''}" onclick="nvMsd('${b.id}',${b.pax.indexOf(r)})">${r.msd?'↩️ لسه':'✅ اتحجز المسار'}</button>`:''}</div>`:''}<b>${esc(r.name||'—')}</b> • 🛂 <span dir="ltr">${esc(r.pass||'—')}</span> • 📄 <span dir="ltr">${esc(r.visa||'—')}</span> • 🌍 ${esc(r.nat||'—')}${r.email?`<div style="margin-top:6px"><button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button></div>`:''}</div>`).join('')}</div></div>`; }).join('');
   box.innerHTML = html || `<div class="empty">${q?'مفيش نتايج':'✅ مفيش حد ممنوع من الزيارة'}</div>`;
 }
 
