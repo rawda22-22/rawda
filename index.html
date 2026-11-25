@@ -627,12 +627,16 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="f"><label>يُطبّق من عدد أفراد</label><input id="sBulkMin" type="number" min="0"><span class="hint">0 = إيقاف الخصم التلقائي</span></div>
 
       <h4>🔔 إشعارات تليجرم</h4>
-      <label class="chk"><input type="checkbox" id="tgOn"> ابعتلي إشعار على تليجرم مع كل حجز جديد</label>
+      <label class="chk"><input type="checkbox" id="tgOn"> تشغيل إشعارات تليجرام</label>
       <div class="f full"><label>Bot Token</label><input id="tgToken" dir="ltr" autocomplete="off" placeholder="123456789:AAH..."></div>
-      <div class="f"><label>Chat ID</label><input id="tgChat" dir="ltr" autocomplete="off" placeholder="123456789"></div>
+      <div class="f"><label>👥 محادثة الموظفين — Chat ID</label><input id="tgChat" dir="ltr" autocomplete="off" placeholder="-100123456789"><span class="hint">بيروحلها بس: أكواد نسك + تنبيه «مفيش إيميلات متاحة»</span></div>
       <div class="f" style="justify-content:flex-end"><div class="qchips">
         <button type="button" class="btn sec sm" onclick="tgDetect()">🔍 جيب Chat ID</button>
         <button type="button" class="btn sec sm" onclick="tgTest()">📨 رسالة تجربة</button></div></div>
+      <div class="f"><label>🗂 محادثة التشغيل — Chat ID</label><input id="tgChat2" dir="ltr" autocomplete="off" placeholder="-100987654321"><span class="hint">بيروحلها كل الباقي: تم الرفع، إنشاء الحسابات، الموعد، التأكيد، الباركود، القادة، المسار، الإحالة، حجز سيستم، والتذكيرات. لو فاضية الرسايل دي مابتتبعتش خالص.</span></div>
+      <div class="f" style="justify-content:flex-end"><div class="qchips">
+        <button type="button" class="btn sec sm" onclick="tgDetect('tgChat2')">🔍 جيب Chat ID</button>
+        <button type="button" class="btn sec sm" onclick="tgTest('tgChat2')">📨 رسالة تجربة</button></div></div>
       <div class="f full"><span class="hint">اعمل بوت من <b dir="ltr">@BotFather</b> وانسخ الـ Token، ابعت للبوت أي رسالة، وبعدين دوس «جيب Chat ID». للجروب: ضيف البوت للجروب وابعت فيه رسالة. التوكن بيتحفظ في قاعدة البيانات (مش في الكود) ومحدش يشوفه غير المستخدمين المسجلين.</span></div>
 
     </div>
@@ -945,7 +949,7 @@ function subscribe(){
     USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderAll();
   }, e=>console.warn('users:', e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','usedOff'), d=>{ USED_OFF=new Set((d.exists() && d.data().keys) || []); renderAll(); }, e=>console.warn('usedOff:', e.code||e)));
-  unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
+  unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'',chatId2:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
     const arr=[]; synced.bookings={};
     snap.forEach(d=>{ const b=migrate({...d.data(), id:d.id}); arr.push(b); synced.bookings[d.id]=JSON.stringify(b); });
@@ -1733,7 +1737,7 @@ function submitForm(sendAfter){
     });
     toast(extra.length ? `✓ اتسجل ${extra.length+1} مواعيد للعميل` : '✓ تمت إضافة الحجز');
   }
-  if(!b.noData){ const on=$('#sysChk').checked; if(on!==!!b.sys){ sysSet(b, on); if(on && tgOn()) tgSend(`🖥 <b>حجز سيستم</b>\n👤 ${tgEsc(b.name)} • 👥 ${paxN(b)||((+b.men||0)+(+b.women||0))}\nمفيش رفع على المنصة — الطباعة قبل الموعد بس`).catch(e=>console.error(e)); } }
+  if(!b.noData){ const on=$('#sysChk').checked; if(on!==!!b.sys){ sysSet(b, on); if(on && tgOn2()) tgOps(`🖥 <b>حجز سيستم</b>\n👤 ${tgEsc(b.name)} • 👥 ${paxN(b)||((+b.men||0)+(+b.women||0))}\nمفيش رفع على المنصة — الطباعة قبل الموعد بس`).catch(e=>console.error(e)); } }
   if(!b.noData) b.pax=fixRows(b.pax, paxN(b));   // بدون بيانات: مانلمسش أي صفوف قديمة عشان لو رجّعوه حجز عادي تفضل موجودة
   const sv=save(); closeOv('formOv'); renderAll();
   Promise.resolve(sv).then(()=>{ if(paxMissing(b)) allocEmails(b); });
@@ -1767,7 +1771,7 @@ function markEntered(id, g){
   save(); renderAll(); toast(`✓ تم دخول ${lbl} — الحالة هتتحدث لما ${rest[0]==='m'?'الرجال':'النساء'} يدخلوا`);
 }
 /* ========= 🔔 إشعارات تليجرم ========= */
-let TG = { on:false, token:'', chatId:'' };
+let TG = { on:false, token:'', chatId:'', chatId2:'' };
 const TG_KEY = 'rawdah_tg';
 function loadTGLocal(){ try{ const v=localStore()?.getItem(TG_KEY); if(v) TG={...TG, ...JSON.parse(v)}; }catch(e){} }
 async function saveTG(){
@@ -1783,8 +1787,8 @@ async function tgSend(text, token=TG.token, chatId=TG.chatId, extra={}){
   /* 🔁 الجروب اتحوّل «سوبر جروب» → تليجرام بيدّي Chat ID جديد: نبعت عليه، والمدير بيحفظه في الإعدادات تلقائي */
   const to = j.parameters && j.parameters.migrate_to_chat_id;
   if(!j.ok && to){
-    if(String(chatId)===String(TG.chatId)){ TG.chatId=String(to); if(isAdmin()) saveTG(); }
-    if($('#tgChat') && $('#tgChat').value.trim()===String(chatId)) $('#tgChat').value=String(to);
+    ['chatId','chatId2'].forEach(k=>{ if(String(chatId)===String(TG[k])){ TG[k]=String(to); if(isAdmin()) saveTG(); } });
+    ['#tgChat','#tgChat2'].forEach(k=>{ if($(k) && $(k).value.trim()===String(chatId)) $(k).value=String(to); });
     return tgSend(text, token, to, extra);
   }
   if(!j.ok) throw new Error(j.description || ('HTTP '+r.status));
@@ -1792,15 +1796,18 @@ async function tgSend(text, token=TG.token, chatId=TG.chatId, extra={}){
 }
 /* حجز جديد: رسالة واحدة للعميل جاهزة تتحوّل له زي ما هي (من غير مبالغ) */
 const tgOn = () => TG.on && TG.token && TG.chatId;
+/* 🗂 محادثة التشغيل (chatId2): كل رسايل التنفيذ والتذكيرات — محادثة الموظفين (chatId) بقى ليها بس أكواد نسك وتنبيه «مفيش إيميلات» */
+const tgOn2 = () => TG.on && TG.token && TG.chatId2;
+const tgOps = (text, extra={}) => tgOn2() ? tgSend(text, TG.token, TG.chatId2, extra) : Promise.reject(new Error('محادثة التشغيل مش متحددة في الإعدادات'));
 const byName = () => tgEsc(ME?.name || loginName(myEmail()));
 /* تحديث حالة السداد فور قبول رقم الإيصال */
-async function tgTest(){
-  const token=$('#tgToken').value.trim(), chat=$('#tgChat').value.trim();
+async function tgTest(fld='tgChat'){
+  const token=$('#tgToken').value.trim(), chat=$('#'+fld).value.trim();
   if(!token || !chat){ toast('اكتب الـ Token والـ Chat ID الأول'); return; }
   try{ await tgSend('✅ تم ربط حجوزات الروضة الشريفة بتليجرم بنجاح', token, chat); toast('📨 اتبعتت رسالة التجربة — شوف تليجرم'); }
   catch(e){ toast('⚠️ فشل الإرسال: '+e.message); }
 }
-async function tgDetect(){
+async function tgDetect(fld='tgChat'){
   const token=$('#tgToken').value.trim(); if(!token){ toast('اكتب الـ Bot Token الأول'); return; }
   try{
     const j = await (await fetch(`https://api.telegram.org/bot${token}/getUpdates`)).json();
@@ -1808,7 +1815,7 @@ async function tgDetect(){
     const msgs = (j.result||[]).map(u=>u.message||u.channel_post||u.my_chat_member).filter(Boolean);
     const chat = msgs.length && msgs[msgs.length-1].chat;
     if(!chat){ toast('ابعت للبوت أي رسالة الأول وبعدين جرّب تاني'); return; }
-    $('#tgChat').value = chat.id;
+    $('#'+fld).value = chat.id;
     toast(`✓ لقيت: ${chat.title || chat.first_name || chat.username || chat.id}`);
   }catch(e){ toast('⚠️ '+e.message); }
 }
@@ -2141,7 +2148,7 @@ async function paxUpload(){
   bb.uploaded={at:Date.now(), by:myEmail()};
   if(bb.status==='new') bb.status='confirmed';
   paxDirty=false; save(); renderAll(); paxRender(); toast('📤 تم الرفع ✓');
-  if(!tgOn()){ toast('📤 اتسجل «تم الرفع» — تليجرام مش متفعّل فمفيش رسالة اتبعتت'); return; }
+  if(!tgOn2()){ toast('📤 اتسجل «تم الرفع» — محادثة التشغيل مش متحددة في إعدادات تليجرام فمفيش رسالة اتبعتت'); return; }
   const gl = g => +bb[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'}: <b>${bb[g==='m'?'men':'women']}</b> — ${fmtDate(gDate(bb,g))} ${fmt12(g==='m'?bb.menSlot:bb.womenSlot)}` : '';
   const head=['📤 <b>تم الرفع</b>', '', `👤 العميل: <b>${tgEsc(bb.name)}</b>`, ...[gl('m'),gl('w')].filter(Boolean), ''];
   const rows=grpSort(bb, bb.pax).map((r,i)=>`${i+1}) ${r.name?`<code>${tgEsc(r.name)}</code>\n     📧 `:''}<code>${tgEsc(r.email)}</code>\n     🛂 ${r.pass?`<code>${tgEsc(r.pass)}</code>`:'—'} • 📄 ${r.visa?`<code>${tgEsc(r.visa)}</code>`:'—'} • 🌍 ${tgEsc(r.nat||'—')}`);
@@ -2149,7 +2156,7 @@ async function paxUpload(){
   const msgs=[]; let cur=head.join('\n');
   rows.forEach(x=>{ if((cur+'\n'+x).length>3800){ msgs.push(cur); cur='📤 <b>تكملة</b> — '+tgEsc(bb.name); } cur+='\n'+x; });
   msgs.push(cur+'\n'+foot.join('\n'));
-  try{ for(const m of msgs) await tgSend(m); }catch(e){ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); }
+  try{ for(const m of msgs) await tgOps(m); }catch(e){ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); }
 }
 
 /* ===== 📎 قراءة التأشيرة (PDF أو صورة) — بيشتغل جوه المتصفح بمكتبات مجانية ===== */
@@ -2535,7 +2542,7 @@ const bkdN = b => visitPax(b).filter(r=>r.bk).length;
 function syncSlot(b){
   const V=visitPax(b), all=V.length>0 && V.every(r=>r.bk), was=slotAll(b);
   if(all && !was){ b.slotBk={}; stGroups(b).forEach(g=>b.slotBk[g]={at:Date.now(), by:myEmail()}); delete b.booked; if(b.status==='new') b.status='confirmed';
-    if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${V.length}\n${stGroups(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`).join('\n')}${confNowTg(b, stGroups(b))}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e)); }
+    if(tgOn2()) tgOps(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${V.length}\n${stGroups(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`).join('\n')}${confNowTg(b, stGroups(b))}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e)); }
   else if(!all && was){ b.slotBk={}; delete b.booked; if(b.status==='confirmed') b.status='new'; }
 }
 /* 👨👩 ترتيب الأفراد جوه الحجز: الرجال ورا بعض الأول وبعدين السيدات (من غير ما يتغير ترتيبهم الأصلي جوه كل فئة) */
@@ -2583,7 +2590,7 @@ function ldPanel(b){
 async function ldTg(id, btn){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
   const L=leadIdx(b); if(!L.length){ toast('مفيش قادة في الحجز ده'); return; }
-  if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل — فعّله من الإعدادات'); return; }
+  if(!tgOn2()){ toast('⚠️ محادثة التشغيل مش متحددة — حطها من إعدادات تليجرام'); return; }
   const v = x => x ? `<code>${tgEsc(x)}</code>` : '— ناقص —';
   const M=ldMap(b).M, two = n => String(n||'').trim().split(/\s+/).slice(0,2).join(' ');
   const when = groupsOf(b).map(g=>`${g==='m'?'👨 رجال':'👩 نساء'} • ${fmtDate(gDate(b,g))}${(g==='m'?b.menSlot:b.womenSlot)?` • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}`:''}`).join('\n');
@@ -2592,7 +2599,7 @@ async function ldTg(id, btn){
       return `\n<b>${k+1}) 👑 ${tgEsc(r.name||('فرد '+(li+1)))}</b>\n📧 ${v(r.email)}\n🛂 ${v(r.pass)}\n📄 ${v(r.visa)}${F.length?`\n👥 تابعين (${F.length}): ${F.map(x=>tgEsc(two(x.name)||'—')).join('، ')}`:''}`; }).join('\n')+
     (user?.email?`\n\nبواسطة: ${byName()}`:'');
   if(btn){ btn.disabled=true; btn.textContent='⏳ جارٍ الإرسال...'; }
-  try{ await tgSend(txt); toast(`✈️ اتبعت ${L.length} قائد على تليجرام`); if(btn) btn.textContent='✅ اتبعت — ابعت تاني'; }
+  try{ await tgOps(txt); toast(`✈️ اتبعت ${L.length} قائد على تليجرام`); if(btn) btn.textContent='✅ اتبعت — ابعت تاني'; }
   catch(e){ console.error(e); toast('⚠️ الإرسال لتليجرام فشل: '+(e.message||'')); if(btn) btn.textContent='✈️ إرسال القادة على تليجرام'; }
   finally{ if(btn) btn.disabled=false; }
 }
@@ -2687,7 +2694,7 @@ function bkSys(id){
   }
   save(); renderAll(); if(BKID===id) bkRender();
   toast(isSys(b) ? `🖥 «${b.name}» بقى حجز سيستم — هيظهر في «طباعة الباركود» قبل الموعد` : `↩️ «${b.name}» رجع حجز عادي على المنصة`);
-  if(tgOn()) tgSend(`${isSys(b)?'🖥 <b>اتحوّل لحجز سيستم</b>':'↩️ <b>رجع حجز عادي على المنصة</b>'}\n👤 ${tgEsc(b.name)} • 👥 ${n}${isSys(b)?'\nمفيش رفع على المنصة — الطباعة قبل الموعد بس':''}`).catch(e=>console.error(e));
+  if(tgOn2()) tgOps(`${isSys(b)?'🖥 <b>اتحوّل لحجز سيستم</b>':'↩️ <b>رجع حجز عادي على المنصة</b>'}\n👤 ${tgEsc(b.name)} • 👥 ${n}${isSys(b)?'\nمفيش رفع على المنصة — الطباعة قبل الموعد بس':''}`).catch(e=>console.error(e));
 }
 function bkEarly(id){
   const b=S.bookings.find(x=>x.id===id); if(!b || !isAdmin()) return;
@@ -2703,7 +2710,7 @@ function bkExTo(id, v){
   if(v) b.exTo=v; else delete b.exTo;
   save(); renderAll(); if(BKID===id) bkRender();
   toast(v ? `👷 «${b.name}» اتحال لـ ${empName(v)}` : `✓ «${b.name}» رجع ليك`);
-  if(v && tgOn()) tgSend(`👷 <b>حجز محال ليك على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${paxN(b)}\n➡️ المنفّذ: ${tgEsc(empName(v))}\nافتح «📲 محال ليك على المنصة» في لوحة التحكم`).catch(e=>console.error(e));
+  if(v && tgOn2()) tgOps(`👷 <b>حجز محال ليك على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${paxN(b)}\n➡️ المنفّذ: ${tgEsc(empName(v))}\nافتح «📲 محال ليك على المنصة» في لوحة التحكم`).catch(e=>console.error(e));
 }
 let BKID=null;
 const bkB = () => S.bookings.find(x=>x.id===BKID);
@@ -2824,7 +2831,7 @@ function bkMsd(i){ const b=bkB(); if(!b || !b.pax[i] || !b.pax[i].ms) return; ms
 function msDone(b, i){
   const r=b.pax[i]; r.msd=!r.msd; if(r.msd) r.msdAt=Date.now(); else delete r.msdAt;
   save(); renderAll();
-  if(r.msd && !msLeft(b) && tgOn()) tgSend(`🛤 <b>تم حجز المسار</b>\n👤 ${tgEsc(b.name)} • ${msPax(b).length} فرد${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+  if(r.msd && !msLeft(b) && tgOn2()) tgOps(`🛤 <b>تم حجز المسار</b>\n👤 ${tgEsc(b.name)} • ${msPax(b).length} فرد${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
 function nvMsd(id, i){ const b=S.bookings.find(x=>x.id===id); if(!b || !b.pax[i] || !b.pax[i].ms) return; if(!canEx(b)) return; msDone(b, i); }
 async function bkDone(){
@@ -2840,7 +2847,7 @@ async function bkDone(){
   save(); closeOv('bkOv'); BKID=null; renderAll();
   toast(vN ? `✅ اتعملت الحسابات — ${b.name}${nvN?` • 🚫 ${nvN} ممنوع الزيارة`:''} • احجز الموعد من «المواعيد»` : `🚫 ${b.name} — الحجز كله اتنقل «ممنوع الزيارة هذا العام»`);
   if(msN) setTimeout(()=>toast(`🛤 مطلوب عدد ${msN} حجز مسار لـ «${b.name}» — احجزهم النهارده`), 2600);
-  if(tgOn()) tgSend(`✅ <b>تم إنشاء الحسابات على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${vN} ليهم زيارة (الموعد لسه ماتحجزش)${nvN?`\n🚫 ${nvN} ممنوع الزيارة هذا العام`:''}${msN?`\n🛤 <b>مطلوب ${msN} حجز مسار</b>`:''}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+  if(tgOn2()) tgOps(`✅ <b>تم إنشاء الحسابات على المنصة</b>\n👤 ${tgEsc(b.name)} • 👥 ${vN} ليهم زيارة (الموعد لسه ماتحجزش)${nvN?`\n🚫 ${nvN} ممنوع الزيارة هذا العام`:''}${msN?`\n🛤 <b>مطلوب ${msN} حجز مسار</b>`:''}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
 
 /* ========= 🚦 مراحل تنفيذ الحجز =========
@@ -2979,11 +2986,11 @@ function barDone(){
   if(!confirm(`تأكيد إن الباركود اتطبع لـ ${b.name} (${g==='m'?'رجال':'نساء'})؟`)) return;
   b.bar={...(b.bar||{}), [g]:{at:Date.now(), by:myEmail()}};
   save(); closeOv('barOv'); renderAll(); toast(`🖨 ✓ اتطبع — ${b.name}`);
-  if(tgOn()) tgSend(`🖨 <b>تم طباعة الباركود</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']})\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+  if(tgOn2()) tgOps(`🖨 <b>تم طباعة الباركود</b>\n👤 ${tgEsc(b.name)} • ${g==='m'?'🧔 رجال':'🧕 نساء'} (${+b[g==='m'?'men':'women']})\n🗓 ${fmtDate(gDate(b,g))} • ${fmt12(g==='m'?b.menSlot:b.womenSlot)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
 }
 async function barTg(){
   const b=BARCUR && S.bookings.find(x=>x.id===BARCUR.id); if(!b) return;
-  if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل'); return; }
+  if(!tgOn2()){ toast('⚠️ محادثة التشغيل مش متحددة — حطها من إعدادات تليجرام'); return; }
   const g=BARCUR.g, P=visitPax(b).filter(r=>r.email);
   if(!P.length){ toast('مفيش إيميلات في الحجز ده'); return; }
   const L=['🖨 <b>استعد لطباعة الباركود</b>', '', `👤 ${tgEsc(b.name)}`,
@@ -2991,7 +2998,7 @@ async function barTg(){
     ...P.map((r,i)=>`${i+1}) ${r.name?`<b>${tgEsc(r.name)}</b>`:'—'}\n     📧 <code>${tgEsc(r.email)}</code>`)];
   if(user?.email) L.push('', `بعتها: ${byName()}`);
   const btn=$('#barTgBtn'); btn.disabled=true;
-  try{ await tgSend(L.join('\n')); toast('📨 اتبعتت على تليجرام'); }
+  try{ await tgOps(L.join('\n')); toast('📨 اتبعتت على تليجرام'); }
   catch(e){ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); }
   finally{ btn.disabled=false; }
 }
@@ -3121,10 +3128,10 @@ function stMark(id, k, gArg){
     if(!T.length){ toast('🔒 لسه مافتحتش'); return; }
     if(k==='bar' && T.some(g=>!gDone(b,'conf',g)) && !confirm('الموعد ده لسه مااتأكدش. تسجيل الطباعة على أي حال؟')) return;
     b[k]={...(b[k]||{})}; T.forEach(g=>b[k][g]={at:Date.now(), by:myEmail()});
-    if(k==='conf' && tgOn()) tgConf(b, T);
+    if(k==='conf' && tgOn2()) tgConf(b, T);
     if(k==='slotBk'){
       if(stGroups(b).every(x=>gDone(b,'slotBk',x))){ if(b.status==='new') b.status='confirmed'; visitPax(b).forEach(r=>{ r.bk=true; r.made=true; }); }
-      if(tgOn()) tgSend(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)}\n${gsLine(b,T)}${confNowTg(b, T)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
+      if(tgOn2()) tgOps(`📅 <b>تم حجز الموعد على المنصة</b>\n👤 ${tgEsc(b.name)}\n${gsLine(b,T)}${confNowTg(b, T)}${user?.email?`\nبواسطة: ${byName()}`:''}`).catch(e=>console.error(e));
     }
   }
   save(); renderAll(); toast(on?`↩️ اتلغى ${lbl}`:`✓ ${lbl} — ${b.name}`);
@@ -3139,7 +3146,7 @@ function confNowTg(b, gs){
 }
 function apTg(id, g, btn){
   const b=S.bookings.find(x=>x.id===id); if(!b || !canSee(b)) return;
-  if(!tgOn()){ toast('⚠️ تليجرام مش متفعّل'); return; }
+  if(!tgOn2()){ toast('⚠️ محادثة التشغيل مش متحددة — حطها من إعدادات تليجرام'); return; }
   if(btn){ btn.disabled=true; setTimeout(()=>btn.disabled=false, 3000); }
   tgConf(b, g, '📨 <b>الأسماء والإيميلات</b>');
 }
@@ -3153,7 +3160,7 @@ function tgConf(b, gArg, title='✔️ <b>تأكيد الموعد</b>'){
   L.push('');
   if(emp) L.push(`👨‍💼 الموظف المسؤول: ${tgEsc(emp)}`);
   if(user?.email) L.push(`بواسطة: ${byName()}`);
-  tgSend(L.join('\n')).then(()=>toast('📨 الأسماء والإيميلات اتبعتت على تليجرام')).catch(e=>{ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); });
+  tgOps(L.join('\n')).then(()=>toast('📨 الأسماء والإيميلات اتبعتت على تليجرام')).catch(e=>{ console.error(e); toast('⚠️ تعذر الإرسال لتليجرام: '+e.message); });
 }
 function renderApAlert(){
   if(!isAdmin()){ $('#apAlert').innerHTML=''; return; }
@@ -3188,7 +3195,7 @@ function openSettings(){
   $('#sPriceSAR').value=s.prices.SAR; $('#sPriceEGP').value=s.prices.EGP; $('#sPriceUSD').value=s.prices.USD;
   $('#sEgpPerSar').value=s.egpPerSar; $('#sSarPerUsd').value=s.sarPerUsd;
   $('#sBulkPct').value=s.bulkPct; $('#sBulkMin').value=s.bulkMin;
-  $('#tgOn').checked=!!TG.on; $('#tgToken').value=TG.token||''; $('#tgChat').value=TG.chatId||'';
+  $('#tgOn').checked=!!TG.on; $('#tgToken').value=TG.token||''; $('#tgChat').value=TG.chatId||''; $('#tgChat2').value=TG.chatId2||'';
   $('#backupHint').textContent = mode==='cloud' ? '☁️ بياناتك محفوظة على السحابة، ومع ذلك يُنصح بتصدير نسخة أسبوعياً.' : '💻 البيانات محفوظة على هذا الجهاز فقط — صدّر نسخة بانتظام.';
   updateRateInfo();
   $('#setOv').classList.add('on');
@@ -3209,7 +3216,7 @@ function saveSettings(silent){
   s.bulkPct=Math.min(100,Math.max(0,+$('#sBulkPct').value||0));
   s.bulkMin=Math.max(0,+$('#sBulkMin').value||0);
   s.egp150=true;
-  const tg={on:$('#tgOn').checked, token:$('#tgToken').value.trim(), chatId:$('#tgChat').value.trim()};
+  const tg={on:$('#tgOn').checked, token:$('#tgToken').value.trim(), chatId:$('#tgChat').value.trim(), chatId2:$('#tgChat2').value.trim()};
   if(JSON.stringify(tg)!==JSON.stringify(TG)){ TG=tg; saveTG(); }
 
   save(); renderAll();

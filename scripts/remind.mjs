@@ -121,14 +121,14 @@ export async function tgSend(token, chatId, text, markup) {
 export function hookChatMigrate(db) {
   setTgMigrateHook(async (to, from) => {
     const ref = db.doc('meta/telegram'), cur = (await ref.get()).data() || {};
-    if (String(cur.chatId) === from) await ref.set({ chatId: to }, { merge: true });
+    for (const k of ['chatId', 'chatId2']) if (String(cur[k]) === from) await ref.set({ [k]: to }, { merge: true });
   });
 }
 
 export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Cairo', siteUrl = '', log = console.log }) {
   const tgSnap = await db.doc('meta/telegram').get();
   const tg = tgSnap.exists ? tgSnap.data() : null;
-  if (!tg || !tg.on || !tg.token || !tg.chatId) { log('تليجرام مش مفعّل في إعدادات الموقع — مفيش إرسال'); return { sent: 0, failed: 0 }; }
+  if (!tg || !tg.on || !tg.token || !tg.chatId2) { log('محادثة التشغيل في تليجرام مش متحددة في إعدادات الموقع — مفيش إرسال'); return { sent: 0, failed: 0 }; }
 
   const found = new Map();
   for (const d of datesToQuery(now, tz)) {
@@ -157,7 +157,7 @@ export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Ca
   let ok = 0, failed = 0;
   for (const r of due) {
     try {
-      await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl), reminderButtons(r));
+      await send(tg.token, tg.chatId2, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl), reminderButtons(r));
       sent[r.key] = now; ok++;
       for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
       await db.doc('meta/reminders').set({ sent, updatedAt: now });
@@ -298,7 +298,7 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
     while (clock() < endAt) {
       const now = clock();
       resubscribe(now);
-      if (tg && tg.on && tg.token && tg.chatId) {
+      if (tg && tg.on && tg.token && tg.chatId2) {
         // ☀️ ملخص الصبح (مرة واحدة في اليوم بعد الساعة 9)
         const ln = localNow(now, tz), dk = 'daily|' + ln.day;
         if (ln.min >= DAILY_AT && ln.min < DAILY_AT + 180 && !sent[dk]) {
@@ -306,7 +306,7 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
             const snap = await db.collection('bookings').where('status', 'in', ['new', 'confirmed']).get();
             const list = []; snap.forEach((doc) => list.push({ ...doc.data(), id: doc.id }));
             for (const b of list) await nameOf(b.createdBy);
-            await send(tg.token, tg.chatId, dailySummary(list, now, tz, (e) => names[String(e || '').toLowerCase()] || ''));
+            await send(tg.token, tg.chatId2, dailySummary(list, now, tz, (e) => names[String(e || '').toLowerCase()] || ''));
             sent[dk] = now; totalSent++;
             await db.doc('meta/reminders').set({ sent, updatedAt: now });
             log(`اتبعت ملخص الصبح (${list.length} حجز شغال)`);
@@ -316,7 +316,7 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
         const due = dueReminders([...all.values()], now, tz).filter((r) => !sent[r.key]);
         for (const r of due) {
           try {
-            await send(tg.token, tg.chatId, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl), reminderButtons(r));
+            await send(tg.token, tg.chatId2, reminderMessage(r, await nameOf(r.b.createdBy), siteUrl), reminderButtons(r));
             sent[r.key] = now; totalSent++;
             for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 864e5) delete sent[k];
             await db.doc('meta/reminders').set({ sent, updatedAt: now });
@@ -325,7 +325,7 @@ export async function watch({ db, send = tgSend, minutes = 340, tz = 'Africa/Cai
         }
         for (const r of stageAlerts([...all.values()], now, tz).filter((x) => !sent[x.key])) {
           try {
-            await send(tg.token, tg.chatId, stageMessage(r, await nameOf(r.b.createdBy)));
+            await send(tg.token, tg.chatId2, stageMessage(r, await nameOf(r.b.createdBy)));
             sent[r.key] = now; totalSent++;
             await db.doc('meta/reminders').set({ sent, updatedAt: now });
             log(`اتبعت تنبيه مرحلة (${r.kind}): ${r.b.name || r.b.id}`);
