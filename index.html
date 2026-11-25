@@ -1724,12 +1724,12 @@ function submitForm(sendAfter){
     const oneT=calc({...data, paid:0}).total; let left=+data.paid||0;
     const paidOf = i => { const v = i===N-1 ? left : Math.min(left, oneT); left=round2(left-v); return round2(v); };
     const part = i => N>1 ? {paid:paidOf(i)} : {};
-    b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data, ...part(0), ...(rep?{rep:{...rep, i:1}}:{})}; S.bookings.push(b); tgNotify(b);
+    b={id:uid(), frozen:false, createdAt:Date.now(), payments:[], ...data, ...part(0), ...(rep?{rep:{...rep, i:1}}:{})}; S.bookings.push(b);
     extra.forEach((x,k)=>{
       const e={id:uid(), frozen:false, createdAt:Date.now()+k+1, payments:[], ...data, ...part(k+1),
         date:x.date, menDate:x.date, womenDate:x.date, menSlot:m?x.ms:'', womenSlot:w?x.ws:'', rep:{...rep, i:k+2}};
       if(e.status==='done') e.status='confirmed';
-      S.bookings.push(e); tgNotify(e);
+      S.bookings.push(e);
     });
     toast(extra.length ? `✓ اتسجل ${extra.length+1} مواعيد للعميل` : '✓ تمت إضافة الحجز');
   }
@@ -1793,16 +1793,6 @@ async function tgSend(text, token=TG.token, chatId=TG.chatId, extra={}){
 /* حجز جديد: رسالة واحدة للعميل جاهزة تتحوّل له زي ما هي (من غير مبالغ) */
 const tgOn = () => TG.on && TG.token && TG.chatId;
 const byName = () => tgEsc(ME?.name || loginName(myEmail()));
-async function tgNotify(b){
-  if(!tgOn()) return;
-  try{
-    const j = await tgSend(clientMsg(b, false, tgEsc));
-    /* اسم الموظف في رسالة رد منفصلة تحتها — عشان رسالة العميل تفضل تتحوّل له زي ما هي */
-    const by = b.createdBy ? tgEsc(empName(b.createdBy)) : (user?.email ? byName() : '');
-    if(by) tgSend(`👨‍💼 أضاف الحجز: <b>${by}</b>`, TG.token, TG.chatId, {reply_to_message_id:String(j.result?.message_id||''), allow_sending_without_reply:'true'}).catch(e=>console.error(e));
-  }
-  catch(e){ console.error(e); toast('⚠️ تعذر إرسال إشعار تليجرم: '+e.message); }
-}
 /* تحديث حالة السداد فور قبول رقم الإيصال */
 async function tgTest(){
   const token=$('#tgToken').value.trim(), chat=$('#tgChat').value.trim();
