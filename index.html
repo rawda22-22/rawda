@@ -287,7 +287,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="appts"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/><path d="m9 15 2 2 4-4"/></svg><span class="tl">المواعيد</span><span class="dot" id="apDot" style="display:none;background:var(--blue)"></span></button>
   <button data-t="bar"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/><path d="M17.5 11h.01"/></svg><span class="tl">طباعة الباركود</span><span class="dot" id="barDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="past"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg><span class="tl">الحجوزات المنتهية</span><span class="dot" id="pastDot" style="display:none;background:var(--amb)" title="مواعيد فاتت ولسه ماتقفلتش"></span></button>
-  <button data-t="bank" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/></svg><span class="tl">بنك الإيميلات</span><span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
+  <button data-t="recy" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19H4.5a1.5 1.5 0 0 1-1.3-2.25L5.5 13"/><path d="m8.5 6.2 1.2-2a1.5 1.5 0 0 1 2.6 0l2.5 4.3"/><path d="M17 12.5l2.8 4.25A1.5 1.5 0 0 1 18.5 19H12"/><path d="m3 10 2.5 3L9 12"/><path d="m13 7.5 1.3 1 1.2-3.7"/><path d="m14.5 21.5-2.5-2.5 2.5-2.5"/></svg><span class="tl">إيميلات معاد تدويرها</span></button>
   <button data-t="used" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/><path d="M15 19.5a3.5 3.5 0 1 0 3.2-4.9"/><path d="m18.6 13.2-.4 1.5 1.5.4"/></svg><span class="tl">الإيميلات المستخدمة</span></button>
   <button data-t="staff" class="admin-only cloud-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg><span class="tl">الموظفين</span></button>
   <button data-t="nv"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/></svg><span class="tl">ممنوع الزيارة</span><span class="dot" id="nvDot" style="display:none;background:var(--red)"></span></button>
@@ -371,31 +371,19 @@ body:not(.cloud) .cloud-only{display:none!important}
     </div>
   </section>
 
-  <!-- 📧 بنك الإيميلات -->
-  <section class="sec" id="sec-bank">
+
+  <!-- 🔁 إيميلات معاد تدويرها -->
+  <section class="sec" id="sec-recy">
     <div class="card">
-      <h2>📧 بنك الإيميلات <span class="sp"></span><span class="hint" id="bankHead"></span></h2>
-      <div class="stats" id="bankStats" style="margin-bottom:10px"></div>
-      <div class="hint" style="display:block;margin-bottom:8px">الإيميل بيتسحب للفرد <b>بعد ما جنسيته تتحدد</b>: الأول من «♻️ الإيميلات المستخدمة» بنفس الجنسية، ولو مفيش متاح بيتسحب من هنا إيميل جديد (بالترتيب). الإيميل اللي اتسحب من هنا مابيرجعش للبنك — بيروح «الإيميلات المستخدمة» بجنسية العميل اللي خده.</div>
-      <div class="f"><label>➕ إضافة إيميلات — الصق الإيميلات هنا (كل إيميل في سطر، أو مفصولين بمسافة أو فاصلة)</label>
-        <textarea id="bankIn" rows="7" dir="ltr" spellcheck="false" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;font:inherit" placeholder="client1@gmail.com&#10;client2@gmail.com"></textarea></div>
-      <div class="toolbar" style="margin-top:8px">
-        <button class="btn pri sm" onclick="bankAdd()">＋ إضافة للبنك</button>
-        <span class="hint" id="bankInInfo"></span>
-        <span class="sp"></span>
-        <label class="hint">نبّهني لما يفضل أقل من</label><input id="bankLow" type="number" min="0" step="1" style="width:80px" onchange="bankSetLow()"><span class="hint">إيميل</span>
+      <h2>🔁 إيميلات معاد تدويرها <span class="sp"></span><span class="hint" id="recyHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">كل إيميل اتسحب من «♻️ الإيميلات المستخدمة» لعميل جديد بيظهر هنا، و<b>مابيرجعش يتسحب تاني غير بعد 15 يوم من سحبه</b> (وبعد ما حجزه يخلص).</div>
+      <div class="stats" id="recyStats" style="margin-bottom:10px"></div>
+      <div class="toolbar" style="flex-wrap:wrap;gap:6px">
+        <input id="recyQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderRecy()">
+        <select id="recyNat" class="ibtn" onchange="renderRecy()"><option value="">كل الجنسيات</option></select>
+        <select id="recyF" class="ibtn" onchange="renderRecy()"><option value="">الكل</option><option value="wait">⏳ لسه في فترة الـ 15 يوم</option><option value="back">✅ رجع للسحب</option></select>
       </div>
-      <div id="bankInWhy"></div>
-    </div>
-    <div class="card">
-      <h2>🔎 الإيميلات <span class="sp"></span>
-        <input id="bankQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderBank()">
-        <select id="bankF" class="ibtn" onchange="renderBank()"><option value="free">المتاحة</option><option value="used">المستخدمة</option><option value="">الكل</option></select>
-        <button class="ibtn" onclick="bankDupCheck()" title="يدوّر على أي إيميل متكرر في البنك أو في الحجوزات">🔍 فحص التكرار</button>
-        <button class="ibtn del" onclick="bankDelLast()" title="يحذف آخر إيميلات اتضافت للبنك (المتاحة بس — المسحوبة مابتتلمسش)">🗑 حذف آخر إضافة</button>
-        <button class="ibtn del" onclick="bankDelLast(true)" title="يحذف كل الإيميلات المتاحة في البنك — المسحوبة لعملاء مابتتلمسش">🧹 مسح كل المتاح</button></h2>
-      <div id="bankDup"></div>
-      <div style="overflow-x:auto"><table class="curTable" id="bankTable"></table></div>
+      <div style="overflow-x:auto;margin-top:8px"><table class="curTable" id="recyTable"></table></div>
     </div>
   </section>
 
@@ -403,7 +391,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <section class="sec" id="sec-used">
     <div class="card">
       <h2>♻️ الإيميلات المستخدمة <span class="sp"></span><span class="hint" id="usedHead"></span></h2>
-      <div class="hint" style="display:block;margin-bottom:8px">كل إيميل اتربط بعميل قبل كده بيفضل هنا <b>بجنسية العميل</b> اللي اتعمله الحساب بيها. أي فرد جديد مابيتسحبلوش إيميل غير <b>بعد ما جنسيته تتحدد</b> — والسحب بيبقى من هنا الأول بنفس الجنسية (مصري ← إيميل مصري)، من الإيميلات اللي حجزها خلص (تم الدخول / ملغي / موعده فات). لو مفيش متاح بنفس الجنسية بيتسحب إيميل جديد من «بنك الإيميلات» وبيتضاف هنا بجنسيته.</div>
+      <div class="hint" style="display:block;margin-bottom:8px">كل إيميل اتربط بعميل قبل كده بيفضل هنا <b>بجنسية العميل</b> اللي اتعمله الحساب بيها. أي فرد جديد مابيتسحبلوش إيميل غير <b>بعد ما جنسيته تتحدد</b> — والسحب بيبقى من هنا الأول بنفس الجنسية (مصري ← إيميل مصري)، من الإيميلات اللي حجزها خلص (تم الدخول / ملغي / موعده فات). أي إيميل بيتسحب من هنا بيروح «🔁 إيميلات معاد تدويرها» ومابيرجعش للسحب غير بعد 15 يوم من سحبه.</div>
       <div class="stats" id="usedStats" style="margin-bottom:10px"></div>
       <div class="toolbar" style="flex-wrap:wrap;gap:6px">
         <input id="usedQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderUsed()">
@@ -568,7 +556,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="mfoot">
       <button class="btn pri" onclick="paxSave()">💾 حفظ</button>
       <button class="btn gold" id="paxUpBtn" onclick="paxUpload()">📤 تم الرفع</button>
-      <button class="btn admin-only" id="paxReBtn" onclick="paxReplaceEmails()" title="يشيل إيميلات الحجز ده (اللي مش شغالة) ويسحب بدالها جديدة من البنك">🔄 إيميلات جديدة</button>
+      <button class="btn admin-only" id="paxReBtn" onclick="paxReplaceEmails()" title="يشيل إيميلات الحجز ده (اللي مش شغالة) ويسحب بدالها تانية من الإيميلات المستخدمة بنفس الجنسية">🔄 تغيير الإيميلات</button>
     </div>
   </div>
 </div>
@@ -580,7 +568,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 <div class="overlay" id="tabsOv">
   <div class="modal" style="max-width:460px">
     <h3 id="tabsTtl">التبويبات اللي تظهر للموظف<button class="x" onclick="closeOv('tabsOv')">×</button></h3>
-    <p class="hint" style="margin-top:-4px">علّم على التبويبات اللي عايزها تظهر للموظف ده بس — «لوحة التحكم» بتظهر دايمًا. بنك الإيميلات والإيميلات المستخدمة والموظفين والإعدادات للمدير بس.</p>
+    <p class="hint" style="margin-top:-4px">علّم على التبويبات اللي عايزها تظهر للموظف ده بس — «لوحة التحكم» بتظهر دايمًا. الإيميلات المعاد تدويرها والإيميلات المستخدمة والموظفين والإعدادات للمدير بس.</p>
     <div id="tabsChk" style="display:grid;gap:6px;margin:10px 0"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn sec" onclick="tabsAll(true)">تحديد الكل</button>
@@ -794,7 +782,7 @@ const gDate = (b, g) => (g==='m' ? b.menDate : b.womenDate) || b.date;
 const isSplit = b => +b.men && +b.women && gDate(b,'m')!==gDate(b,'w');
 function applyData(raw){
   if(!raw) return;
-  try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate); if(d.bank) S.bank=d.bank; }catch(e){ console.error(e); }
+  try{ const d = typeof raw==='string' ? JSON.parse(raw) : raw; S.settings = migrateSettings(d.settings||{}); S.bookings = (d.bookings||[]).map(migrate); }catch(e){ console.error(e); }
 }
 
 /* ========= حالة المزامنة ========= */
@@ -840,7 +828,7 @@ const empName = e => { e=String(e||'').toLowerCase(); return (USERS[e]&&USERS[e]
 /* 🗂 التبويبات المسموحة لكل موظف (users/{e}.tabs = ['appts','bar',...]) — المدير بيحددها من «الموظفين».
    لو مفيش tabs متسجلة للموظف بيشوف كل تبويبات الموظفين زي الأول • «لوحة التحكم» دايمًا ظاهرة */
 const STAFF_TABS = [['appts','المواعيد'],['bar','طباعة الباركود'],['past','الحجوزات المنتهية'],['nv','ممنوع الزيارة']];
-const ADMIN_TABS = ['staff','bank','used','settings'];
+const ADMIN_TABS = ['staff','recy','used','settings'];
 /* 📲 «مطلوب على المنصة» كامل (bk): صلاحية إضافية المدير بيفتحها لأي موظف من «🗂 التبويبات» —
    الموظف بيشوف كل الحجوزات المطلوبة على المنصة وينفذها زي المدير (مش المحال ليه بس).
    مقفولة افتراضيًا: لازم المدير يعلّم عليها بنفسه • أدوات المدير (الإحالة/المبكر/السيستم/التعديل) بتفضل للمدير بس */
@@ -956,10 +944,6 @@ function subscribe(){
   if(isAdmin()) unsubs.push(fb.onSnapshot(fb.collection(db,'users'), snap=>{
     USERS={}; snap.forEach(d=>{ USERS[d.id]={...d.data(), email:d.id}; }); renderAll();
   }, e=>console.warn('users:', e)));
-  unsubs.push(fb.onSnapshot(fb.doc(db,'emailMeta','main'), d=>{ BANK.meta={total:0, next:0, low:30, ...(d.exists()?d.data():{})}; renderAll(); }, e=>console.warn('emailMeta:', e.code||e)));
-  /* 📧 قائمة البنك كاملة بتتقرا بس لما تفتح تبويب «بنك الإيميلات» — عشان كل فتحة للصفحة ماتصرفش آلاف القراءات من حصة Firebase */
-  if(currentTab()==='bank') bankWatch();
-  /* ♻️ الإيميلات اللي المدير شالها من «الإيميلات المستخدمة» (بتفضل مع عملائها القدام، بس مابتتسحبش تاني) */
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','usedOff'), d=>{ USED_OFF=new Set((d.exists() && d.data().keys) || []); renderAll(); }, e=>console.warn('usedOff:', e.code||e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
@@ -970,14 +954,7 @@ function subscribe(){
     renderAll(); printFromUrl();
   }, cloudErr));
 }
-function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; bankUnsub=null; BANK.list=[]; stopPresence(); }
-let bankUnsub=null;
-function bankWatch(){
-  if(mode!=='cloud' || !db || !fb || !isAdmin() || bankUnsub) return;
-  bankUnsub = fb.onSnapshot(fb.collection(db,'emailBank'), snap=>{ const a=[]; snap.forEach(d=>{ const x=d.data(); if(x.email) a.push({email:x.email, seq:+x.seq, at:x.at}); }); BANK.list=a; renderAll(); bankHealGap(); },
-    e=>{ console.warn('emailBank:', e.code||e); if(e.code==='resource-exhausted') toast('⚠️ حصة Firebase المجانية خلصت النهارده — هترجع الساعة 10 الصبح'); bankUnsub=null; });
-  unsubs.push(()=>{ if(bankUnsub) bankUnsub(); });
-}
+function unsubscribe(){ unsubs.forEach(f=>f()); unsubs=[]; stopPresence(); }
 
 /* ========= 🟢 حالة الموظف (نشط الآن / مفتوح / غير متصل) =========
    كل حساب فاتح الموقع بيسجّل نبضة (lastSeen) كل دقيقة في مستند حسابه، والمدير بيشوفها في قائمة الموظفين. */
@@ -1409,19 +1386,19 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderStats(); renderUpcoming(); renderLdShare(); if(isAdmin()){ renderStaff(); renderBank(); renderUsed(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderStats(); renderUpcoming(); renderLdShare(); if(isAdmin()){ renderStaff(); renderUsed(); renderRecy(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['staff','bank','used'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['staff','recy','used'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   if(!tabAllowed(t)){ toast('⛔ الصفحة دي مش متاحة لحسابك'); return; }
-  if(t==='bank') bankWatch();
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
   window.scrollTo({top:0,behavior:'smooth'});
   navSync();
   if(t==='used') renderUsed();
+  if(t==='recy') renderRecy();
 }
 $('#tabs').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) switchTab(b.dataset.t); });
 
@@ -1935,19 +1912,9 @@ function loadXLSX(){
   return new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
     sc.onload=()=>res(window.XLSX); sc.onerror=rej; document.head.appendChild(sc); });
 }
-/* ========= 📧 بنك الإيميلات + 👥 بيانات الأفراد =========
-   السحابة: emailBank/e000001… {email, seq, at, by} (المدير بس يشوف القائمة ويضيف) • emailMeta/main {total, next, low}
-   next = آخر رقم اتسحب. السحب بيمشي بالترتيب جوه transaction واحدة مع الحجز نفسه — فمستحيل نفس الإيميل يروح لعميلين.
-   الإيميل اللي اتسحب «اتحرق»: مش بيرجع للبنك حتى لو الحجز اتلغى أو العدد قلّ.
-   كل حجز فيه b.pax = [{visa, pass, nat, email}] صف لكل فرد. */
-const bankId = n => 'e'+String(n).padStart(6,'0');
-let BANK = { list:[], meta:{total:0, next:0, low:30} };
-const localBank = () => (S.bank = S.bank || {list:[], total:0, next:0, low:30});
-const bankMeta = () => mode==='cloud' ? BANK.meta : localBank();
-const bankList = () => mode==='cloud' ? BANK.list : localBank().list;
-const bankLowN = () => { const v=bankMeta().low; return v===undefined||v===null||v==='' ? 30 : +v; };
-const bankFree = () => mode==='cloud' && isAdmin() && BANK.list.length ? BANK.list.filter(x=>x.seq>(+BANK.meta.next||0)).length
-  : Math.max(0, (+bankMeta().total||0) - (+bankMeta().next||0));
+/* ========= 👥 بيانات الأفراد + إيميلاتهم =========
+   كل حجز فيه b.pax = [{name, visa, pass, nat, email}] صف لكل فرد.
+   الإيميل بيتسحب للفرد بعد ما جنسيته تتحدد — من «♻️ الإيميلات المستخدمة» بنفس الجنسية بس (مفيش بنك إيميلات جديدة). */
 /* النظام ده بيشتغل على الحجوزات اللي اتسجلت من يوم 10 أكتوبر 2026 وبعده بس (بتوقيت القاهرة).
    الحجوزات القديمة مالهاش صفوف ولا إيميلات — إلا لو حد كان دخّل لها بيانات بالفعل */
 const PAX_FROM = 1791579600000;   // 2026-10-10 00:00 القاهرة
@@ -1971,21 +1938,24 @@ const paxNoMail = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filt
 /* ========= ♻️ الإيميلات المستخدمة =========
    كل إيميل اتربط بعميل قبل كده بيفضل مربوط بجنسية العميل ده (حساب نسك بيتعمل بجنسيته) — وبيتعرض في تبويب «الإيميلات المستخدمة».
    السحب لأي فرد جديد: الأول من الإيميلات المستخدمة بنفس جنسيته (اللي حجزها خلص: تم الدخول / ملغي / موعده فات) — الأقدم استخدامًا الأول،
-   ولو مفيش واحد متاح بنفس الجنسية بيتسحب إيميل جديد من البنك (والجديد ده بيتسجل بجنسية الفرد اللي خده).
+   ولو مفيش واحد متاح بنفس الجنسية الفرد بيفضل من غير إيميل لحد ما يتوفر (مفيش بنك إيميلات جديدة).
    السحابة: emailUse/{الإيميل} {b, at, by} = قفل صغير عشان اتنين مايسحبوش نفس الإيميل المستخدم في نفس اللحظة */
 const natKey = v => normAr(natFix(v)).replace(/\s+/g,'').replace(/^ال/,'');
 const useId = k => String(k).replace(/\//g,'_');
 /* المحذوفة من «الإيميلات المستخدمة»: سحابة = meta/usedOff {keys:[...]} • محلي = S.usedOff */
 let USED_OFF = new Set();
 const usedOff = () => mode==='cloud' ? USED_OFF : new Set(S.usedOff||[]);
-const USE_HOLD = 30*60e3;   // إيميل اتسحب من أقل من نص ساعة مايتسحبش تاني حتى لو الحجز لسه ماوصلش للكل
+const USE_HOLD = 30*60e3;
+const RECY_D = 15;   // 🔁 الإيميل المعاد تدويره مابيتسحبش تاني غير بعد 15 يوم من سحبه
+const ruTime = (b, r) => +r.ruAt || +b.updatedAt || +b.createdAt || 0;   // وقت سحب الإيميل المعاد تدويره (اللي اتسحبوا قبل الميزة دي مالهمش ruAt)   // إيميل اتسحب من أقل من نص ساعة مايتسحبش تاني حتى لو الحجز لسه ماوصلش للكل
 /* فهرس الإيميلات المستخدمة من الحجوزات نفسها (skipId = حجز نستبعده خالص — اللي بنسحبله دلوقتي) */
 function usedIndex(skipId){
   const M=new Map(), OFF=usedOff();
   S.bookings.forEach(b=>{ if(b.noData || b.id===skipId) return;
     const fin=bkFinished(b), at=+b.createdAt||0, dd=gDate(b, groupsOf(b)[0]||'m'), t=+new Date(dd) || at;
     (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email); if(OFF.has(k)) return;
-      let x=M.get(k); if(!x){ x={key:k, email:k, nat:'', nk:'', uses:0, busy:null, last:null, first:Infinity}; M.set(k,x); }
+      let x=M.get(k); if(!x){ x={key:k, email:k, nat:'', nk:'', uses:0, busy:null, last:null, first:Infinity, ruAt:0, ruB:null}; M.set(k,x); }
+      if(r.ru){ const rt=ruTime(b,r); if(rt>x.ruAt){ x.ruAt=rt; x.ruB={b, i, name:r.name||''}; } }
       x.uses++;
       if(natKey(r.nat) && at<x.first){ x.first=at; x.nat=natFix(r.nat); x.nk=natKey(r.nat); }   // جنسية أول عميل اتعمله الحساب بيها
       if(!fin) x.busy={b, i};
@@ -1994,7 +1964,10 @@ function usedIndex(skipId){
   return M;
 }
 /* المتاح بجنسية معينة: مش مشغول في حجز شغال — الأقدم استخدامًا الأول */
-const usedFree = (IDX, nk) => [...IDX.values()].filter(x=>x.nk===nk && !x.busy).sort((a,b)=>(a.last?.t||0)-(b.last?.t||0));
+/* 🔁 فترة الانتظار: الإيميل المعاد تدويره بيرجع بعد RECY_D يوم من آخر سحب */
+const recyBack = x => x.ruAt ? x.ruAt + RECY_D*864e5 : 0;
+const recyWait = x => recyBack(x) > Date.now();
+const usedFree = (IDX, nk) => [...IDX.values()].filter(x=>x.nk===nk && !x.busy && !recyWait(x)).sort((a,b)=>(a.last?.t||0)-(b.last?.t||0));
 const paxDone = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.visa && r.pass && r.nat && r.email).length;
 function paxBtn(b){
   const n=paxN(b); if(!n) return '';
@@ -2002,8 +1975,8 @@ function paxBtn(b){
   return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل${paxNoNat(b)?' (حدد الجنسية)':''}`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}${acctDone(b)?' ✅':''}</button>`;
 }
 
-/* سحب إيميلات للصفوف اللي جنسيتها اتحددت ومالهاش إيميل — بيرجع {got, reused, fresh, short}
-   ♻️ الأول من الإيميلات المستخدمة بنفس الجنسية، وبعدين 📧 جديد من البنك بالترتيب */
+/* سحب إيميلات للصفوف اللي جنسيتها اتحددت ومالهاش إيميل — من الإيميلات المستخدمة بنفس الجنسية بس — بيرجع {got, short}
+   كل إيميل بيتسحب بيتعلّم عليه (r.ru=1, r.ruAt=وقت السحب) وبيظهر في «🔁 إيميلات معاد تدويرها» ومايتسحبش تاني قبل RECY_D يوم */
 let allocBusy = new Set();
 async function allocEmails(b, quiet){
   if(!b || allocBusy.has(b.id)) return {got:0, short:0};
@@ -2011,97 +1984,48 @@ async function allocEmails(b, quiet){
   try{
     let res;
     if(mode==='cloud'){
-      const ref=fb.doc(db,'bookings',b.id), mref=fb.doc(db,'emailMeta','main');
+      const ref=fb.doc(db,'bookings',b.id);
       res = await fb.runTransaction(db, async t=>{
         const bs=await t.get(ref); if(!bs.exists()) return {got:0, short:0};
-        const d=bs.data(), n=paxN(d);
-        const pax=fixRows(d.pax, n), needR=pax.filter(r=>!r.email && natKey(r.nat));
+        const d=bs.data(), pax=fixRows(d.pax, paxN(d)), needR=pax.filter(r=>!r.email && natKey(r.nat));
         if(!needR.length) return {got:0, short:0, pax};
-        // taken = كل إيميلات الحجوزات (للبنك) • own = إيميلات الحجز ده بس (للمستخدمة — عشان مايتكررش جوه نفس الحجز)
-        const taken=paxEmailKeys(), own=new Set(); pax.forEach(r=>{ if(r.email){ taken.add(gKey(r.email)); own.add(gKey(r.email)); } });
-        // 1) ♻️ من الإيميلات المستخدمة بنفس الجنسية
-        const IDX=usedIndex(b.id), C={}, locks=[]; let reads=0;
+        const own=new Set(); pax.forEach(r=>{ if(r.email) own.add(gKey(r.email)); });
+        const IDX=usedIndex(b.id), C={}, locks=[], miss={}; let reads=0;
         for(const r of needR){ const nk=natKey(r.nat), L=(C[nk]=C[nk]||usedFree(IDX, nk));
           while(L.length && reads<40){ const x=L.shift(); if(own.has(x.key)) continue;
             reads++; const ls=await t.get(fb.doc(db,'emailUse',useId(x.key))), lk=ls.exists()?ls.data():null;
             if(lk && lk.b && lk.b!==b.id && (+lk.at||0) > Date.now()-USE_HOLD) continue;   // حد تاني لسه ساحبه حالاً
-            r.email=x.email; r.ru=1; own.add(x.key); taken.add(x.key); locks.push(x.key); break; }
-        }
-        // 2) 📧 اللي فاضل: جديد من البنك بالترتيب
-        const rest=needR.filter(r=>!r.email);
-        let start=0, total=0, next=0, low=30, fresh=0;
-        if(rest.length){
-          const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0};
-          start=+m.next||0; total=+m.total||0; next=start; low=m.low===undefined?30:+m.low;
-          const got=[]; let miss=0;
-          while(got.length<rest.length && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); const em=es.exists() && es.data().email;
-            if(!es.exists()){ if(++miss>40) throw {code:'bank-gap'}; } else miss=0;
-            if(em && !taken.has(gKey(em))){ got.push(em); taken.add(gKey(em)); } }
-          let k=0; rest.forEach(r=>{ if(k<got.length){ r.email=got[k++]; delete r.ru; } }); fresh=got.length;
-          if(next!==start) t.update(mref, {next});
+            r.email=x.email; r.ru=1; r.ruAt=Date.now(); own.add(x.key); locks.push(x.key); break; }
+          if(!r.email) miss[natFix(r.nat)]=(miss[natFix(r.nat)]||0)+1;
         }
         const now=Date.now();
         locks.forEach(k=>t.set(fb.doc(db,'emailUse',useId(k)), {b:b.id, at:now, by:myEmail()}));
-        if(locks.length || fresh) t.update(ref, {pax, updatedAt:now, updatedBy:myEmail()});
-        return {got:locks.length+fresh, reused:locks.length, fresh, short:rest.length-fresh, pax, before:total-start, after:total-next, low};
+        if(locks.length) t.update(ref, {pax, updatedAt:now, updatedBy:myEmail()});
+        return {got:locks.length, short:needR.length-locks.length, miss, pax};
       });
       if(res.pax){ b.pax=res.pax; }
     } else {
-      const B=localBank(); b.pax=fixRows(b.pax, paxN(b));
-      const needR=b.pax.filter(r=>!r.email && natKey(r.nat)), taken=paxEmailKeys(), IDX=usedIndex(b.id), C={};
-      const own=new Set(b.pax.filter(r=>r.email).map(r=>gKey(r.email))); let reused=0;
+      b.pax=fixRows(b.pax, paxN(b));
+      const needR=b.pax.filter(r=>!r.email && natKey(r.nat)), IDX=usedIndex(b.id), C={}, miss={};
+      const own=new Set(b.pax.filter(r=>r.email).map(r=>gKey(r.email))); let got=0;
       needR.forEach(r=>{ const nk=natKey(r.nat), L=(C[nk]=C[nk]||usedFree(IDX, nk));
-        while(L.length){ const x=L.shift(); if(own.has(x.key)) continue; r.email=x.email; r.ru=1; own.add(x.key); taken.add(x.key); reused++; break; } });
-      const rest=needR.filter(r=>!r.email), before=B.total-B.next, got=[];
-      while(got.length<rest.length && B.next<B.total){ B.next++; const x=B.list.find(e=>e.seq===B.next); if(x && !taken.has(gKey(x.email))){ got.push(x.email); taken.add(gKey(x.email)); } }
-      let k=0; rest.forEach(r=>{ if(k<got.length){ r.email=got[k++]; delete r.ru; } });
-      res={got:reused+got.length, reused, fresh:got.length, short:rest.length-got.length, before, after:B.total-B.next, low:bankLowN()};
-      if(res.got) save();
+        while(L.length){ const x=L.shift(); if(own.has(x.key)) continue; r.email=x.email; r.ru=1; r.ruAt=Date.now(); own.add(x.key); got++; break; }
+        if(!r.email) miss[natFix(r.nat)]=(miss[natFix(r.nat)]||0)+1; });
+      res={got, short:needR.length-got, miss};
+      if(got) save();
     }
-    if(res.reused && !quiet) toast(`♻️ اتسحب ${res.reused} إيميل مستخدم بنفس الجنسية${res.fresh?` + ${res.fresh} جديد من البنك`:''}`);
+    if(res.got && !quiet) toast(`♻️ اتسحب ${res.got} إيميل بنفس الجنسية`);
     if(res.short>0){
-      if(!quiet) toast(`⚠️ بنك الإيميلات مش كفاية — حجز ${b.name} ناقص ${res.short} إيميل. ${isAdmin()?'ضيف إيميلات من «بنك الإيميلات»':'بلّغ المدير'}`);
-      if(tgOn() && res.got>=0 && !quiet) tgSend(`🚫 <b>بنك الإيميلات خلص</b>\nحجز <b>${tgEsc(b.name)}</b> ناقص ${res.short} إيميل — ضيف إيميلات للبنك.`).catch(e=>console.error(e));
-    } else if(res.fresh && res.before>=res.low && res.after<res.low && tgOn()){
-      tgSend(`⚠️ <b>بنك الإيميلات قرب يخلص</b>\nفاضل <b>${res.after}</b> إيميل بس — ضيف إيميلات جديدة.`).catch(e=>console.error(e));
+      const why=Object.entries(res.miss||{}).map(([n,c])=>`${c} ${n}`).join('، ');
+      if(!quiet) toast(`⚠️ مفيش إيميلات متاحة بنفس الجنسية — حجز ${b.name} ناقص ${res.short} إيميل (${why})`);
+      if(tgOn() && !quiet) tgSend(`🚫 <b>مفيش إيميلات متاحة</b>\nحجز <b>${tgEsc(b.name)}</b> ناقص ${res.short} إيميل (${tgEsc(why)}) — مفيش إيميل مستخدم بنفس الجنسية متاح دلوقتي.`).catch(e=>console.error(e));
     }
     if(res.got) renderAll();
     return res;
   }catch(e){ console.error(e);
-    if(e && e.code==='bank-gap'){ if(isAdmin()){ bankWatch(); toast('⏳ بنصلّح ترقيم البنك… جرب تاني بعد ثواني'); } else if(!quiet) toast('⚠️ البنك محتاج المدير يفتح تبويب «بنك الإيميلات» مرة — بلّغه'); return {got:0, short:-1}; }
     if(!quiet) toast('⚠️ تعذر سحب الإيميلات: '+(e.code||e.message)); return {got:0, short:-1}; }
   finally{ allocBusy.delete(b.id); }
 }
-/* 🩹 فجوة في البنك: لو إيميلات اتمسحت ما بين آخر إيميل اتسحب وأول إيميل متاح، السحب كان بيلف على كل رقم ممسوح
-   واحد واحد جوه الـ transaction (آلاف القراءات) فبيفشل ومابيسحبش. هنا العدّاد بيقفز لحد قبل أول إيميل متاح على طول.
-   بيشتغل لوحده لما المدير يفتح تبويب البنك أو يضيف/يحذف إيميلات. */
-let healBusy=false;
-async function bankHealGap(){
-  if(mode!=='cloud' || !isAdmin() || healBusy || !BANK.list.length) return;
-  const next=+BANK.meta.next||0, avail=BANK.list.filter(x=>x.seq>next);
-  const target = avail.length ? Math.min(...avail.map(x=>x.seq))-1 : Math.max(next, ...BANK.list.map(x=>x.seq));
-  if(target<=next) return;
-  healBusy=true;
-  try{
-    const mref=fb.doc(db,'emailMeta','main'); let jumped=false;
-    await fb.runTransaction(db, async t=>{
-      const ms=await t.get(mref), m=ms.exists()?ms.data():{}, cur=+m.next||0;
-      if(target<=cur || target>(+m.total||0)) return;
-      // نتأكد إن الأرقام اللي هنقفز عليها ممسوحة فعلاً (من القائمة اللي متحملة)
-      if(BANK.list.some(x=>x.seq>cur && x.seq<=target)) return;
-      t.update(mref, {next:target}); jumped=true;
-    });
-    if(jumped){ BANK.meta.next=target; console.info('bank gap healed →', target); setTimeout(fillAllMissing, 500); }
-  }catch(e){ console.warn('bankHealGap:', e.code||e); }
-  finally{ healBusy=false; }
-}
-/* بعد إضافة إيميلات: كمّل الحجوزات اللي كانت ناقصة (اللي لسه ماتمتش) */
-async function fillAllMissing(){
-  const L=S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && paxMissing(b)>0).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-  let n=0; for(const b of L){ const r=await allocEmails(b, true); if(r.got) n++; if(r.short) break; }
-  if(n) toast(`✓ اتربطت إيميلات لـ ${n} حجز كان ناقص`);
-}
-
 /* ===== شاشة بيانات الأفراد ===== */
 let PAXID=null, paxDirty=false, paxHi=new Set();
 const NATS=['مصر','السعودية','السودان','الأردن','فلسطين','سوريا','لبنان','العراق','اليمن','ليبيا','تونس','الجزائر','المغرب','الكويت','الإمارات','قطر','البحرين','عمان','باكستان','الهند','بنجلاديش','إندونيسيا','ماليزيا','تركيا','نيجيريا','أفغانستان','بريطانيا','أمريكا','كندا','فرنسا','ألمانيا'];
@@ -2144,7 +2068,7 @@ $('#paxTable').addEventListener('change', e=>{ const k=e.target.dataset.k;
   if(k==='sx'){ paxDirty=true; paxCollect(); paxRender(); }
   if(k==='nat') paxNatChanged(+e.target.dataset.i);
 });
-/* 🌍 الجنسية اتحددت/اتغيرت: لو الفرد مالوش إيميل يتسحبله على طول (مستخدم بنفس الجنسية الأول، وإلا جديد من البنك).
+/* 🌍 الجنسية اتحددت/اتغيرت: لو الفرد مالوش إيميل يتسحبله على طول (من الإيميلات المستخدمة بنفس الجنسية).
    ولو كان واخد إيميل مستخدم مربوط بجنسية تانية ولسه الحسابات ماتعملتش — بيتشال ويتسحب بداله واحد بالجنسية الصح */
 function paxNatChanged(i){
   const b=paxB(); if(!b) return;
@@ -2156,7 +2080,7 @@ function paxNatChanged(i){
   paxDirty=false; const sv=save(); paxRender(); renderAll();
 }
 /* بعد أي رسم لشاشة الأفراد: لو فيه أفراد جنسيتهم اتحددت (يدوي أو من التأشيرة/الشيت) ومالهمش إيميل → سحب تلقائي.
-   مرة واحدة لكل حالة — عشان لو البنك فاضي مايفضلش يحاول ويطلّع تنبيهات ورا بعض */
+   مرة واحدة لكل حالة — عشان لو مفيش إيميلات متاحة مايفضلش يحاول ويطلّع تنبيهات ورا بعض */
 let paxAllocT=null, paxAllocSig='';
 function paxAutoAlloc(b){
   const P=(b.pax||[]).slice(0,paxN(b)), sig=b.id+'|'+P.map((r,i)=>!r.email && natKey(r.nat) ? i+':'+natKey(r.nat) : '').join(',');
@@ -2190,14 +2114,14 @@ function paxSave(close=true){
 }
 function paxClose(){ if(paxDirty) paxSave(true); else { closeOv('paxOv'); PAXID=null; } }
 
-/* 🔄 استبدال إيميلات حجز: الإيميلات القديمة بتتشال من الأفراد (وتفضل محروقة في البنك — مش بترجع)
-   وبيتسحب بدالها جديدة بالترتيب. لو البنك فاضي دلوقتي، أول ما تضيف إيميلات الحجز بيتملى لوحده */
+/* 🔄 استبدال إيميلات حجز: الإيميلات القديمة بتتشال من الأفراد
+   وبيتسحب بدالها تانية من الإيميلات المستخدمة بنفس الجنسية */
 async function paxReplaceEmails(){
   const b=paxB(); if(!b || !isAdmin()) return;
   paxCollect();
   const n=paxN(b), have=(b.pax||[]).slice(0,n).filter(r=>r.email);
   if(!have.length){ toast('الحجز ده مفيهوش إيميلات أصلاً'); return; }
-  if(!confirm(`🔄 استبدال إيميلات حجز ${b.name}\n\nهيتشال ${have.length} إيميل:\n${have.map(r=>r.email).join('\n')}\n\nويتسحب بدالهم ${have.length} إيميل جديد من البنك.\n(القديمة مش هترجع للبنك)${acctDone(b)?'\n\n⚠️ الحجز ده اتعمله حسابات على المنصة — لازم تعمل الحسابات من جديد بالإيميلات الجديدة':''}\n\nمتأكد؟`)) return;
+  if(!confirm(`🔄 استبدال إيميلات حجز ${b.name}\n\nهيتشال ${have.length} إيميل:\n${have.map(r=>r.email).join('\n')}\n\nويتسحب بدالهم ${have.length} إيميل تاني من الإيميلات المستخدمة بنفس الجنسية.${acctDone(b)?'\n\n⚠️ الحجز ده اتعمله حسابات على المنصة — لازم تعمل الحسابات من جديد بالإيميلات الجديدة':''}\n\nمتأكد؟`)) return;
   (b.pax||[]).forEach(r=>{ if(r) r.email=''; });
   b.pax=fixRows(b.pax, n); paxDirty=false;
   await Promise.resolve(save()); paxRender();
@@ -2205,7 +2129,7 @@ async function paxReplaceEmails(){
   const bb=paxB(); if(bb){ bb.pax=fixRows(bb.pax, paxN(bb)); paxRender(); }
   renderAll();
   if(r.got && !r.short) toast(`✅ اتبدلت ${r.got} إيميل`);
-  else if(r.short>0) toast(`⚠️ اتبدل ${r.got||0} بس — البنك ناقص ${r.short}. أول ما تضيف إيميلات الحجز هيتملى لوحده`);
+  else if(r.short>0) toast(`⚠️ اتبدل ${r.got||0} بس — مفيش إيميلات متاحة بنفس الجنسية لـ ${r.short}`);
 }
 
 /* ===== 📤 تم الرفع: بيأكد الحجز وبيبعت الإيميلات والبيانات على تليجرام ===== */
@@ -2213,7 +2137,7 @@ async function paxUpload(){
   const b=paxB(); if(!b) return;
   paxCollect(); b.pax=fixRows(b.pax, paxN(b)); await Promise.resolve(save());
   if(paxNoNat(b)){ toast(`⛔ حدد جنسية كل الأفراد الأول — ${paxNoNat(b)} فرد من غير جنسية (الإيميل بيتسحب حسب الجنسية)`); return; }
-  if(paxMissing(b)){ const r=await allocEmails(b); paxRender(); if(paxNoMail(paxB()||b)){ toast('⛔ فيه أفراد من غير إيميل — لازم البنك يتملى الأول'); return; } }
+  if(paxMissing(b)){ const r=await allocEmails(b); paxRender(); if(paxNoMail(paxB()||b)){ toast('⛔ فيه أفراد من غير إيميل — مفيش إيميلات متاحة بنفس الجنسية'); return; } }
   const bb=paxB()||b, n=paxN(bb), d=paxDone(bb);
   if(d<n && !confirm(`بيانات ${n-d} فرد مش مكتملة (تأشيرة / جواز / جنسية). تسجيل «تم الرفع» على أي حال؟`)) return;
   if(bb.uploaded && !confirm('الحجز ده اتسجل «تم الرفع» قبل كده. إعادة الإرسال على تليجرام؟')) return;
@@ -2505,26 +2429,26 @@ $('#paxFiles').addEventListener('change', async e=>{
 function renderUsed(){
   if(!isAdmin() || currentTab()!=='used') return;
   const IDX=usedIndex(), all=[...IDX.values()];
-  const byN=new Map(); all.forEach(x=>{ if(!x.nk) return; const g=byN.get(x.nk)||{nat:x.nat, n:0, free:0}; g.n++; if(!x.busy) g.free++; byN.set(x.nk, g); });
+  const byN=new Map(); all.forEach(x=>{ if(!x.nk) return; const g=byN.get(x.nk)||{nat:x.nat, n:0, free:0}; g.n++; if(!x.busy && !recyWait(x)) g.free++; byN.set(x.nk, g); });
   const nats=[...byN.entries()].sort((a,b)=>b[1].n-a[1].n);
   const sel=$('#usedNat'), cur=sel.value;
   sel.innerHTML='<option value="">كل الجنسيات</option>'+nats.map(([k,g])=>`<option value="${esc(k)}" ${k===cur?'selected':''}>${esc(g.nat)} (${g.free} متاح من ${g.n})</option>`).join('');
-  const free=all.filter(x=>!x.busy && x.nk).length, busy=all.filter(x=>x.busy).length, noNat=all.filter(x=>!x.nk).length;
+  const free=all.filter(x=>!x.busy && x.nk && !recyWait(x)).length, busy=all.filter(x=>x.busy).length, wt=all.filter(x=>!x.busy && recyWait(x)).length, noNat=all.filter(x=>!x.nk).length;
   const off=usedOff().size; $('#usedHead').textContent=`${all.length} إيميل${off?` • 🗑 ${off} محذوف`:''}`;
   $('#usedRestoreBtn').style.display = off ? '' : 'none'; $('#usedRestoreBtn').textContent=`↩️ رجّع المحذوفة (${off})`;
-  $('#usedStats').innerHTML = [['♻️ إجمالي المستخدمة', all.length, 'var(--blue)'], ['✅ متاح للسحب', free, 'var(--g)'], ['⏳ مع حجز شغال', busy, 'var(--amb)'], ...(noNat?[['🌍 من غير جنسية', noNat, 'var(--red)']]:[])]
+  $('#usedStats').innerHTML = [['♻️ إجمالي المستخدمة', all.length, 'var(--blue)'], ['✅ متاح للسحب', free, 'var(--g)'], ['⏳ مع حجز شغال', busy, 'var(--amb)'], ['🔁 مستني الـ 15 يوم', wt, 'var(--amb)'], ...(noNat?[['🌍 من غير جنسية', noNat, 'var(--red)']]:[])]
     .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('')
     + nats.slice(0,8).map(([k,g])=>`<div class="stat" style="--c:var(--mu);cursor:pointer" onclick="$('#usedNat').value='${esc(k)}';$('#usedF').value='free';renderUsed()"><span>🌍 ${esc(g.nat)}</span><b>${g.free}<small style="font-size:.6em;color:var(--mu)"> / ${g.n}</small></b></div>`).join('');
   const q=normAr($('#usedQ').value.trim().toLowerCase()), nf=$('#usedNat').value, f=$('#usedF').value;
   const rows=all.filter(x=>{
     if(nf && x.nk!==nf) return false;
-    if(f==='free' && (x.busy || !x.nk)) return false; if(f==='busy' && !x.busy) return false; if(f==='nonat' && x.nk) return false;
+    if(f==='free' && (x.busy || !x.nk || recyWait(x))) return false; if(f==='busy' && !x.busy) return false; if(f==='nonat' && x.nk) return false;
     return !q || x.key.includes(q) || (x.last && normAr((x.last.b.name+' '+x.last.name).toLowerCase()).includes(q));
   }).sort((a,b)=> (!!a.busy-!!b.busy) || (a.last?.t||0)-(b.last?.t||0));
   $('#usedTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>الحالة</th><th>آخر عميل</th><th>آخر موعد</th><th>مرات</th><th></th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{ const L=x.last, bb=x.busy?x.busy.b:L&&L.b;
       return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td>
       <td>${x.nk?`<span class="badge b-new">${esc(x.nat)}</span>`:'<span class="badge b-amb" title="الفرد اللي معاه الإيميل ده مالوش جنسية — حددها من 👥 بيانات الأفراد">🌍 مش محددة</span>'}</td>
-      <td>${x.busy?`<span class="badge b-amb">⏳ مع ${esc(x.busy.b.name)}</span>`:x.nk?'<span class="badge b-green">✅ متاح</span>':'<span class="badge b-gray">مش هيتسحب</span>'}</td>
+      <td>${x.busy?`<span class="badge b-amb">⏳ مع ${esc(x.busy.b.name)}</span>`:recyWait(x)?`<span class="badge b-amb">🔁 يرجع بعد ${Math.ceil((recyBack(x)-Date.now())/864e5)} يوم</span>`:x.nk?'<span class="badge b-green">✅ متاح</span>':'<span class="badge b-gray">مش هيتسحب</span>'}</td>
       <td>${L?`${esc(L.b.name)}${L.name?`<div class="hint">${esc(L.name)}</div>`:''}`:'—'} ${bb?`<button class="ibtn" onclick="paxOpen('${bb.id}')" title="بيانات الأفراد">👥</button>`:''}</td>
       <td>${L&&L.d?fmtDate(L.d):'—'}</td><td>${x.uses}</td><td><button class="ibtn del" onclick="usedDel(['${esc(x.key)}'])" title="حذف من القائمة (مش هيتسحب تاني)">🗑</button></td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="8">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
@@ -2559,142 +2483,41 @@ async function usedRestore(){
   try{ await usedSave(new Set()); toast(`↩️ رجع ${n} إيميل`); }catch(e){ cloudErr(e); }
 }
 
-/* ===== صفحة بنك الإيميلات (للمدير) ===== */
+/* ⚠️ تنبيه: حجوزات شغالة فيها أفراد جنسيتهم متحددة ومالقوش إيميل متاح بنفس الجنسية */
 function renderBankAlert(){
-  if(!isAdmin()){ $('#bankAlert').innerHTML=''; $('#bankDot').style.display='none'; return; }
-  const free=bankFree(), low=bankLowN(), miss=S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && paxMissing(b)>0);
-  const show = free<low || miss.length;
-  $('#bankDot').style.display = show ? 'grid' : 'none'; $('#bankDot').textContent = show ? '!' : '';
-  $('#bankAlert').innerHTML = show ? `<div class="alertbar" style="background:#fff6e5;border-color:#f0d08a;color:#7a5200;animation:none"><span class="ic">📧</span><div>
-    ${free<low?`<b>بنك الإيميلات ${free?`قرب يخلص — فاضل ${free} إيميل بس`:'خلص'}</b>`:''}${miss.length?`${free<low?' • ':''}<b>${miss.length} حجز ناقص إيميلات</b>`:''}
-    <button class="ibtn" style="margin-right:8px" onclick="switchTab('bank')">ضيف إيميلات</button></div></div>` : '';
+  if(!isAdmin()){ $('#bankAlert').innerHTML=''; return; }
+  const miss=S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && paxMissing(b)>0);
+  $('#bankAlert').innerHTML = miss.length ? `<div class="alertbar" style="background:#fff6e5;border-color:#f0d08a;color:#7a5200;animation:none"><span class="ic">📧</span><div>
+    <b>${miss.length} حجز ناقص إيميلات</b> — مفيش إيميلات متاحة بنفس الجنسية: ${miss.slice(0,4).map(b=>`<a href="#" onclick="event.preventDefault();paxOpen('${b.id}')">${esc(b.name)} (${paxMissing(b)})</a>`).join(' • ')}${miss.length>4?' …':''}</div></div>` : '';
 }
-function renderBank(){
-  if(!isAdmin()) return;
-  const M=bankMeta(), next=+M.next||0, list=[...bankList()].sort((a,b)=>a.seq-b.seq), free=bankFree(), used=list.filter(x=>x.seq<=next).length;
-  if(document.activeElement!==$('#bankLow')) $('#bankLow').value=bankLowN();
-  $('#bankHead').textContent = `${list.length} إيميل`;
-  $('#bankStats').innerHTML = [['📧 إجمالي البنك', list.length, 'var(--blue)'], ['✅ متاح', free, free<bankLowN()?'var(--red)':'var(--g)'], ['🔥 اتسحب', used, 'var(--mu)']]
+
+/* ===== 🔁 صفحة الإيميلات المعاد تدويرها (للمدير): اللي اتسحبوا من «الإيميلات المستخدمة» ووقت رجوعهم ===== */
+function renderRecy(){
+  if(!isAdmin() || currentTab()!=='recy') return;
+  const all=[...usedIndex().values()].filter(x=>x.ruAt), wait=all.filter(recyWait);
+  const byN=new Map(); all.forEach(x=>{ const k=x.nk||'?'; const g=byN.get(k)||{nat:x.nat||'من غير جنسية', n:0}; g.n++; byN.set(k,g); });
+  const sel=$('#recyNat'), cur=sel.value;
+  sel.innerHTML='<option value="">كل الجنسيات</option>'+[...byN.entries()].sort((a,b)=>b[1].n-a[1].n).map(([k,g])=>`<option value="${esc(k)}" ${k===cur?'selected':''}>${esc(g.nat)} (${g.n})</option>`).join('');
+  $('#recyHead').textContent=`${all.length} إيميل`;
+  $('#recyStats').innerHTML=[['🔁 إجمالي المعاد تدويرها', all.length, 'var(--blue)'], [`⏳ لسه في الـ ${RECY_D} يوم`, wait.length, 'var(--amb)'], ['✅ رجع للسحب', all.length-wait.length, 'var(--g)']]
     .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
-  const U={}; S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r.email) U[r.email.toLowerCase()]={b, i}; }));
-  const q=normAr($('#bankQ').value.trim().toLowerCase()), f=$('#bankF').value;
-  const rows=list.filter(x=>{ const u=U[x.email]; const isUsed=x.seq<=next;
-    if(f==='free' && isUsed) return false; if(f==='used' && !isUsed) return false;
-    return !q || x.email.includes(q) || (u && normAr(u.b.name.toLowerCase()).includes(q)); });
-  $('#bankTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.slice(0,300).map(x=>{ const u=U[x.email], isUsed=x.seq<=next;
-      return `<tr><td>${x.seq}</td><td dir="ltr" style="text-align:right">${esc(x.email)}</td><td>${isUsed ? (u?`<span class="badge b-gray">🔥 ${esc(u.b.name)} (فرد ${u.i+1})</span> <button class="ibtn" onclick="paxOpen('${u.b.id}')">👥</button>`:'<span class="badge b-gray">🔥 اتسحب</span>') : '<span class="badge b-green">متاح</span>'}</td>
-      <td>${isUsed?'':`<button class="ibtn del" onclick="bankDel(${x.seq})" title="حذف من البنك">🗑</button>`}</td></tr>`; }).join('')}</tbody>${rows.length>300?`<tfoot><tr><td colspan="4">… وكمان ${rows.length-300} — استخدم البحث</td></tr></tfoot>`:''}`
-    : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
+  const q=normAr($('#recyQ').value.trim().toLowerCase()), nf=$('#recyNat').value, f=$('#recyF').value;
+  const dd = t => new Date(t).toLocaleDateString('ar-u-nu-latn',{weekday:'short', day:'numeric', month:'short'});
+  const rows=all.filter(x=>{ if(nf && (x.nk||'?')!==nf) return false; if(f==='wait' && !recyWait(x)) return false; if(f==='back' && recyWait(x)) return false;
+    return !q || x.key.includes(q) || (x.ruB && normAr((x.ruB.b.name+' '+x.ruB.name).toLowerCase()).includes(q)); }).sort((a,b)=>b.ruAt-a.ruAt);
+  $('#recyTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>اتسحب لـ</th><th>يوم السحب</th><th>يرجع للسحب</th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{
+      const back=recyBack(x), left=Math.ceil((back-Date.now())/864e5), R=x.ruB;
+      return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td>
+      <td>${x.nk?`<span class="badge b-new">${esc(x.nat)}</span>`:'—'}</td>
+      <td>${R?`${esc(R.b.name)}${R.name?`<div class="hint">${esc(R.name)}</div>`:''} <button class="ibtn" onclick="paxOpen('${R.b.id}')" title="بيانات الأفراد">👥</button>`:'—'}</td>
+      <td>${dd(x.ruAt)}</td>
+      <td>${left>0?`<span class="badge b-amb">⏳ بعد ${left} يوم</span><div class="hint">${dd(back)}</div>`:x.busy?'<span class="badge b-amb">⏳ الحجز لسه شغال</span>':'<span class="badge b-green">✅ رجع متاح</span>'}</td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="6">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
+    : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات اتسحبت من المستخدمة لسه</td></tr></tbody>';
 }
+
 /* التكرار = نفس الإيميل حرف بحرف (من غير فرق كابيتال/سمول) — النقط بتتحسب: ali.ahmed و aliahmed إيميلين مختلفين */
 const gKey = e => String(e||'').trim().toLowerCase();
 /* كل الإيميلات اللي اتسحبت لأفراد في الحجوزات */
-const paxEmailKeys = () => { const k=new Set(); S.bookings.forEach(b=>(b.pax||[]).forEach(r=>{ if(r && r.email) k.add(gKey(r.email)); })); return k; };
-function parseEmails(txt){
-  const all=(String(txt).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(x=>x.toLowerCase());
-  const have=new Set([...bankList().map(x=>gKey(x.email)), ...paxEmailKeys()]), seen=new Set(), ok=[], why=[], reuse=[]; let dup=0, notG=0;
-  const next=+bankMeta().next||0, inBank=new Map(bankList().map(x=>[gKey(x.email), x])), inPax=new Map();
-  S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r && r.email) inPax.set(gKey(r.email), {b, i}); }));
-  all.forEach(e=>{ if(!/@(gmail|googlemail)\.com$/.test(e)){ notG++; why.push([e,'مش جيميل']); return; } const k=gKey(e);
-    if(have.has(k)||seen.has(k)){ dup++; const p=inPax.get(k), x=inBank.get(k);
-      if(!seen.has(k) && !p && x && x.seq<=next){ reuse.push(e); seen.add(k); }
-      why.push([e, seen.has(k) ? 'متكرر جوه اللي انت لازقه' : p ? `متسحب لحجز ${p.b.name} (فرد ${p.i+1})` : x ? (x.seq<=next ? `اتسحب قبل كده (#${x.seq}) — اتحرق` : `موجود في البنك ومتاح (#${x.seq})`) : 'موجود']); return; }
-    seen.add(k); ok.push(e); });
-  return {ok, dup, notG, why, reuse};
-}
-$('#bankIn').addEventListener('input', ()=>{ const r=parseEmails($('#bankIn').value);
-  $('#bankInInfo').textContent = $('#bankIn').value.trim() ? `${r.ok.length} إيميل جديد${r.dup?` • ${r.dup} مكرر`:''}${r.notG?` • ${r.notG} مش جيميل`:''}` : '';
-  $('#bankInWhy').innerHTML = r.why.length ? `<div style="background:#fdf2f2;border:1px solid #efb9b9;border-radius:10px;padding:8px 10px;margin-top:8px"><b style="color:var(--red)">⚠️ الإيميلات دي مش هتتضاف:</b>${r.why.slice(0,200).map(([e,w])=>`<div class="hint" style="display:block"><span dir="ltr">${esc(e)}</span> — ${esc(w)}</div>`).join('')}${r.why.length>200?`<div class="hint" style="display:block">… وكمان ${r.why.length-200}</div>`:''}</div>` : ''; });
-async function bankAdd(){
-  if(!isAdmin()) return;
-  if(mode==='cloud' && !BANK.list.length && (+BANK.meta.total||0)>0){ bankWatch(); toast('⏳ لحظة… البنك لسه بيتحمّل — جرب تاني بعد ثواني'); return; }
-  const r=parseEmails($('#bankIn').value);
-  /* المحروقة اللي مش مع أي عميل حالياً (اتلغى حجزها أو اتبدلت) — ممكن تترجع للبنك بعد تأكيد */
-  let add=[...r.ok];
-  if(r.reuse.length && confirm(`${r.reuse.length} إيميل من دول اتسحبوا قبل كده بس مش مع أي عميل دلوقتي (اتبدلوا أو الحجز اتلغى).\n\nترجّعهم للبنك برضه؟\n⚠️ لو كان اتعمل بيهم حساب على المنصة قبل كده ممكن مايشتغلوش`)) add=add.concat(r.reuse);
-  const blocked=r.dup-r.reuse.length;
-  if(!add.length){ toast(r.dup||r.notG ? `مفيش إيميلات تتضاف (${blocked} مع عملاء أو موجودة في البنك • ${r.notG} مش جيميل)` : 'الصق الإيميلات الأول'); return; }
-  if(!confirm(`إضافة ${add.length} إيميل للبنك؟${blocked?`\n(${blocked} مش هيتضافوا — مع عملاء حالياً أو موجودين في البنك)`:''}${r.notG?`\n(${r.notG} مش جيميل هيتشالوا)`:''}`)) return;
-  r.ok=add;
-  try{
-    if(mode==='cloud'){
-      const mref=fb.doc(db,'emailMeta','main');
-      for(let i=0;i<r.ok.length;i+=300){
-        const part=r.ok.slice(i,i+300);
-        await fb.runTransaction(db, async t=>{
-          const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0, low:30};
-          // نبدأ بعد أعلى رقم موجود فعلاً في البنك — عشان مانكتبش فوق إيميل موجود (القواعد بتمنع التعديل)
-          let total=Math.max(+m.total||0, +m.next||0, ...bankList().map(x=>+x.seq||0));
-          part.forEach(email=>{ total++; t.set(fb.doc(db,'emailBank',bankId(total)), {email, seq:total, at:Date.now(), by:myEmail()}); });
-          t.set(mref, {total, next:+m.next||0, low:m.low===undefined?30:+m.low}, {merge:true});
-        });
-      }
-    } else {
-      const B=localBank(); r.ok.forEach(email=>{ B.total++; B.list.push({email, seq:B.total, at:Date.now()}); }); save();
-    }
-    $('#bankIn').value=''; $('#bankInInfo').textContent=''; $('#bankInWhy').innerHTML=''; toast(`✅ اتضاف ${r.ok.length} إيميل للبنك`); renderAll();
-    setTimeout(fillAllMissing, 1500);
-  }catch(e){ cloudErr(e); console.error(e); toast('⚠️ الإضافة فشلت: '+(e.code||e.message||e)); renderAll(); }
-}
-/* 🔍 فحص التكرار: البنك + كل الإيميلات اللي في الحجوزات (نفس الإيميل بالظبط) */
-function bankDupCheck(){
-  if(!isAdmin()) return;
-  const next=+bankMeta().next||0, G=new Map(), add=(k,x)=>{ if(!G.has(k)) G.set(k,[]); G.get(k).push(x); };
-  bankList().forEach(x=>add(gKey(x.email), {t:'bank', email:x.email, seq:x.seq, used:x.seq<=next}));
-  S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r && r.email) add(gKey(r.email), {t:'pax', email:r.email, b, i}); }));
-  // الإيميل المسحوب بيظهر مرتين طبيعي (مرة في البنك ومرة في الحجز) — التكرار الحقيقي: أكتر من صف في البنك، أو أكتر من فرد بنفس الإيميل
-  // ♻️ الإيميل المستخدم بيتكرر طبيعي في حجوزات خلصت — التكرار الحقيقي: فردين بنفس الإيميل في حجوزات لسه شغالة (أو جوه نفس الحجز)
-  const D=[...G.entries()].filter(([k,L])=>{ const P=L.filter(x=>x.t==='pax'), A=P.filter(x=>!bkFinished(x.b)); return L.filter(x=>x.t==='bank').length>1 || A.length>1 || P.some((x,j)=>P.some((y,m)=>m!==j && y.b===x.b)); });
-  const box=$('#bankDup');
-  if(!D.length){ box.innerHTML='<div class="alert" style="background:#eef8f3;border:1px solid #9fd6bb;border-radius:10px;padding:10px;margin-bottom:10px">✅ مفيش ولا إيميل متكرر — لا في البنك ولا في الحجوزات</div>'; toast('✅ مفيش تكرار'); return; }
-  box.innerHTML = `<div style="background:#fdf2f2;border:1px solid #efb9b9;border-radius:10px;padding:10px;margin-bottom:10px">
-    <b style="color:var(--red)">⚠️ لقيت ${D.length} إيميل متكرر</b> <button class="ibtn" style="margin-right:8px" onclick="$('#bankDup').innerHTML=''">إخفاء</button>
-    ${D.map(([k,L])=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #efb9b9"><b dir="ltr">${esc(k)}</b>${L.map(x=>x.t==='bank'
-      ? `<div class="hint" style="display:block">📧 في البنك #${x.seq}: <span dir="ltr">${esc(x.email)}</span> — ${x.used?'🔥 اتسحب':`✅ متاح <button class="ibtn del" onclick="bankDel(${x.seq}).then(()=>setTimeout(bankDupCheck,800))" title="حذف النسخة دي من البنك">🗑 حذف</button>`}</div>`
-      : `<div class="hint" style="display:block">👤 في حجز <b>${esc(x.b.name)}</b> — فرد ${x.i+1}${x.b.pax[x.i].name?` (${esc(x.b.pax[x.i].name)})`:''}: <span dir="ltr">${esc(x.email)}</span></div>`).join('')}</div>`).join('')}</div>`;
-}
-async function bankSetLow(){
-  const v=Math.max(0, Math.round(+$('#bankLow').value||0));
-  try{ if(mode==='cloud') await fb.setDoc(fb.doc(db,'emailMeta','main'), {low:v}, {merge:true}); else { localBank().low=v; save(); }
-    toast(`✓ هنبّهك لما يفضل أقل من ${v} إيميل`); renderAll(); }catch(e){ cloudErr(e); }
-}
-/* 🗑 حذف آخر N إيميل اتضافوا للبنك (أعلى أرقام) — المتاحة بس، والمسحوبة (المحروقة) عمرها ما بتتمسح */
-async function bankDelLast(wipe){
-  if(!isAdmin()) return;
-  const next=+bankMeta().next||0, all=[...bankList()].sort((a,b)=>b.seq-a.seq);
-  let n;
-  if(wipe){ n=all.length; } else {
-    const raw=prompt('عايز تحذف آخر كام إيميل اتضافوا للبنك؟', '2000'); if(raw===null) return;
-    n=Math.round(+String(raw).replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660)); if(!(n>0)){ toast('اكتب رقم صحيح'); return; }
-  }
-  const last=all.slice(0,n);
-  const del=last.filter(x=>x.seq>next), burned=last.length-del.length;
-  if(!del.length){ toast(wipe?'مفيش إيميلات متاحة في البنك أصلاً':'⛔ آخر الإيميلات دي كلها اتسحبت لعملاء — مش هينفع تتحذف'); return; }
-  const lo=del[del.length-1], hi=del[0];
-  if(wipe && !confirm(`🧹 هيتمسح كل الإيميلات المتاحة في البنك: ${del.length} إيميل\n(اللي اتسحبوا لعملاء مش هيتلمسوا)\n\nبعدها تقدر تضيف إيميلات جديدة.\nالحذف مالوش رجوع. متأكد؟`)) return;
-  if(!wipe && !confirm(`هيتحذف ${del.length} إيميل من البنك نهائياً:\nمن #${lo.seq} (${lo.email})\nلحد #${hi.seq} (${hi.email})${burned?`\n\n⚠️ ${burned} منهم اتسحبوا لعملاء — دول مش هيتحذفوا`:''}${n>all.length?`\n\n(البنك فيه ${all.length} بس)`:''}\n\nالحذف مالوش رجوع. متأكد؟`)) return;
-  try{
-    if(mode==='cloud'){
-      toast(`⏳ جاري حذف ${del.length} إيميل…`);
-      for(let i=0;i<del.length;i+=400){ const batch=fb.writeBatch(db); del.slice(i,i+400).forEach(x=>batch.delete(fb.doc(db,'emailBank',bankId(x.seq)))); await batch.commit(); }
-      // العدّاد يرجع لآخر إيميل فاضل — عشان السحب مايلفّش على أرقام اتمسحت
-      const delSet=new Set(del.map(x=>x.seq)), newTop=all.filter(x=>!delSet.has(x.seq)).reduce((m,x)=>Math.max(m,x.seq), next);
-      const mref=fb.doc(db,'emailMeta','main');
-      await fb.runTransaction(db, async t=>{ const ms=await t.get(mref), m=ms.exists()?ms.data():{}; if((+m.total||0)<=hi.seq) t.set(mref, {total:Math.max(newTop, +m.next||0)}, {merge:true}); });
-    } else {
-      const B=localBank(), delSet=new Set(del.map(x=>x.seq)); B.list=B.list.filter(e=>!delSet.has(e.seq));
-      B.total=Math.max(+B.next||0, ...B.list.map(e=>e.seq)); save();
-    }
-    toast(`✅ اتحذف ${del.length} إيميل من البنك`); renderAll();
-  }catch(e){ cloudErr(e); toast('⚠️ الحذف وقف في النص — جرب تاني (اللي اتحذف خلاص مش هيرجع)'); renderAll(); }
-}
-async function bankDel(seq){
-  const x=bankList().find(e=>e.seq===seq); if(!x || seq<=(+bankMeta().next||0)) return;
-  if(!confirm(`حذف ${x.email} من البنك؟`)) return;
-  try{ if(mode==='cloud') await fb.deleteDoc(fb.doc(db,'emailBank',bankId(seq))); else { const B=localBank(); B.list=B.list.filter(e=>e.seq!==seq); save(); } renderAll(); }
-  catch(e){ cloudErr(e); }
-}
-
 /* المرحلة 1: إنشاء الحسابات (b.acct) — الحجوزات اللي اتعلّم عليها «تم الحجز» قبل التقسيم بتتحسب حساباتها اتعملت */
 const acctDone = b => !!(b.acct || b.booked);
 /* الحالة الظاهرة: إنشاء الحساب مش معناه إن الموعد اتحجز — «اتحجز الموعد» بتظهر بس لما كل المواعيد تتحجز */
@@ -2818,7 +2641,7 @@ function bkLdr(i, v){
     b.pax[i].ldr=li; }
   save(); bkRender(); renderAll();
 }
-/* 📲 «مطلوب على المنصة» بيعرض الحجز بس لما: بيانات كل الأفراد كاملة (الاسم + التأشيرة + الجواز + الجنسية — الإيميل بيتسحب من البنك لوحده)
+/* 📲 «مطلوب على المنصة» بيعرض الحجز بس لما: بيانات كل الأفراد كاملة (الاسم + التأشيرة + الجواز + الجنسية — الإيميل بيتسحب لوحده حسب الجنسية)
    وأول موعد فاضل عليه أقل من 10 أيام (أو فات). الباقي بيتعد تحت القايمة عشان مايتنسيش. */
 const BK_WIN_D = 10;
 /* البيانات كاملة = نفس معيار «بيانات الأفراد»: التأشيرة + الجواز + الجنسية لكل فرد (الاسم مش شرط) — أو الحجز اتعلّم «📤 تم الرفع» */
@@ -3010,7 +2833,7 @@ function nvMsd(id, i){ const b=S.bookings.find(x=>x.id===id); if(!b || !b.pax[i]
 async function bkDone(){
   const b=bkB(); if(!b) return;
   if(acctDone(b)){ if(!confirm('إلغاء «تم إنشاء الحسابات» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.acct; delete b.booked; save(); renderAll(); bkRender(); return; }
-  if(paxNoMail(b)){ toast(paxNoNat(b) ? '⛔ فيه أفراد من غير جنسية — حدد الجنسية الأول عشان الإيميل يتسحب' : '⛔ فيه أفراد من غير إيميل — ضيف إيميلات للبنك الأول'); return; }
+  if(paxNoMail(b)){ toast(paxNoNat(b) ? '⛔ فيه أفراد من غير جنسية — حدد الجنسية الأول عشان الإيميل يتسحب' : '⛔ فيه أفراد من غير إيميل — مفيش إيميلات متاحة بنفس الجنسية'); return; }
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length;
   if(made<n && !confirm(`علّمت على ${made} من ${n} بس. الباقيين هيتسجلوا «اتعمل حسابه» — تكمل؟`)) return;
   const nvN=b.pax.filter(r=>r.nv).length, vN=n-nvN;
