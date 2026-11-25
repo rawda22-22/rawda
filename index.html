@@ -381,6 +381,7 @@ body:not(.cloud) .cloud-only{display:none!important}
       <div class="toolbar" style="flex-wrap:wrap;gap:6px">
         <input id="recyQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderRecy()">
         <select id="recyNat" class="ibtn" onchange="renderRecy()"><option value="">كل الجنسيات</option></select>
+        <select id="recySx" class="ibtn" onchange="renderRecy()"><option value="">👨👩 الذكور والإناث</option><option value="m">👨 ذكور بس</option><option value="w">👩 إناث بس</option></select>
         <select id="recyF" class="ibtn" onchange="renderRecy()"><option value="">الكل</option><option value="wait">⏳ لسه في فترة الـ 15 يوم</option><option value="back">✅ رجع للسحب</option></select>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="curTable" id="recyTable"></table></div>
@@ -391,11 +392,12 @@ body:not(.cloud) .cloud-only{display:none!important}
   <section class="sec" id="sec-used">
     <div class="card">
       <h2>♻️ الإيميلات المستخدمة <span class="sp"></span><span class="hint" id="usedHead"></span></h2>
-      <div class="hint" style="display:block;margin-bottom:8px">كل إيميل اتربط بعميل قبل كده بيفضل هنا <b>بجنسية العميل</b> اللي اتعمله الحساب بيها. أي فرد جديد مابيتسحبلوش إيميل غير <b>بعد ما جنسيته تتحدد</b> — والسحب بيبقى من هنا الأول بنفس الجنسية (مصري ← إيميل مصري)، من الإيميلات اللي حجزها خلص (تم الدخول / ملغي / موعده فات). أي إيميل بيتسحب من هنا بيروح «🔁 إيميلات معاد تدويرها» ومابيرجعش للسحب غير بعد 15 يوم من سحبه.</div>
+      <div class="hint" style="display:block;margin-bottom:8px">كل إيميل اتربط بعميل قبل كده بيفضل هنا <b>بجنسية العميل ونوعه (ذكر / أنثى)</b> اللي اتعمله الحساب بيهم. أي فرد جديد مابيتسحبلوش إيميل غير <b>بعد ما جنسيته تتحدد</b> — والسحب بيبقى من هنا بنفس الجنسية ونفس النوع (راجل مصري ← إيميل راجل مصري • ست مصرية ← إيميل ست مصرية)، من الإيميلات اللي حجزها خلص (تم الدخول / ملغي / موعده فات). أي إيميل بيتسحب من هنا بيروح «🔁 إيميلات معاد تدويرها» ومابيرجعش للسحب غير بعد 15 يوم من سحبه.</div>
       <div class="stats" id="usedStats" style="margin-bottom:10px"></div>
       <div class="toolbar" style="flex-wrap:wrap;gap:6px">
         <input id="usedQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderUsed()">
         <select id="usedNat" class="ibtn" onchange="renderUsed()"><option value="">كل الجنسيات</option></select>
+        <select id="usedSx" class="ibtn" onchange="renderUsed()"><option value="">👨👩 الذكور والإناث</option><option value="m">👨 ذكور بس</option><option value="w">👩 إناث بس</option></select>
         <select id="usedF" class="ibtn" onchange="renderUsed()"><option value="">الكل</option><option value="free">✅ متاح للسحب</option><option value="busy">⏳ مع حجز شغال</option><option value="nonat">🌍 من غير جنسية</option></select>
         <span class="sp"></span>
         <span class="hint">🧹 احذف الكل ما عدا اللي بيبدأ بـ</span><input id="usedKeep" value="r" dir="ltr" style="width:60px;padding:8px;border:1px solid var(--bd);border-radius:10px;font:inherit">
@@ -556,7 +558,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="mfoot">
       <button class="btn pri" onclick="paxSave()">💾 حفظ</button>
       <button class="btn gold" id="paxUpBtn" onclick="paxUpload()">📤 تم الرفع</button>
-      <button class="btn admin-only" id="paxReBtn" onclick="paxReplaceEmails()" title="يشيل إيميلات الحجز ده (اللي مش شغالة) ويسحب بدالها تانية من الإيميلات المستخدمة بنفس الجنسية">🔄 تغيير الإيميلات</button>
+      <button class="btn admin-only" id="paxReBtn" onclick="paxReplaceEmails()" title="يشيل إيميلات الحجز ده (اللي مش شغالة) ويسحب بدالها تانية من الإيميلات المستخدمة بنفس الجنسية والنوع">🔄 تغيير الإيميلات</button>
     </div>
   </div>
 </div>
@@ -1945,6 +1947,10 @@ const paxNoMail = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filt
    ولو مفيش واحد متاح بنفس الجنسية الفرد بيفضل من غير إيميل لحد ما يتوفر (مفيش بنك إيميلات جديدة).
    السحابة: emailUse/{الإيميل} {b, at, by} = قفل صغير عشان اتنين مايسحبوش نفس الإيميل المستخدم في نفس اللحظة */
 const natKey = v => normAr(natFix(v)).replace(/\s+/g,'').replace(/^ال/,'');
+/* 👨/👩 نوع الفرد برقم صفه (من غير ما نعتمد على إن r نفس الأوبجكت جوه b.pax) */
+const sxAt = (b, r, i) => { const m=+b.men||0, w=+b.women||0; if(!w) return 'm'; if(!m) return 'w'; return (r&&r.sx) || (i < m ? 'm' : 'w'); };
+const SXL = {m:'👨 ذكر', w:'👩 أنثى'};
+const sxBadge = g => g ? `<span class="badge" style="background:${g==='m'?'#eef5ff':'#fdf0f6'};color:${g==='m'?'#1d4f91':'#9b2c63'}">${SXL[g]}</span>` : '—';
 const useId = k => String(k).replace(/\//g,'_');
 /* المحذوفة من «الإيميلات المستخدمة»: سحابة = meta/usedOff {keys:[...]} • محلي = S.usedOff */
 let USED_OFF = new Set();
@@ -1958,7 +1964,8 @@ function usedIndex(skipId){
   S.bookings.forEach(b=>{ if(b.noData || b.id===skipId) return;
     const fin=bkFinished(b), at=+b.createdAt||0, dd=gDate(b, groupsOf(b)[0]||'m'), t=+new Date(dd) || at;
     (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email); if(OFF.has(k)) return;
-      let x=M.get(k); if(!x){ x={key:k, email:k, nat:'', nk:'', uses:0, busy:null, last:null, first:Infinity, ruAt:0, ruB:null}; M.set(k,x); }
+      let x=M.get(k); if(!x){ x={key:k, email:k, nat:'', nk:'', sx:'', sxFirst:Infinity, uses:0, busy:null, last:null, first:Infinity, ruAt:0, ruB:null}; M.set(k,x); }
+      if(at<x.sxFirst){ x.sxFirst=at; x.sx=sxAt(b, r, i); }   // 👨/👩 نوع أول عميل اتعمله الحساب بيه
       if(r.ru){ const rt=ruTime(b,r); if(rt>x.ruAt){ x.ruAt=rt; x.ruB={b, i, name:r.name||''}; } }
       x.uses++;
       if(natKey(r.nat) && at<x.first){ x.first=at; x.nat=natFix(r.nat); x.nk=natKey(r.nat); }   // جنسية أول عميل اتعمله الحساب بيها
@@ -1971,7 +1978,7 @@ function usedIndex(skipId){
 /* 🔁 فترة الانتظار: الإيميل المعاد تدويره بيرجع بعد RECY_D يوم من آخر سحب */
 const recyBack = x => x.ruAt ? x.ruAt + RECY_D*864e5 : 0;
 const recyWait = x => recyBack(x) > Date.now();
-const usedFree = (IDX, nk) => [...IDX.values()].filter(x=>x.nk===nk && !x.busy && !recyWait(x)).sort((a,b)=>(a.last?.t||0)-(b.last?.t||0));
+const usedFree = (IDX, nk, sx) => [...IDX.values()].filter(x=>x.nk===nk && x.sx===sx && !x.busy && !recyWait(x)).sort((a,b)=>(a.last?.t||0)-(b.last?.t||0));
 const paxDone = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.visa && r.pass && r.nat && r.email).length;
 function paxBtn(b){
   const n=paxN(b); if(!n) return '';
@@ -1995,12 +2002,12 @@ async function allocEmails(b, quiet){
         if(!needR.length) return {got:0, short:0, pax};
         const own=new Set(); pax.forEach(r=>{ if(r.email) own.add(gKey(r.email)); });
         const IDX=usedIndex(b.id), C={}, locks=[], miss={}; let reads=0;
-        for(const r of needR){ const nk=natKey(r.nat), L=(C[nk]=C[nk]||usedFree(IDX, nk));
+        for(const r of needR){ const nk=natKey(r.nat), sx=sxAt(d, r, pax.indexOf(r)), L=(C[nk+'|'+sx]=C[nk+'|'+sx]||usedFree(IDX, nk, sx));
           while(L.length && reads<40){ const x=L.shift(); if(own.has(x.key)) continue;
             reads++; const ls=await t.get(fb.doc(db,'emailUse',useId(x.key))), lk=ls.exists()?ls.data():null;
             if(lk && lk.b && lk.b!==b.id && (+lk.at||0) > Date.now()-USE_HOLD) continue;   // حد تاني لسه ساحبه حالاً
             r.email=x.email; r.ru=1; r.ruAt=Date.now(); own.add(x.key); locks.push(x.key); break; }
-          if(!r.email) miss[natFix(r.nat)]=(miss[natFix(r.nat)]||0)+1;
+          if(!r.email){ const mk=natFix(r.nat)+' '+SXL[sx]; miss[mk]=(miss[mk]||0)+1; }
         }
         const now=Date.now();
         locks.forEach(k=>t.set(fb.doc(db,'emailUse',useId(k)), {b:b.id, at:now, by:myEmail()}));
@@ -2012,17 +2019,17 @@ async function allocEmails(b, quiet){
       b.pax=fixRows(b.pax, paxN(b));
       const needR=b.pax.filter(r=>!r.email && natKey(r.nat)), IDX=usedIndex(b.id), C={}, miss={};
       const own=new Set(b.pax.filter(r=>r.email).map(r=>gKey(r.email))); let got=0;
-      needR.forEach(r=>{ const nk=natKey(r.nat), L=(C[nk]=C[nk]||usedFree(IDX, nk));
+      needR.forEach(r=>{ const nk=natKey(r.nat), sx=sxAt(b, r, b.pax.indexOf(r)), L=(C[nk+'|'+sx]=C[nk+'|'+sx]||usedFree(IDX, nk, sx));
         while(L.length){ const x=L.shift(); if(own.has(x.key)) continue; r.email=x.email; r.ru=1; r.ruAt=Date.now(); own.add(x.key); got++; break; }
-        if(!r.email) miss[natFix(r.nat)]=(miss[natFix(r.nat)]||0)+1; });
+        if(!r.email){ const mk=natFix(r.nat)+' '+SXL[sx]; miss[mk]=(miss[mk]||0)+1; } });
       res={got, short:needR.length-got, miss};
       if(got) save();
     }
-    if(res.got && !quiet) toast(`♻️ اتسحب ${res.got} إيميل بنفس الجنسية`);
+    if(res.got && !quiet) toast(`♻️ اتسحب ${res.got} إيميل بنفس الجنسية والنوع`);
     if(res.short>0){
       const why=Object.entries(res.miss||{}).map(([n,c])=>`${c} ${n}`).join('، ');
-      if(!quiet) toast(`⚠️ مفيش إيميلات متاحة بنفس الجنسية — حجز ${b.name} ناقص ${res.short} إيميل (${why})`);
-      if(tgOn() && !quiet) tgSend(`🚫 <b>مفيش إيميلات متاحة</b>\nحجز <b>${tgEsc(b.name)}</b> ناقص ${res.short} إيميل (${tgEsc(why)}) — مفيش إيميل مستخدم بنفس الجنسية متاح دلوقتي.`).catch(e=>console.error(e));
+      if(!quiet) toast(`⚠️ مفيش إيميلات متاحة بنفس الجنسية والنوع — حجز ${b.name} ناقص ${res.short} إيميل (${why})`);
+      if(tgOn() && !quiet) tgSend(`🚫 <b>مفيش إيميلات متاحة</b>\nحجز <b>${tgEsc(b.name)}</b> ناقص ${res.short} إيميل (${tgEsc(why)}) — مفيش إيميل مستخدم بنفس الجنسية والنوع متاح دلوقتي.`).catch(e=>console.error(e));
     }
     if(res.got) renderAll();
     return res;
@@ -2063,13 +2070,13 @@ function paxRender(){
   const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
   $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>النوع</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
     (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${sxCell(b,r,i)}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
-      <td>${adm ? `<div style="display:flex;gap:4px;align-items:center">${inp(i,'email',r.email,'الجيميل','dir="ltr" type="email" autocapitalize="off" spellcheck="false" style="min-width:210px"')}${r.email?`<button type="button" class="ibtn" onclick="apCopy(this,'${esc(r.email)}')" title="نسخ">📋</button>${r.ru?'<span title="إيميل مستخدم قبل كده بنفس الجنسية">♻️</span>':''}`:natKey(r.nat)?'':'<span class="hint" title="الإيميل بيتسحب بعد ما تحدد الجنسية">🌍</span>'}</div>`
-        : r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>${r.ru?' <span title="إيميل مستخدم قبل كده بنفس الجنسية">♻️</span>':''}` : natKey(r.nat) ? '<span class="badge b-amb">⏳ بيتسحب…</span>' : '<span class="badge b-amb">🌍 حدد الجنسية</span>'}</td></tr>`).join('')}</tbody>`;
+      <td>${adm ? `<div style="display:flex;gap:4px;align-items:center">${inp(i,'email',r.email,'الجيميل','dir="ltr" type="email" autocapitalize="off" spellcheck="false" style="min-width:210px"')}${r.email?`<button type="button" class="ibtn" onclick="apCopy(this,'${esc(r.email)}')" title="نسخ">📋</button>${r.ru?'<span title="إيميل مستخدم قبل كده بنفس الجنسية والنوع">♻️</span>':''}`:natKey(r.nat)?'':'<span class="hint" title="الإيميل بيتسحب بعد ما تحدد الجنسية">🌍</span>'}</div>`
+        : r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>${r.ru?' <span title="إيميل مستخدم قبل كده بنفس الجنسية والنوع">♻️</span>':''}` : natKey(r.nat) ? '<span class="badge b-amb">⏳ بيتسحب…</span>' : '<span class="badge b-amb">🌍 حدد الجنسية</span>'}</td></tr>`).join('')}</tbody>`;
   paxAutoAlloc(b);
   $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
 }
 $('#paxTable').addEventListener('change', e=>{ const k=e.target.dataset.k;
-  if(k==='sx'){ paxDirty=true; paxCollect(); paxRender(); }
+  if(k==='sx'){ paxDirty=true; paxNatChanged(+e.target.dataset.i); }
   if(k==='nat') paxNatChanged(+e.target.dataset.i);
 });
 /* 🌍 الجنسية اتحددت/اتغيرت: لو الفرد مالوش إيميل يتسحبله على طول (من الإيميلات المستخدمة بنفس الجنسية).
@@ -2079,7 +2086,9 @@ function paxNatChanged(i){
   paxCollect(); const r=b.pax[i]; if(!r) return;
   if(r.email && natKey(r.nat) && !b.uploaded && !acctDone(b) && !r.made){
     const x=usedIndex(b.id).get(gKey(r.email));
+    const sx=sxAt(b, r, i);
     if(x && x.nk && x.nk!==natKey(r.nat)){ toast(`🔄 الإيميل ${r.email} مربوط بجنسية ${x.nat} — هيتسحب بداله إيميل ${natFix(r.nat)}`); r.email=''; delete r.ru; }
+    else if(x && x.sx && x.sx!==sx){ toast(`🔄 الإيميل ${r.email} مربوط بـ ${SXL[x.sx]} — هيتسحب بداله إيميل ${SXL[sx]}`); r.email=''; delete r.ru; }
   }
   paxDirty=false; const sv=save(); paxRender(); renderAll();
 }
@@ -2087,7 +2096,7 @@ function paxNatChanged(i){
    مرة واحدة لكل حالة — عشان لو مفيش إيميلات متاحة مايفضلش يحاول ويطلّع تنبيهات ورا بعض */
 let paxAllocT=null, paxAllocSig='';
 function paxAutoAlloc(b){
-  const P=(b.pax||[]).slice(0,paxN(b)), sig=b.id+'|'+P.map((r,i)=>!r.email && natKey(r.nat) ? i+':'+natKey(r.nat) : '').join(',');
+  const P=(b.pax||[]).slice(0,paxN(b)), sig=b.id+'|'+P.map((r,i)=>!r.email && natKey(r.nat) ? i+':'+natKey(r.nat)+':'+sxAt(b,r,i) : '').join(',');
   if(!paxMissing(b) || sig===paxAllocSig || allocBusy.has(b.id)) return;
   clearTimeout(paxAllocT);
   paxAllocT=setTimeout(async ()=>{ const bb=paxB(); if(!bb || bb.id!==b.id) return;
@@ -2125,7 +2134,7 @@ async function paxReplaceEmails(){
   paxCollect();
   const n=paxN(b), have=(b.pax||[]).slice(0,n).filter(r=>r.email);
   if(!have.length){ toast('الحجز ده مفيهوش إيميلات أصلاً'); return; }
-  if(!confirm(`🔄 استبدال إيميلات حجز ${b.name}\n\nهيتشال ${have.length} إيميل:\n${have.map(r=>r.email).join('\n')}\n\nويتسحب بدالهم ${have.length} إيميل تاني من الإيميلات المستخدمة بنفس الجنسية.${acctDone(b)?'\n\n⚠️ الحجز ده اتعمله حسابات على المنصة — لازم تعمل الحسابات من جديد بالإيميلات الجديدة':''}\n\nمتأكد؟`)) return;
+  if(!confirm(`🔄 استبدال إيميلات حجز ${b.name}\n\nهيتشال ${have.length} إيميل:\n${have.map(r=>r.email).join('\n')}\n\nويتسحب بدالهم ${have.length} إيميل تاني من الإيميلات المستخدمة بنفس الجنسية والنوع.${acctDone(b)?'\n\n⚠️ الحجز ده اتعمله حسابات على المنصة — لازم تعمل الحسابات من جديد بالإيميلات الجديدة':''}\n\nمتأكد؟`)) return;
   (b.pax||[]).forEach(r=>{ if(r) r.email=''; });
   b.pax=fixRows(b.pax, n); paxDirty=false;
   await Promise.resolve(save()); paxRender();
@@ -2133,7 +2142,7 @@ async function paxReplaceEmails(){
   const bb=paxB(); if(bb){ bb.pax=fixRows(bb.pax, paxN(bb)); paxRender(); }
   renderAll();
   if(r.got && !r.short) toast(`✅ اتبدلت ${r.got} إيميل`);
-  else if(r.short>0) toast(`⚠️ اتبدل ${r.got||0} بس — مفيش إيميلات متاحة بنفس الجنسية لـ ${r.short}`);
+  else if(r.short>0) toast(`⚠️ اتبدل ${r.got||0} بس — مفيش إيميلات متاحة بنفس الجنسية والنوع لـ ${r.short}`);
 }
 
 /* ===== 📤 تم الرفع: بيأكد الحجز وبيبعت الإيميلات والبيانات على تليجرام ===== */
@@ -2433,28 +2442,29 @@ $('#paxFiles').addEventListener('change', async e=>{
 function renderUsed(){
   if(!isAdmin() || currentTab()!=='used') return;
   const IDX=usedIndex(), all=[...IDX.values()];
-  const byN=new Map(); all.forEach(x=>{ if(!x.nk) return; const g=byN.get(x.nk)||{nat:x.nat, n:0, free:0}; g.n++; if(!x.busy && !recyWait(x)) g.free++; byN.set(x.nk, g); });
+  const byN=new Map(); all.forEach(x=>{ if(!x.nk) return; const g=byN.get(x.nk)||{nat:x.nat, n:0, free:0, fm:0, fw:0}; g.n++; if(!x.busy && !recyWait(x)){ g.free++; g[x.sx==='w'?'fw':'fm']++; } byN.set(x.nk, g); });
+  const freeX=all.filter(x=>!x.busy && x.nk && !recyWait(x)), fM=freeX.filter(x=>x.sx==='m').length, fW=freeX.length-fM;
   const nats=[...byN.entries()].sort((a,b)=>b[1].n-a[1].n);
   const sel=$('#usedNat'), cur=sel.value;
   sel.innerHTML='<option value="">كل الجنسيات</option>'+nats.map(([k,g])=>`<option value="${esc(k)}" ${k===cur?'selected':''}>${esc(g.nat)} (${g.free} متاح من ${g.n})</option>`).join('');
   const free=all.filter(x=>!x.busy && x.nk && !recyWait(x)).length, busy=all.filter(x=>x.busy).length, wt=all.filter(x=>!x.busy && recyWait(x)).length, noNat=all.filter(x=>!x.nk).length;
   const off=usedOff().size; $('#usedHead').textContent=`${all.length} إيميل${off?` • 🗑 ${off} محذوف`:''}`;
   $('#usedRestoreBtn').style.display = off ? '' : 'none'; $('#usedRestoreBtn').textContent=`↩️ رجّع المحذوفة (${off})`;
-  $('#usedStats').innerHTML = [['♻️ إجمالي المستخدمة', all.length, 'var(--blue)'], ['✅ متاح للسحب', free, 'var(--g)'], ['⏳ مع حجز شغال', busy, 'var(--amb)'], ['🔁 مستني الـ 15 يوم', wt, 'var(--amb)'], ...(noNat?[['🌍 من غير جنسية', noNat, 'var(--red)']]:[])]
+  $('#usedStats').innerHTML = [['♻️ إجمالي المستخدمة', all.length, 'var(--blue)'], ['✅ متاح للسحب', free, 'var(--g)'], ['👨 متاح ذكور', fM, '#1d4f91'], ['👩 متاح إناث', fW, '#9b2c63'], ['⏳ مع حجز شغال', busy, 'var(--amb)'], ['🔁 مستني الـ 15 يوم', wt, 'var(--amb)'], ...(noNat?[['🌍 من غير جنسية', noNat, 'var(--red)']]:[])]
     .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('')
-    + nats.slice(0,8).map(([k,g])=>`<div class="stat" style="--c:var(--mu);cursor:pointer" onclick="$('#usedNat').value='${esc(k)}';$('#usedF').value='free';renderUsed()"><span>🌍 ${esc(g.nat)}</span><b>${g.free}<small style="font-size:.6em;color:var(--mu)"> / ${g.n}</small></b></div>`).join('');
-  const q=normAr($('#usedQ').value.trim().toLowerCase()), nf=$('#usedNat').value, f=$('#usedF').value;
+    + nats.slice(0,8).map(([k,g])=>`<div class="stat" style="--c:var(--mu);cursor:pointer" onclick="$('#usedNat').value='${esc(k)}';$('#usedF').value='free';renderUsed()"><span>🌍 ${esc(g.nat)}</span><b>${g.free}<small style="font-size:.6em;color:var(--mu)"> / ${g.n}</small></b><small style="display:block;font-size:12px;color:var(--mu)">👨 ${g.fm} • 👩 ${g.fw}</small></div>`).join('');
+  const q=normAr($('#usedQ').value.trim().toLowerCase()), nf=$('#usedNat').value, f=$('#usedF').value, sf=$('#usedSx').value;
   const rows=all.filter(x=>{
-    if(nf && x.nk!==nf) return false;
+    if(nf && x.nk!==nf) return false; if(sf && x.sx!==sf) return false;
     if(f==='free' && (x.busy || !x.nk || recyWait(x))) return false; if(f==='busy' && !x.busy) return false; if(f==='nonat' && x.nk) return false;
     return !q || x.key.includes(q) || (x.last && normAr((x.last.b.name+' '+x.last.name).toLowerCase()).includes(q));
   }).sort((a,b)=> (!!a.busy-!!b.busy) || (a.last?.t||0)-(b.last?.t||0));
-  $('#usedTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>الحالة</th><th>آخر عميل</th><th>آخر موعد</th><th>مرات</th><th></th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{ const L=x.last, bb=x.busy?x.busy.b:L&&L.b;
-      return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td>
+  $('#usedTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>النوع</th><th>الجنسية</th><th>الحالة</th><th>آخر عميل</th><th>آخر موعد</th><th>مرات</th><th></th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{ const L=x.last, bb=x.busy?x.busy.b:L&&L.b;
+      return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td><td>${sxBadge(x.sx)}</td>
       <td>${x.nk?`<span class="badge b-new">${esc(x.nat)}</span>`:'<span class="badge b-amb" title="الفرد اللي معاه الإيميل ده مالوش جنسية — حددها من 👥 بيانات الأفراد">🌍 مش محددة</span>'}</td>
       <td>${x.busy?`<span class="badge b-amb">⏳ مع ${esc(x.busy.b.name)}</span>`:recyWait(x)?`<span class="badge b-amb">🔁 يرجع بعد ${Math.ceil((recyBack(x)-Date.now())/864e5)} يوم</span>`:x.nk?'<span class="badge b-green">✅ متاح</span>':'<span class="badge b-gray">مش هيتسحب</span>'}</td>
       <td>${L?`${esc(L.b.name)}${L.name?`<div class="hint">${esc(L.name)}</div>`:''}`:'—'} ${bb?`<button class="ibtn" onclick="paxOpen('${bb.id}')" title="بيانات الأفراد">👥</button>`:''}</td>
-      <td>${L&&L.d?fmtDate(L.d):'—'}</td><td>${x.uses}</td><td><button class="ibtn del" onclick="usedDel(['${esc(x.key)}'])" title="حذف من القائمة (مش هيتسحب تاني)">🗑</button></td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="8">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
+      <td>${L&&L.d?fmtDate(L.d):'—'}</td><td>${x.uses}</td><td><button class="ibtn del" onclick="usedDel(['${esc(x.key)}'])" title="حذف من القائمة (مش هيتسحب تاني)">🗑</button></td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="9">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
 }
 
@@ -2492,7 +2502,7 @@ function renderBankAlert(){
   if(!isAdmin()){ $('#bankAlert').innerHTML=''; return; }
   const miss=S.bookings.filter(b=>b.status!=='cancelled' && b.status!=='done' && paxMissing(b)>0);
   $('#bankAlert').innerHTML = miss.length ? `<div class="alertbar" style="background:#fff6e5;border-color:#f0d08a;color:#7a5200;animation:none"><span class="ic">📧</span><div>
-    <b>${miss.length} حجز ناقص إيميلات</b> — مفيش إيميلات متاحة بنفس الجنسية: ${miss.slice(0,4).map(b=>`<a href="#" onclick="event.preventDefault();paxOpen('${b.id}')">${esc(b.name)} (${paxMissing(b)})</a>`).join(' • ')}${miss.length>4?' …':''}</div></div>` : '';
+    <b>${miss.length} حجز ناقص إيميلات</b> — مفيش إيميلات متاحة بنفس الجنسية والنوع: ${miss.slice(0,4).map(b=>`<a href="#" onclick="event.preventDefault();paxOpen('${b.id}')">${esc(b.name)} (${paxMissing(b)})</a>`).join(' • ')}${miss.length>4?' …':''}</div></div>` : '';
 }
 
 /* ===== 🔁 صفحة الإيميلات المعاد تدويرها (للمدير): اللي اتسحبوا من «الإيميلات المستخدمة» ووقت رجوعهم ===== */
@@ -2505,17 +2515,17 @@ function renderRecy(){
   $('#recyHead').textContent=`${all.length} إيميل`;
   $('#recyStats').innerHTML=[['🔁 إجمالي المعاد تدويرها', all.length, 'var(--blue)'], [`⏳ لسه في الـ ${RECY_D} يوم`, wait.length, 'var(--amb)'], ['✅ رجع للسحب', all.length-wait.length, 'var(--g)']]
     .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
-  const q=normAr($('#recyQ').value.trim().toLowerCase()), nf=$('#recyNat').value, f=$('#recyF').value;
+  const q=normAr($('#recyQ').value.trim().toLowerCase()), nf=$('#recyNat').value, f=$('#recyF').value, sf=$('#recySx').value;
   const dd = t => new Date(t).toLocaleDateString('ar-u-nu-latn',{weekday:'short', day:'numeric', month:'short'});
-  const rows=all.filter(x=>{ if(nf && (x.nk||'?')!==nf) return false; if(f==='wait' && !recyWait(x)) return false; if(f==='back' && recyWait(x)) return false;
+  const rows=all.filter(x=>{ if(nf && (x.nk||'?')!==nf) return false; if(sf && x.sx!==sf) return false; if(f==='wait' && !recyWait(x)) return false; if(f==='back' && recyWait(x)) return false;
     return !q || x.key.includes(q) || (x.ruB && normAr((x.ruB.b.name+' '+x.ruB.name).toLowerCase()).includes(q)); }).sort((a,b)=>b.ruAt-a.ruAt);
-  $('#recyTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>اتسحب لـ</th><th>يوم السحب</th><th>يرجع للسحب</th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{
+  $('#recyTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>النوع</th><th>الجنسية</th><th>اتسحب لـ</th><th>يوم السحب</th><th>يرجع للسحب</th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{
       const back=recyBack(x), left=Math.ceil((back-Date.now())/864e5), R=x.ruB;
-      return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td>
+      return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td><td>${sxBadge(x.sx)}</td>
       <td>${x.nk?`<span class="badge b-new">${esc(x.nat)}</span>`:'—'}</td>
       <td>${R?`${esc(R.b.name)}${R.name?`<div class="hint">${esc(R.name)}</div>`:''} <button class="ibtn" onclick="paxOpen('${R.b.id}')" title="بيانات الأفراد">👥</button>`:'—'}</td>
       <td>${dd(x.ruAt)}</td>
-      <td>${left>0?`<span class="badge b-amb">⏳ بعد ${left} يوم</span><div class="hint">${dd(back)}</div>`:x.busy?'<span class="badge b-amb">⏳ الحجز لسه شغال</span>':'<span class="badge b-green">✅ رجع متاح</span>'}</td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="6">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
+      <td>${left>0?`<span class="badge b-amb">⏳ بعد ${left} يوم</span><div class="hint">${dd(back)}</div>`:x.busy?'<span class="badge b-amb">⏳ الحجز لسه شغال</span>':'<span class="badge b-green">✅ رجع متاح</span>'}</td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="7">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات اتسحبت من المستخدمة لسه</td></tr></tbody>';
 }
 
