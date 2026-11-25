@@ -290,9 +290,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="bank" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/></svg><span class="tl">بنك الإيميلات</span><span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
   <button data-t="used" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/><path d="M15 19.5a3.5 3.5 0 1 0 3.2-4.9"/><path d="m18.6 13.2-.4 1.5 1.5.4"/></svg><span class="tl">الإيميلات المستخدمة</span></button>
   <button data-t="staff" class="admin-only cloud-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg><span class="tl">الموظفين</span></button>
-  <button data-t="list"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span class="tl">الحجوزات</span></button>
   <button data-t="nv"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/></svg><span class="tl">ممنوع الزيارة</span><span class="dot" id="nvDot" style="display:none;background:var(--red)"></span></button>
-  <button data-t="log" class="admin-only cloud-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span class="tl">سجل الموظف</span></button>
   <button data-t="settings" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="tl">الإعدادات</span></button>
 </nav>
 
@@ -320,58 +318,8 @@ body:not(.cloud) .cloud-only{display:none!important}
   </section>
 
 
-  <!-- كل الحجوزات -->
-  <section class="sec" id="sec-list">
-    <div class="card">
-      <h2>📋 جدول الحجوزات <span class="sp"></span><span class="hint" id="tblCount"></span></h2>
-      <div class="toolbar">
-        <input type="search" id="q" placeholder="🔍 ابحث بالاسم، التليفون، التاريخ، الإيصال، الملاحظات...">
-        <input type="date" id="fDate">
-        <select id="fStatus">
-          <option value="">كل الحالات</option>
-          <option value="new">جديد</option>
-          <option value="confirmed">مؤكد</option>
-          <option value="done">تم الدخول</option>
-          <option value="cancelled">ملغي</option>
-        </select>
-        <select id="fPay">
-          <option value="">كل حالات السداد</option>
-          <option value="paid">✅ مدفوع</option>
-          <option value="partial">🟠 جزئي</option>
-          <option value="unpaid">🔴 غير مدفوع</option>
-        </select>
-        <select id="fCur"></select>
-        <button class="ibtn" onclick="clearFilters()">مسح</button>
-      </div>
-      <div style="overflow-x:auto">
-        <table id="mainTable">
-          <thead><tr><th>العميل</th><th>الهاتف</th><th>التاريخ</th><th>الرجال</th><th>النساء</th><th>المبلغ</th><th>السداد</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
 
 
-  <!-- 📜 سجل الموظف: العملاء اللي أضافهم في فترة -->
-  <section class="sec" id="sec-log">
-    <div class="card">
-      <h2>📜 سجل العملاء حسب الموظف <span class="sp"></span><span class="hint" id="logCount"></span></h2>
-      <div class="toolbar">
-        <select id="logEmp"></select>
-        <label class="hint">من</label><input type="date" id="logFrom">
-        <label class="hint">إلى</label><input type="date" id="logTo">
-        <button class="ibtn" onclick="logRange('today')">اليوم</button>
-        <button class="ibtn" onclick="logRange('week')">7 أيام</button>
-        <button class="ibtn" onclick="logRange('month')">هذا الشهر</button>
-        <button class="ibtn" onclick="logRange('all')">الكل</button>
-        <button class="btn sec sm" onclick="printLog()">🖨 طباعة / PDF</button>
-      </div>
-      <div class="hint" style="margin-bottom:8px">مرتّب من الأحدث للأقدم حسب وقت إضافة الحجز.</div>
-      <div class="stats" id="logStats" style="margin-bottom:10px"></div>
-      <div style="overflow-x:auto"><table class="curTable" id="logTable"></table></div>
-    </div>
-  </section>
 
   <!-- 🎫 المواعيد المحجوزة -->
   <!-- 🖨 طباعة الباركود -->
@@ -632,7 +580,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 <div class="overlay" id="tabsOv">
   <div class="modal" style="max-width:460px">
     <h3 id="tabsTtl">التبويبات اللي تظهر للموظف<button class="x" onclick="closeOv('tabsOv')">×</button></h3>
-    <p class="hint" style="margin-top:-4px">علّم على التبويبات اللي عايزها تظهر للموظف ده بس — «لوحة التحكم» بتظهر دايمًا. الحسابات وبنك الإيميلات والإيميلات المستخدمة والموظفين والسجل والإعدادات للمدير بس.</p>
+    <p class="hint" style="margin-top:-4px">علّم على التبويبات اللي عايزها تظهر للموظف ده بس — «لوحة التحكم» بتظهر دايمًا. بنك الإيميلات والإيميلات المستخدمة والموظفين والإعدادات للمدير بس.</p>
     <div id="tabsChk" style="display:grid;gap:6px;margin:10px 0"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn sec" onclick="tabsAll(true)">تحديد الكل</button>
@@ -891,8 +839,8 @@ const loginName = e => String(e||'').endsWith('@'+STAFF_DOMAIN) ? e.split('@')[0
 const empName = e => { e=String(e||'').toLowerCase(); return (USERS[e]&&USERS[e].name) || (ME&&ME.email===e&&ME.name) || e.split('@')[0] || 'غير معروف'; };
 /* 🗂 التبويبات المسموحة لكل موظف (users/{e}.tabs = ['appts','bar',...]) — المدير بيحددها من «الموظفين».
    لو مفيش tabs متسجلة للموظف بيشوف كل تبويبات الموظفين زي الأول • «لوحة التحكم» دايمًا ظاهرة */
-const STAFF_TABS = [['appts','المواعيد'],['bar','طباعة الباركود'],['past','الحجوزات المنتهية'],['list','الحجوزات'],['nv','ممنوع الزيارة']];
-const ADMIN_TABS = ['fin','staff','log','bank','used','settings'];
+const STAFF_TABS = [['appts','المواعيد'],['bar','طباعة الباركود'],['past','الحجوزات المنتهية'],['nv','ممنوع الزيارة']];
+const ADMIN_TABS = ['staff','bank','used','settings'];
 /* 📲 «مطلوب على المنصة» كامل (bk): صلاحية إضافية المدير بيفتحها لأي موظف من «🗂 التبويبات» —
    الموظف بيشوف كل الحجوزات المطلوبة على المنصة وينفذها زي المدير (مش المحال ليه بس).
    مقفولة افتراضيًا: لازم المدير يعلّم عليها بنفسه • أدوات المدير (الإحالة/المبكر/السيستم/التعديل) بتفضل للمدير بس */
@@ -1146,19 +1094,8 @@ function calc(b){
   return {n, price, sub, manual:round2(manual), bulk:round2(bulk), disc:round2(manual+bulk), total, paid, rem, st, over:Math.max(0,round2(paid-total)), cur:b.currency||'SAR'};
 }
 const payBadge = b => { const c=calc(b); return `<span class="badge ${PAY[c.st][1]}">${PAY[c.st][0]}</span>`; };
-const curTag = c => `<span class="cur">${CUR[c].flag} ${CUR[c].sym}</span>`;
-const sumB = (arr, fn) => arr.reduce((s,b)=> s + conv(fn(calc(b)), b.currency, base()), 0);
 /* ✅ الجزء المنفَّذ من الحجز: الإيراد والتكلفة والعمولة بيتحسبوا بس بعد ما الخدمة تتأدّى
    «تم الدخول» = الحجز كله • لو فئة واحدة دخلت (رجال أو نساء) = نصيب الفئة دي بس • غير كده = صفر */
-function portionCalc(b, gs){
-  const c=calc(b), m=gs.includes('m') ? (+b.men||0) : 0, w=gs.includes('w') ? (+b.women||0) : 0;
-  const n=m+w, f=c.n ? n/c.n : 0, total=round2(c.total*f), paid=round2(Math.min(c.paid, total));
-  const adv=round2(Math.max(0, Math.min(c.paid, c.total)-paid));   // مقدّم محصّل لجزء لسه مااتنفذش
-  return {...c, n, men:m, women:w, f, sub:round2(c.sub*f), manual:round2(c.manual*f), bulk:round2(c.bulk*f), disc:round2(c.disc*f),
-    total, paid, rem:round2(total-paid), adv, pendTotal:round2(c.total-total), st: paid>=total ? 'paid' : paid>0 ? 'partial' : 'unpaid'};
-}
-const servedGroups = b => b.status==='cancelled' ? [] : groupsOf(b).filter(g=>b.status==='done' || entered(b,g));
-const servedCalc = b => portionCalc(b, servedGroups(b));
 /* ========= توزيع الأوقات ========= */
 function expandSlots(list){
   const step = +S.settings.slotStep || 60, out = new Set();
@@ -1292,8 +1229,6 @@ function badgeFor(ms){
   if(l==='soon') return `<span class="badge b-amb">${remText(ms)}</span>`;
   return `<span class="badge b-gray">${remText(ms)}</span>`;
 }
-const bigMoney = v => { const c=base(); return c==='USD' ? `$${num(v)}` : `${num(v)} <small>${CUR[c].sym}</small>`; };
-
 function renderStats(){
   const t=todayStr(), act=S.bookings.filter(b=>b.status!=='cancelled' && canSee(b));
   const today=act.filter(b=>b.date===t);
@@ -1353,8 +1288,6 @@ function renderUpcoming(){
 }
 
 /* جدول مبسط للوحة الرئيسية: الدفعة + الاسم + واتساب */
-function clearFilters(){ ['q','fDate','fStatus','fPay','fCur'].forEach(k=>$('#'+k).value=''); renderTable(); }
-const otherDay = (b,g) => gDate(b,g)!==b.date ? ` • 📅 ${fmtDate(gDate(b,g))}` : '';
 /* أقرب موعد لسه ما فاتش عليه أكتر من ساعة (للترتيب) — null لو مفيش */
 function nextDt(b){
   const cut=Date.now()-36e5, t=[];
@@ -1424,37 +1357,6 @@ document.addEventListener('keydown', e=>{
   if(((e.key==='/' && !typing) || ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'))){ e.preventDefault(); openSearch(); }
 });
 
-function renderTable(){
-  const q=$('#q').value.trim().toLowerCase(), fd=$('#fDate').value, fs=$('#fStatus').value, fp=$('#fPay').value, fc=$('#fCur').value;
-  const rows = S.bookings.filter(b=>{
-    if(!canSee(b)) return false;
-    if(q && !matchB(b,q)) return false;
-    if(fd && b.date!==fd && gDate(b,'m')!==fd && gDate(b,'w')!==fd) return false;
-    if(fs && b.status!==fs) return false;
-    if(fp && calc(b).st!==fp) return false;
-    if(fc && b.currency!==fc) return false;
-    return true;
-  }).sort(bookingOrder);
-  $('#tblCount').textContent = `${rows.length} من ${S.bookings.filter(canSee).length}`;
-  $('#tbody').innerHTML = rows.length ? rows.map(b=>{ const c=calc(b), nx=(b.status!=='cancelled'&&b.status!=='done')?nextDt(b):null; return `<tr>
-    <td data-l="العميل"><span><b>${esc(b.name)}</b>${b.frozen?' <span class="badge b-frz">❄️</span>':''}${isSplit(b)?' <span class="badge b-amb">📆 يومين</span>':''}${nx!==null?`<span class="slot">${badgeFor(nx-Date.now())}</span>`:''}${b.notes?`<span class="slot">${esc(b.notes)}</span>`:''}${mode==='cloud'&&b.updatedBy?`<span class="slot">👤 ${who(b.updatedBy)}</span>`:''}</span></td>
-    <td data-l="الهاتف"><a href="${waUrl(b)}" target="_blank" dir="ltr" style="color:var(--g)">${esc(b.phone)}</a></td>
-    <td data-l="التاريخ"><span>${fmtDate(b.date)}<span class="slot">${b.date}</span></span></td>
-    <td data-l="الرجال">${+b.men?`<span><b>${b.men}</b><span class="slot">${fmt12(b.menSlot)}${otherDay(b,'m')}</span></span>`:'—'}</td>
-    <td data-l="النساء">${+b.women?`<span><b>${b.women}</b><span class="slot">${fmt12(b.womenSlot)}${otherDay(b,'w')}</span></span>`:'—'}</td>
-    <td data-l="المبلغ"><span><b>${money(c.total,c.cur)}</b> ${curTag(c.cur)}${c.disc>0?`<span class="slot"><span class="badge b-disc">🎁 خصم ${money(c.disc,c.cur)}</span></span>`:''}</span></td>
-    <td data-l="السداد"><span>${payBadge(b)}${c.rem>0?`<span class="slot">متبقي ${money(c.rem,c.cur)}</span>`:''}</span></td>
-    <td data-l="الحالة"><span>${stBadge(b)}${stageBar(b)?`<span class="slot">${stageBar(b)}</span>`:''}${enteredPart(b)?`<span class="slot"><span class="badge b-amb">✓ دخل ${entered(b,'m')?'الرجال':'النساء'} • ${entered(b,'m')?'النساء':'الرجال'} لسه</span></span>`:''}</span></td>
-    <td data-l="إجراءات"><div class="acts">
-      ${paxBtn(b)}
-      ${waBtn(b)}
-      <button class="ibtn" onclick="sendWA('${b.id}')" title="إرسال رسالة التأكيد على واتساب">💬</button>
-      <button class="ibtn" onclick="printBooking('${b.id}')" title="طباعة الحجز للعميل">🖨</button>
-      <button class="ibtn" onclick="openForm('${b.id}')" title="تعديل">✏️</button>
-      <button class="ibtn del admin-only" onclick="delBooking('${b.id}')" title="حذف">🗑</button></div></td>
-  </tr>`; }).join('') : `<tr><td colspan="9" class="empty" style="display:table-cell">لا توجد نتائج</td></tr>`;
-}
-
 /* الفئة اللي اتعلّم عليها «مدخلوش» (b.noShow[g]) */
 const noShow = (b, g) => !!(b.noShow && b.noShow[g]);
 const liveGroups = b => groupsOf(b).filter(g=>!noShow(b,g));
@@ -1493,67 +1395,6 @@ function renderLdShare(){
     </div>`; }).join('');
 }
 
-/* 📜 سجل الموظف: كل العملاء اللي أضافهم في فترة، من الأحدث للأقدم */
-const addedAt = b => +b.createdAt || +new Date((b.date||todayStr())+'T00:00');
-function logRange(r){
-  const now=new Date(); let f='', t='';
-  if(r==='today'){ f=t=todayStr(); }
-  if(r==='week'){ f=dstr(new Date(Date.now()-6*864e5)); t=todayStr(); }
-  if(r==='month'){ f=dstr(new Date(now.getFullYear(),now.getMonth(),1)); t=dstr(new Date(now.getFullYear(),now.getMonth()+1,0)); }
-  $('#logFrom').value=f; $('#logTo').value=t; renderLog();
-}
-function logData(){
-  const emp=$('#logEmp').value, f=$('#logFrom').value, t=$('#logTo').value;
-  const list=S.bookings.filter(b=>{
-    if(emp && (b.createdBy||'').toLowerCase()!==emp) return false;
-    const d=dstr(new Date(addedAt(b)));
-    return (!f||d>=f) && (!t||d<=t);
-  }).sort((a,b)=>addedAt(b)-addedAt(a));
-  return {emp, f, t, list};
-}
-const tFull = t => new Date(t).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
-function fillLogEmps(){
-  const sel=$('#logEmp'), v=sel.value;
-  const emps=[...new Set([...Object.keys(USERS), ...S.bookings.map(b=>(b.createdBy||'').toLowerCase()).filter(Boolean)])]
-    .sort((a,b)=>empName(a).localeCompare(empName(b),'ar'));
-  sel.innerHTML='<option value="">👥 كل الموظفين</option>'+emps.map(e=>`<option value="${esc(e)}">${esc(empName(e))}${USERS[e]&&USERS[e].active===false?' (موقوف)':''}</option>`).join('');
-  sel.value = emps.includes(v) ? v : '';
-}
-function renderLog(){
-  if(!isAdmin()) return;
-  fillLogEmps();
-  if(!$('#logFrom').dataset.init){ $('#logFrom').dataset.init=1; logRange('month'); return; }
-  const {emp, list}=logData(), act=list.filter(b=>b.status!=='cancelled');
-  $('#logCount').textContent = `${list.length} حجز`;
-  $('#logStats').innerHTML=[
-    ['عدد العملاء', list.length, 'var(--g)'],
-    ['عدد الأفراد', act.reduce((s,b)=>s+calc(b).n,0), 'var(--blue)'],
-    ['الصافي', bigMoney(sumB(act,c=>c.total)), 'var(--g)'],
-    ['المحصّل', bigMoney(sumB(act,c=>Math.min(c.paid,c.total))), '#3fa37e'],
-    ['ملغي', list.length-act.length, 'var(--mu)'],
-  ].map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('');
-  $('#logTable').innerHTML = list.length ? `<thead><tr><th>#</th><th>وقت الإضافة</th>${emp?'':'<th>الموظف</th>'}<th>العميل</th><th>الهاتف</th><th>رجال / نساء</th><th>يوم الزيارة</th><th>الصافي</th><th>السداد</th><th>الحالة</th></tr></thead>
-    <tbody>${list.map((b,i)=>{ const c=calc(b); return `<tr style="cursor:pointer" onclick="openForm('${b.id}')">
-      <td>${i+1}</td><td>${tFull(addedAt(b))}</td>${emp?'':`<td>${who(b.createdBy)||'—'}</td>`}<td><b>${esc(b.name)}</b></td><td dir="ltr">${esc(b.phone)}</td>
-      <td>${+b.men||0} / ${+b.women||0}</td><td>${fmtDate(b.date)}</td><td>${money(c.total,c.cur)}</td><td>${payBadge(b)}</td>
-      <td><span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span></td></tr>`; }).join('')}</tbody>`
-    : '<tbody><tr><td class="empty" style="text-align:center">مفيش حجوزات في الفترة دي</td></tr></tbody>';
-}
-['#logEmp','#logFrom','#logTo'].forEach(k=>$(k).addEventListener('change', renderLog));
-function printLog(){
-  const {emp, f, t, list}=logData();
-  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>سجل ${esc(emp?empName(emp):'الموظفين')}</title><style>
-    @page{size:A4;margin:10mm} body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-size:12px;color:#1c2822}
-    h1{font-size:18px;margin:0 0 4px;color:#093f2e} p{margin:0 0 10px;color:#6b7a72}
-    table{width:100%;border-collapse:collapse} th,td{border:1px solid #dde3df;padding:5px;text-align:center} th{background:#f3f5f2}
-  </style></head><body><h1>📜 سجل العملاء — ${esc(emp?empName(emp):'كل الموظفين')}</h1>
-  <p>الفترة: ${f||'البداية'} ← ${t||'الآن'} • عدد الحجوزات: ${list.length}</p>
-  <table><thead><tr><th>#</th><th>وقت الإضافة</th>${emp?'':'<th>الموظف</th>'}<th>العميل</th><th>الهاتف</th><th>رجال / نساء</th><th>يوم الزيارة</th><th>الصافي</th><th>الحالة</th></tr></thead><tbody>
-  ${list.map((b,i)=>{ const c=calc(b); return `<tr><td>${i+1}</td><td>${tFull(addedAt(b))}</td>${emp?'':`<td>${who(b.createdBy)||'—'}</td>`}<td>${esc(b.name)}</td><td dir="ltr">${esc(b.phone)}</td><td>${+b.men||0} / ${+b.women||0}</td><td>${b.date}</td><td>${money(c.total,c.cur)}</td><td>${STATUS[b.status][0]}</td></tr>`; }).join('')}
-  </tbody></table></body></html>`;
-  printHtml(html);
-}
-
 function renderClock(){
   const d=new Date(); let hij='';
   try{ hij=' • '+d.toLocaleDateString('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}); }catch(e){}
@@ -1561,7 +1402,6 @@ function renderClock(){
 }
 function fillCurSelects(){
   const opts = CODES.map(c=>`<option value="${c}">${CUR[c].flag} ${CUR[c].name}</option>`).join('');
-  const fc=$('#fCur'), v=fc.value; fc.innerHTML=`<option value="">كل العملات</option>`+opts; fc.value=v;
   // نحافظ على الاختيار الحالي في الإعدادات لو كانت مفتوحة
   const dv=$('#sDefCur').value, bv=$('#sBaseCur').value;
   $('#sDefCur').innerHTML=opts; $('#sBaseCur').innerHTML=opts;
@@ -1569,12 +1409,12 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderStats(); renderUpcoming(); renderLdShare(); renderTable(); if(isAdmin()){ renderStaff(); renderLog(); renderBank(); renderUsed(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderStats(); renderUpcoming(); renderLdShare(); if(isAdmin()){ renderStaff(); renderBank(); renderUsed(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['staff','log','bank','used'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['staff','bank','used'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   if(!tabAllowed(t)){ toast('⛔ الصفحة دي مش متاحة لحسابك'); return; }
   if(t==='bank') bankWatch();
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
@@ -1940,7 +1780,6 @@ function setStatus(id,st){
 /* ✓ الدخول بيتسجل لكل فئة لوحدها (رجال / نساء) — والحالة ماتبقاش «تم الدخول» غير لما كل اللي في الحجز يدخلوا */
 const entered = (b, g) => !!(b.entered && b.entered[g]);
 const groupsOf = b => [+b.men&&'m', +b.women&&'w'].filter(Boolean);
-const enteredPart = b => b.status!=='done' && groupsOf(b).length>1 && groupsOf(b).some(g=>entered(b,g));
 function markEntered(id, g){
   const b=S.bookings.find(x=>x.id===id); if(!b) return;
   const rest=groupsOf(b).filter(x=>x!==g && !entered(b,x) && !noShow(b,x)), lbl=g==='m'?'الرجال':'النساء';
@@ -3202,20 +3041,6 @@ function stages(b){
 }
 const opensText = ms => { const h=Math.ceil(ms/36e5); return h>=24 ? `بعد ${Math.floor(h/24)} يوم${h%24?` و${h%24} س`:''}` : `بعد ${h} س`; };
 /* شريط المراحل — بيظهر للموظف والمدير جنب كل حجز من النظام الجديد */
-function stageBar(b){
-  if(!paxN(b) || b.status==='cancelled') return '';
-  if(allBarred(b)) return `<span class="stbar"><span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ممنوع الزيارة هذا العام</span></span>`;
-  const nvN=nvPax(b).length;
-  const S_=stages(b), cls=['b-gray','b-amb','b-green'];
-  const next=S_.find(x=>x.s<2); let hint='';
-  if(next && (next.k==='conf'||next.k==='bar')){
-    const g=stGroups(b).find(g=>!gDone(b,next.k,g)), dt=g?gDt(b,g):null, open=dt-(next.k==='conf'?CONF_H:BAR_H)*36e5;
-    if(dt && open>Date.now()) hint=` <span class="hint">${next.l} ${opensText(open-Date.now())}</span>`;
-    else if(dt) hint=` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">⏰ ${next.l} مطلوب دلوقتي</span>`;
-  }
-  return `<span class="stbar">${S_.map((x,i)=>`<span class="badge ${cls[x.s]}" title="${x.l}${x.s===1?' (جزء)':''}">${x.s===2?'✓':x.ic} ${x.l}</span>`).join('<span class="stsep">←</span>')}${hint}${nvN&&acctDone(b)?` <span class="badge b-red" style="background:#fdeeee;color:var(--red)">🚫 ${nvN} ممنوع</span>`:''}</span>`;
-}
-
 /* نسخة مضغوطة من شريط المراحل لصفوف المواعيد — أيقونات ملوّنة (رمادي = لسه • أصفر = جزء • أخضر = تم) واسم المرحلة بيظهر لما تقف عليها */
 function stageMini(b){
   if(!paxN(b) || b.status==='cancelled') return '';
@@ -3622,8 +3447,6 @@ function addDemo(){
 }
 
 /* ========= تشغيل ========= */
-$('#q').addEventListener('input', renderTable);
-['fDate','fStatus','fPay','fCur'].forEach(k=>$('#'+k).addEventListener('change', renderTable));
 /* Esc: بيسأل قبل ما يقفل نموذج الحجز */
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySelectorAll('.overlay.on').forEach(o=>{
   if(o.id==='formOv' && !confirm('إغلاق النموذج؟ البيانات اللي ماتحفظتش هتضيع')) return;
