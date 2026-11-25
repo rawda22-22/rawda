@@ -97,12 +97,32 @@ export function reminderButtons(r) {
   return { inline_keyboard: [[{ text: '🟢 فتح واتساب العميل', url: `https://wa.me/${d}` }]] };
 }
 
+/* 🔁 لو الجروب اتحوّل «سوبر جروب» تليجرام بيدّيله Chat ID جديد وبيرفض القديم (migrate_to_chat_id):
+   بنبعت على الجديد على طول، وبنحفظه في إعدادات الموقع (meta/telegram) عشان كل حاجة تكمل عليه */
+const chatMoved = new Map();
+let onChatMigrate = null;
+export function setTgMigrateHook(fn) { onChatMigrate = fn; }
 export async function tgSend(token, chatId, text, markup) {
-  const body = new URLSearchParams({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: 'true' });
+  const id = chatMoved.get(String(chatId)) || String(chatId);
+  const body = new URLSearchParams({ chat_id: id, text, parse_mode: 'HTML', disable_web_page_preview: 'true' });
   if (markup) body.set('reply_markup', JSON.stringify(markup));
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', body });
   const j = await r.json().catch(() => ({}));
+  const to = j.parameters && j.parameters.migrate_to_chat_id;
+  if (!j.ok && to) {
+    chatMoved.set(String(chatId), String(to));
+    console.log(`::notice::الجروب اتحوّل سوبر جروب — Chat ID الجديد ${to}`);
+    if (onChatMigrate) await Promise.resolve(onChatMigrate(String(to), String(chatId))).catch((e) => console.log('::warning::تعذر حفظ Chat ID الجديد: ' + e.message));
+    return tgSend(token, to, text, markup);
+  }
   if (!j.ok) throw new Error(j.description || 'HTTP ' + r.status);
+}
+/* بيحفظ الـ Chat ID الجديد في إعدادات الموقع — مرة واحدة بس لو لسه عليه القديم */
+export function hookChatMigrate(db) {
+  setTgMigrateHook(async (to, from) => {
+    const ref = db.doc('meta/telegram'), cur = (await ref.get()).data() || {};
+    if (String(cur.chatId) === from) await ref.set({ chatId: to }, { merge: true });
+  });
 }
 
 export async function run({ db, send = tgSend, now = Date.now(), tz = 'Africa/Cairo', siteUrl = '', log = console.log }) {
@@ -332,6 +352,7 @@ async function main() {
   const [owner, repo] = (process.env.GITHUB_REPOSITORY || '/').split('/');
   const siteUrl = process.env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : '');
   // مواعيد الروضة دايماً بتوقيت السعودية (مش بتتأثر بالتوقيت الشتوي في مصر)
+  hookChatMigrate(getFirestore());
   const opts = { db: getFirestore(), tz: 'Asia/Riyadh', siteUrl, log: (m) => console.log('::notice::' + m) };
   const watchMin = +process.env.WATCH_MINUTES || 0;
   try {

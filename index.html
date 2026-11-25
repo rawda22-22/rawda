@@ -1780,6 +1780,13 @@ async function tgSend(text, token=TG.token, chatId=TG.chatId, extra={}){
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method:'POST', body:new URLSearchParams({chat_id:chatId, text, parse_mode:'HTML', disable_web_page_preview:'true', ...extra}) });
   const j = await r.json().catch(()=>({}));
+  /* 🔁 الجروب اتحوّل «سوبر جروب» → تليجرام بيدّي Chat ID جديد: نبعت عليه، والمدير بيحفظه في الإعدادات تلقائي */
+  const to = j.parameters && j.parameters.migrate_to_chat_id;
+  if(!j.ok && to){
+    if(String(chatId)===String(TG.chatId)){ TG.chatId=String(to); if(isAdmin()) saveTG(); }
+    if($('#tgChat') && $('#tgChat').value.trim()===String(chatId)) $('#tgChat').value=String(to);
+    return tgSend(text, token, to, extra);
+  }
   if(!j.ok) throw new Error(j.description || ('HTTP '+r.status));
   return j;
 }

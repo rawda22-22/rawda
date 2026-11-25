@@ -8,7 +8,7 @@
 //   GMAIL_ACCOUNTS  = الحساب الأساسي وكلمة سر التطبيقات:   name@gmail.com:abcdabcdabcdabcd
 //                     ولو أكتر من حساب افصل بينهم بفاصلة:   a@gmail.com:xxxx,b@gmail.com:yyyy
 import { pathToFileURL } from 'node:url';
-import { tgSend } from './remind.mjs';
+import { tgSend, hookChatMigrate } from './remind.mjs';
 
 const MAX_AGE_MS = 15 * 60000;   // أي كود أقدم من ربع ساعة مالوش لازمة
 const SENDER = /nusuk/i;         // إيميلات نسك بس
@@ -190,6 +190,7 @@ async function main() {
   const { getFirestore } = await import('firebase-admin/firestore');
   initializeApp({ credential: cert(JSON.parse(raw)) });
   const db = getFirestore(), log = (m) => console.log('::notice::' + m);
+  hookChatMigrate(db);
   const diag = process.env.DIAG === 'true';
   const force = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
   const minutes = +process.env.WATCH_MINUTES || 345, endAt = Date.now() + minutes * 60000;
