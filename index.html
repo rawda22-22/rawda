@@ -292,6 +292,7 @@ body:not(.cloud) .cloud-only{display:none!important}
   <button data-t="groups"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16 14.2c2.9.2 5 2.6 5 5.8"/></svg><span class="tl">الدفعات</span></button>
   <button data-t="past"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg><span class="tl">الحجوزات المنتهية</span><span class="dot" id="pastDot" style="display:none;background:var(--amb)" title="مواعيد فاتت ولسه ماتقفلتش"></span></button>
   <button data-t="bank" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/></svg><span class="tl">بنك الإيميلات</span><span class="dot" id="bankDot" style="display:none;background:var(--amb)"></span></button>
+  <button data-t="used" class="admin-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/><path d="M15 19.5a3.5 3.5 0 1 0 3.2-4.9"/><path d="m18.6 13.2-.4 1.5 1.5.4"/></svg><span class="tl">الإيميلات المستخدمة</span></button>
   <button data-t="staff" class="admin-only cloud-only"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg><span class="tl">الموظفين</span></button>
   <button data-t="ops"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg><span class="tl">لوحة التشغيل</span><span class="dot" id="opsDot" style="display:none;background:var(--red)"></span></button>
   <button data-t="list"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span class="tl">الحجوزات</span></button>
@@ -586,7 +587,7 @@ body:not(.cloud) .cloud-only{display:none!important}
     <div class="card">
       <h2>📧 بنك الإيميلات <span class="sp"></span><span class="hint" id="bankHead"></span></h2>
       <div class="stats" id="bankStats" style="margin-bottom:10px"></div>
-      <div class="hint" style="display:block;margin-bottom:8px">كل حجز جديد بياخد من هنا إيميل لكل فرد (بالترتيب). الإيميل اللي اتسحب <b>بيتحرق</b> ومش بيرجع للبنك تاني حتى لو الحجز اتلغى أو العدد قلّ.</div>
+      <div class="hint" style="display:block;margin-bottom:8px">الإيميل بيتسحب للفرد <b>بعد ما جنسيته تتحدد</b>: الأول من «♻️ الإيميلات المستخدمة» بنفس الجنسية، ولو مفيش متاح بيتسحب من هنا إيميل جديد (بالترتيب). الإيميل اللي اتسحب من هنا مابيرجعش للبنك — بيروح «الإيميلات المستخدمة» بجنسية العميل اللي خده.</div>
       <div class="f"><label>➕ إضافة إيميلات — الصق الإيميلات هنا (كل إيميل في سطر، أو مفصولين بمسافة أو فاصلة)</label>
         <textarea id="bankIn" rows="7" dir="ltr" spellcheck="false" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;font:inherit" placeholder="client1@gmail.com&#10;client2@gmail.com"></textarea></div>
       <div class="toolbar" style="margin-top:8px">
@@ -606,6 +607,21 @@ body:not(.cloud) .cloud-only{display:none!important}
         <button class="ibtn del" onclick="bankDelLast(true)" title="يحذف كل الإيميلات المتاحة في البنك — المسحوبة لعملاء مابتتلمسش">🧹 مسح كل المتاح</button></h2>
       <div id="bankDup"></div>
       <div style="overflow-x:auto"><table class="curTable" id="bankTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ♻️ الإيميلات المستخدمة -->
+  <section class="sec" id="sec-used">
+    <div class="card">
+      <h2>♻️ الإيميلات المستخدمة <span class="sp"></span><span class="hint" id="usedHead"></span></h2>
+      <div class="hint" style="display:block;margin-bottom:8px">كل إيميل اتربط بعميل قبل كده بيفضل هنا <b>بجنسية العميل</b> اللي اتعمله الحساب بيها. أي فرد جديد مابيتسحبلوش إيميل غير <b>بعد ما جنسيته تتحدد</b> — والسحب بيبقى من هنا الأول بنفس الجنسية (مصري ← إيميل مصري)، من الإيميلات اللي حجزها خلص (تم الدخول / ملغي / موعده فات). لو مفيش متاح بنفس الجنسية بيتسحب إيميل جديد من «بنك الإيميلات» وبيتضاف هنا بجنسيته.</div>
+      <div class="stats" id="usedStats" style="margin-bottom:10px"></div>
+      <div class="toolbar" style="flex-wrap:wrap;gap:6px">
+        <input id="usedQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderUsed()">
+        <select id="usedNat" class="ibtn" onchange="renderUsed()"><option value="">كل الجنسيات</option></select>
+        <select id="usedF" class="ibtn" onchange="renderUsed()"><option value="">الكل</option><option value="free">✅ متاح للسحب</option><option value="busy">⏳ مع حجز شغال</option><option value="nonat">🌍 من غير جنسية</option></select>
+      </div>
+      <div style="overflow-x:auto;margin-top:8px"><table class="curTable" id="usedTable"></table></div>
     </div>
   </section>
 
@@ -818,7 +834,7 @@ body:not(.cloud) .cloud-only{display:none!important}
 <div class="overlay" id="tabsOv">
   <div class="modal" style="max-width:460px">
     <h3 id="tabsTtl">التبويبات اللي تظهر للموظف<button class="x" onclick="closeOv('tabsOv')">×</button></h3>
-    <p class="hint" style="margin-top:-4px">علّم على التبويبات اللي عايزها تظهر للموظف ده بس — «لوحة التحكم» بتظهر دايمًا. الحسابات وبنك الإيميلات والموظفين والسجل والإعدادات للمدير بس.</p>
+    <p class="hint" style="margin-top:-4px">علّم على التبويبات اللي عايزها تظهر للموظف ده بس — «لوحة التحكم» بتظهر دايمًا. الحسابات وبنك الإيميلات والإيميلات المستخدمة والموظفين والسجل والإعدادات للمدير بس.</p>
     <div id="tabsChk" style="display:grid;gap:6px;margin:10px 0"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn sec" onclick="tabsAll(true)">تحديد الكل</button>
@@ -1132,7 +1148,7 @@ const empName = e => { e=String(e||'').toLowerCase(); return (USERS[e]&&USERS[e]
 /* 🗂 التبويبات المسموحة لكل موظف (users/{e}.tabs = ['appts','bar',...]) — المدير بيحددها من «الموظفين».
    لو مفيش tabs متسجلة للموظف بيشوف كل تبويبات الموظفين زي الأول • «لوحة التحكم» دايمًا ظاهرة */
 const STAFF_TABS = [['appts','المواعيد'],['bar','طباعة الباركود'],['groups','الدفعات'],['past','الحجوزات المنتهية'],['ops','لوحة التشغيل'],['list','الحجوزات'],['nv','ممنوع الزيارة']];
-const ADMIN_TABS = ['fin','staff','log','bank','settings'];
+const ADMIN_TABS = ['fin','staff','log','bank','used','settings'];
 /* 📲 «مطلوب على المنصة» كامل (bk): صلاحية إضافية المدير بيفتحها لأي موظف من «🗂 التبويبات» —
    الموظف بيشوف كل الحجوزات المطلوبة على المنصة وينفذها زي المدير (مش المحال ليه بس).
    مقفولة افتراضيًا: لازم المدير يعلّم عليها بنفسه • أدوات المدير (الإحالة/المبكر/السيستم/التعديل) بتفضل للمدير بس */
@@ -2036,12 +2052,12 @@ function fillCurSelects(){
   if(!$('#curPick').children.length)
     $('#curPick').innerHTML = CODES.map(c=>`<label><input type="radio" name="cur" value="${c}"><span>${CUR[c].flag} ${CUR[c].name}</span></label>`).join('');
 }
-function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderOps(); renderStats(); renderUpcoming(); renderLdShare(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); } }
+function renderAll(){ renderClock(); renderApAlert(); renderBankAlert(); renderBookQueue(); renderAppts(); renderBar(); renderNoVisit(); renderPast(); renderOps(); renderStats(); renderUpcoming(); renderLdShare(); renderGroups(); renderTable(); if(isAdmin()){ renderFinance(); renderReview(); renderReport(); renderStaff(); renderLog(); renderBank(); renderUsed(); } }
 
 /* ========= التبويبات ========= */
 function switchTab(t){
   if(t==='settings'){ openSettings(); return; }
-  if(!isAdmin() && ['fin','staff','log','bank'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
+  if(!isAdmin() && ['fin','staff','log','bank','used'].includes(t)){ toast('⛔ الصفحة دي للمدير بس'); return; }
   if(!tabAllowed(t)){ toast('⛔ الصفحة دي مش متاحة لحسابك'); return; }
   if(t==='bank') bankWatch();
   if(t==='fin' && !finUnlocked){
@@ -2053,6 +2069,7 @@ function switchTab(t){
   document.querySelectorAll('section.sec').forEach(s=>s.classList.toggle('on', s.id==='sec-'+t));
   window.scrollTo({top:0,behavior:'smooth'});
   navSync();
+  if(t==='used') renderUsed();
 }
 $('#tabs').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) switchTab(b.dataset.t); });
 
@@ -3613,15 +3630,46 @@ function fixRows(pax, n){
   while(L.length > n){ let i=-1; for(let k=L.length-1;k>=0;k--) if(!rowHasData(L[k])){ i=k; break; } if(i>=0) L.splice(i,1); else L.pop(); }
   return L;
 }
-const paxMissing = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filter(r=>!r.email).length;
+/* 🌍 الإيميل مابيتسحبش للفرد غير بعد ما جنسيته تتحدد:
+   paxMissing = أفراد جنسيتهم محددة ولسه مالهمش إيميل (مستنيين سحب) • paxNoNat = أفراد مالهمش إيميل ولا جنسية • paxNoMail = كل اللي مالهمش إيميل */
+const paxMissing = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filter(r=>!r.email && natKey(r.nat)).length;
+const paxNoNat = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filter(r=>!r.email && !natKey(r.nat)).length;
+const paxNoMail = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filter(r=>!r.email).length;
+
+/* ========= ♻️ الإيميلات المستخدمة =========
+   كل إيميل اتربط بعميل قبل كده بيفضل مربوط بجنسية العميل ده (حساب نسك بيتعمل بجنسيته) — وبيتعرض في تبويب «الإيميلات المستخدمة».
+   السحب لأي فرد جديد: الأول من الإيميلات المستخدمة بنفس جنسيته (اللي حجزها خلص: تم الدخول / ملغي / موعده فات) — الأقدم استخدامًا الأول،
+   ولو مفيش واحد متاح بنفس الجنسية بيتسحب إيميل جديد من البنك (والجديد ده بيتسجل بجنسية الفرد اللي خده).
+   السحابة: emailUse/{الإيميل} {b, at, by} = قفل صغير عشان اتنين مايسحبوش نفس الإيميل المستخدم في نفس اللحظة */
+const natKey = v => normAr(natFix(v)).replace(/\s+/g,'').replace(/^ال/,'');
+const useId = k => String(k).replace(/\//g,'_');
+const USE_HOLD = 30*60e3;   // إيميل اتسحب من أقل من نص ساعة مايتسحبش تاني حتى لو الحجز لسه ماوصلش للكل
+/* الحجز «خلص» = نفس تعريف «الحجوزات المنتهية» (bkFinished): تم الدخول / ملغي / موعده فات */
+/* فهرس الإيميلات المستخدمة من الحجوزات نفسها (skipId = حجز نستبعده خالص — اللي بنسحبله دلوقتي) */
+function usedIndex(skipId){
+  const M=new Map();
+  S.bookings.forEach(b=>{ if(b.noData || b.id===skipId) return;
+    const fin=bkFinished(b), at=+b.createdAt||0, dd=gDate(b, groupsOf(b)[0]||'m'), t=+new Date(dd) || at;
+    (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email);
+      let x=M.get(k); if(!x){ x={key:k, email:k, nat:'', nk:'', uses:0, busy:null, last:null, first:Infinity}; M.set(k,x); }
+      x.uses++;
+      if(natKey(r.nat) && at<x.first){ x.first=at; x.nat=natFix(r.nat); x.nk=natKey(r.nat); }   // جنسية أول عميل اتعمله الحساب بيها
+      if(!fin) x.busy={b, i};
+      if(!x.last || t>=x.last.t) x.last={b, i, t, d:dd, name:r.name||''};
+    }); });
+  return M;
+}
+/* المتاح بجنسية معينة: مش مشغول في حجز شغال — الأقدم استخدامًا الأول */
+const usedFree = (IDX, nk) => [...IDX.values()].filter(x=>x.nk===nk && !x.busy).sort((a,b)=>(a.last?.t||0)-(b.last?.t||0));
 const paxDone = b => (b.pax||[]).slice(0, paxN(b)).filter(r=>r.visa && r.pass && r.nat && r.email).length;
 function paxBtn(b){
   const n=paxN(b); if(!n) return '';
-  const d=paxDone(b), miss=paxMissing(b), ok=d===n;
-  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}${acctDone(b)?' ✅':''}</button>`;
+  const d=paxDone(b), miss=paxNoMail(b), ok=d===n;
+  return `<button class="ibtn ${ok?'ok':''}" onclick="paxOpen('${b.id}')" title="بيانات الأفراد (تأشيرة / جواز / جنسية / جيميل)${miss?` — ناقص ${miss} إيميل${paxNoNat(b)?' (حدد الجنسية)':''}`:''}">👥 ${d}/${n}${miss?' ⚠️':''}${b.uploaded?' 📤':''}${acctDone(b)?' ✅':''}</button>`;
 }
 
-/* سحب إيميلات للصفوف اللي مالهاش — بيرجع {got, short} */
+/* سحب إيميلات للصفوف اللي جنسيتها اتحددت ومالهاش إيميل — بيرجع {got, reused, fresh, short}
+   ♻️ الأول من الإيميلات المستخدمة بنفس الجنسية، وبعدين 📧 جديد من البنك بالترتيب */
 let allocBusy = new Set();
 async function allocEmails(b, quiet){
   if(!b || allocBusy.has(b.id)) return {got:0, short:0};
@@ -3632,36 +3680,55 @@ async function allocEmails(b, quiet){
       const ref=fb.doc(db,'bookings',b.id), mref=fb.doc(db,'emailMeta','main');
       res = await fb.runTransaction(db, async t=>{
         const bs=await t.get(ref); if(!bs.exists()) return {got:0, short:0};
-        const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0};
         const d=bs.data(), n=paxN(d);
-        const pax=fixRows(d.pax, n), need=pax.filter(r=>!r.email).length;
-        if(!need) return {got:0, short:0, pax};
-        const start=+m.next||0, total=+m.total||0, got=[]; let next=start;
-        const taken=paxEmailKeys(); pax.forEach(r=>{ if(r.email) taken.add(gKey(r.email)); });
-        let miss=0;
-        while(got.length<need && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); const em=es.exists() && es.data().email;
-          if(!es.exists()){ if(++miss>40) throw {code:'bank-gap'}; } else miss=0;
-          if(em && !taken.has(gKey(em))){ got.push(em); taken.add(gKey(em)); } }
-        if(next===start) return {got:0, short:need, pax};
-        let k=0; pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
-        t.update(mref, {next});
-        t.update(ref, {pax, updatedAt:Date.now(), updatedBy:myEmail()});
-        return {got:got.length, short:need-got.length, pax, before:total-start, after:total-next, low:m.low===undefined?30:+m.low};
+        const pax=fixRows(d.pax, n), needR=pax.filter(r=>!r.email && natKey(r.nat));
+        if(!needR.length) return {got:0, short:0, pax};
+        // taken = كل إيميلات الحجوزات (للبنك) • own = إيميلات الحجز ده بس (للمستخدمة — عشان مايتكررش جوه نفس الحجز)
+        const taken=paxEmailKeys(), own=new Set(); pax.forEach(r=>{ if(r.email){ taken.add(gKey(r.email)); own.add(gKey(r.email)); } });
+        // 1) ♻️ من الإيميلات المستخدمة بنفس الجنسية
+        const IDX=usedIndex(b.id), C={}, locks=[]; let reads=0;
+        for(const r of needR){ const nk=natKey(r.nat), L=(C[nk]=C[nk]||usedFree(IDX, nk));
+          while(L.length && reads<40){ const x=L.shift(); if(own.has(x.key)) continue;
+            reads++; const ls=await t.get(fb.doc(db,'emailUse',useId(x.key))), lk=ls.exists()?ls.data():null;
+            if(lk && lk.b && lk.b!==b.id && (+lk.at||0) > Date.now()-USE_HOLD) continue;   // حد تاني لسه ساحبه حالاً
+            r.email=x.email; r.ru=1; own.add(x.key); taken.add(x.key); locks.push(x.key); break; }
+        }
+        // 2) 📧 اللي فاضل: جديد من البنك بالترتيب
+        const rest=needR.filter(r=>!r.email);
+        let start=0, total=0, next=0, low=30, fresh=0;
+        if(rest.length){
+          const ms=await t.get(mref), m=ms.exists()?ms.data():{total:0, next:0};
+          start=+m.next||0; total=+m.total||0; next=start; low=m.low===undefined?30:+m.low;
+          const got=[]; let miss=0;
+          while(got.length<rest.length && next<total){ next++; const es=await t.get(fb.doc(db,'emailBank',bankId(next))); const em=es.exists() && es.data().email;
+            if(!es.exists()){ if(++miss>40) throw {code:'bank-gap'}; } else miss=0;
+            if(em && !taken.has(gKey(em))){ got.push(em); taken.add(gKey(em)); } }
+          let k=0; rest.forEach(r=>{ if(k<got.length){ r.email=got[k++]; delete r.ru; } }); fresh=got.length;
+          if(next!==start) t.update(mref, {next});
+        }
+        const now=Date.now();
+        locks.forEach(k=>t.set(fb.doc(db,'emailUse',useId(k)), {b:b.id, at:now, by:myEmail()}));
+        if(locks.length || fresh) t.update(ref, {pax, updatedAt:now, updatedBy:myEmail()});
+        return {got:locks.length+fresh, reused:locks.length, fresh, short:rest.length-fresh, pax, before:total-start, after:total-next, low};
       });
       if(res.pax){ b.pax=res.pax; }
     } else {
       const B=localBank(); b.pax=fixRows(b.pax, paxN(b));
-      const need=b.pax.filter(r=>!r.email).length, before=B.total-B.next, got=[];
-      const taken=paxEmailKeys();
-      while(got.length<need && B.next<B.total){ B.next++; const x=B.list.find(e=>e.seq===B.next); if(x && !taken.has(gKey(x.email))){ got.push(x.email); taken.add(gKey(x.email)); } }
-      let k=0; b.pax.forEach(r=>{ if(!r.email && k<got.length) r.email=got[k++]; });
-      res={got:got.length, short:need-got.length, before, after:B.total-B.next, low:bankLowN()};
-      if(got.length) save();
+      const needR=b.pax.filter(r=>!r.email && natKey(r.nat)), taken=paxEmailKeys(), IDX=usedIndex(b.id), C={};
+      const own=new Set(b.pax.filter(r=>r.email).map(r=>gKey(r.email))); let reused=0;
+      needR.forEach(r=>{ const nk=natKey(r.nat), L=(C[nk]=C[nk]||usedFree(IDX, nk));
+        while(L.length){ const x=L.shift(); if(own.has(x.key)) continue; r.email=x.email; r.ru=1; own.add(x.key); taken.add(x.key); reused++; break; } });
+      const rest=needR.filter(r=>!r.email), before=B.total-B.next, got=[];
+      while(got.length<rest.length && B.next<B.total){ B.next++; const x=B.list.find(e=>e.seq===B.next); if(x && !taken.has(gKey(x.email))){ got.push(x.email); taken.add(gKey(x.email)); } }
+      let k=0; rest.forEach(r=>{ if(k<got.length){ r.email=got[k++]; delete r.ru; } });
+      res={got:reused+got.length, reused, fresh:got.length, short:rest.length-got.length, before, after:B.total-B.next, low:bankLowN()};
+      if(res.got) save();
     }
+    if(res.reused && !quiet) toast(`♻️ اتسحب ${res.reused} إيميل مستخدم بنفس الجنسية${res.fresh?` + ${res.fresh} جديد من البنك`:''}`);
     if(res.short>0){
       if(!quiet) toast(`⚠️ بنك الإيميلات مش كفاية — حجز ${b.name} ناقص ${res.short} إيميل. ${isAdmin()?'ضيف إيميلات من «بنك الإيميلات»':'بلّغ المدير'}`);
       if(tgOn() && res.got>=0 && !quiet) tgSend(`🚫 <b>بنك الإيميلات خلص</b>\nحجز <b>${tgEsc(b.name)}</b> ناقص ${res.short} إيميل — ضيف إيميلات للبنك.`).catch(e=>console.error(e));
-    } else if(res.got && res.before>=res.low && res.after<res.low && tgOn()){
+    } else if(res.fresh && res.before>=res.low && res.after<res.low && tgOn()){
       tgSend(`⚠️ <b>بنك الإيميلات قرب يخلص</b>\nفاضل <b>${res.after}</b> إيميل بس — ضيف إيميلات جديدة.`).catch(e=>console.error(e));
     }
     if(res.got) renderAll();
@@ -3726,23 +3793,49 @@ function sxWarn(b){
 }
 function paxRender(){
   const b=paxB(); if(!b) return;
-  const n=paxN(b), d=paxDone(b), miss=paxMissing(b), adm=isAdmin();
+  const n=paxN(b), d=paxDone(b), miss=paxMissing(b), noNat=paxNoNat(b), adm=isAdmin();
   const gl = g => +b[g==='m'?'men':'women'] ? `${g==='m'?'👨 رجال':'👩 نساء'} ${b[g==='m'?'men':'women']} — ${fmtDate(gDate(b,g))} ${fmt12(g==='m'?b.menSlot:b.womenSlot)}` : '';
   $('#paxInfo').innerHTML = `<b>${esc(b.name)}</b> <span dir="ltr">${esc(b.phone||'')}</span> <span class="badge ${STATUS[b.status][1]}">${STATUS[b.status][0]}</span>${b.uploaded?` <span class="badge b-green">📤 اترفع ${new Date(b.uploaded.at).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span>`:''}
     <div class="hint" style="display:block">${[gl('m'),gl('w')].filter(Boolean).join(' • ')}</div>
-    ${sxWarn(b)}<div style="margin-top:4px;display:block">مكتمل <b>${d}</b> من <b>${n}</b>${miss?` • <b style="color:var(--red)">⚠️ ${miss} من غير إيميل</b>`:' • ✅ كل الأفراد ليهم إيميل'}</div>`;
+    ${sxWarn(b)}<div style="margin-top:4px;display:block">مكتمل <b>${d}</b> من <b>${n}</b>${miss?` • <b style="color:var(--red)">⚠️ ${miss} من غير إيميل</b>`:''}${noNat?` • <b style="color:#7a5200">🌍 ${noNat} مستني الجنسية — الإيميل بيتسحب أول ما تحددها</b>`:''}${!miss&&!noNat?' • ✅ كل الأفراد ليهم إيميل':''}</div>`;
   const inp = (i,k,v,ph,extra='') => `<input class="px" data-i="${i}" data-k="${k}" value="${esc(v||'')}" placeholder="${ph}" ${extra} style="width:100%;min-width:110px;padding:7px;border:1px solid var(--bd);border-radius:8px;${paxHi.has(i+k)?'background:#fff6d6;border-color:#e0b84a':''}">`;
   $('#paxTable').innerHTML = `<thead><tr><th>#</th><th>الاسم</th><th>النوع</th><th>رقم التأشيرة</th><th>رقم الجواز</th><th>الجنسية</th><th>الجيميل</th></tr></thead><tbody>${
     (b.pax||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${inp(i,'name',r.name,'الاسم','dir="auto" style="min-width:170px"')}</td><td>${sxCell(b,r,i)}</td><td>${inp(i,'visa',r.visa,'رقم التأشيرة','dir="ltr" inputmode="numeric"')}</td><td>${inp(i,'pass',r.pass,'رقم الجواز','dir="ltr" autocapitalize="characters"')}</td><td>${inp(i,'nat',r.nat,'الجنسية','list="natList"')}</td>
-      <td>${adm ? `<div style="display:flex;gap:4px;align-items:center">${inp(i,'email',r.email,'الجيميل','dir="ltr" type="email" autocapitalize="off" spellcheck="false" style="min-width:210px"')}${r.email?`<button type="button" class="ibtn" onclick="apCopy(this,'${esc(r.email)}')" title="نسخ">📋</button>`:''}</div>`
-        : r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>` : '<span class="badge b-amb">⚠️ لسه</span>'}</td></tr>`).join('')}</tbody>`;
+      <td>${adm ? `<div style="display:flex;gap:4px;align-items:center">${inp(i,'email',r.email,'الجيميل','dir="ltr" type="email" autocapitalize="off" spellcheck="false" style="min-width:210px"')}${r.email?`<button type="button" class="ibtn" onclick="apCopy(this,'${esc(r.email)}')" title="نسخ">📋</button>${r.ru?'<span title="إيميل مستخدم قبل كده بنفس الجنسية">♻️</span>':''}`:natKey(r.nat)?'':'<span class="hint" title="الإيميل بيتسحب بعد ما تحدد الجنسية">🌍</span>'}</div>`
+        : r.email ? `<button type="button" class="cp sm" onclick="apCopy(this,'${esc(r.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(r.email)}</span><span class="c">📋</span></button>${r.ru?' <span title="إيميل مستخدم قبل كده بنفس الجنسية">♻️</span>':''}` : natKey(r.nat) ? '<span class="badge b-amb">⏳ بيتسحب…</span>' : '<span class="badge b-amb">🌍 حدد الجنسية</span>'}</td></tr>`).join('')}</tbody>`;
+  paxAutoAlloc(b);
   $('#paxUpBtn').textContent = b.uploaded ? '📤 إعادة إرسال «تم الرفع»' : '📤 تم الرفع';
 }
-$('#paxTable').addEventListener('change', e=>{ if(e.target.dataset.k==='sx'){ paxDirty=true; paxCollect(); paxRender(); } });
+$('#paxTable').addEventListener('change', e=>{ const k=e.target.dataset.k;
+  if(k==='sx'){ paxDirty=true; paxCollect(); paxRender(); }
+  if(k==='nat') paxNatChanged(+e.target.dataset.i);
+});
+/* 🌍 الجنسية اتحددت/اتغيرت: لو الفرد مالوش إيميل يتسحبله على طول (مستخدم بنفس الجنسية الأول، وإلا جديد من البنك).
+   ولو كان واخد إيميل مستخدم مربوط بجنسية تانية ولسه الحسابات ماتعملتش — بيتشال ويتسحب بداله واحد بالجنسية الصح */
+function paxNatChanged(i){
+  const b=paxB(); if(!b) return;
+  paxCollect(); const r=b.pax[i]; if(!r) return;
+  if(r.email && natKey(r.nat) && !b.uploaded && !acctDone(b) && !r.made){
+    const x=usedIndex(b.id).get(gKey(r.email));
+    if(x && x.nk && x.nk!==natKey(r.nat)){ toast(`🔄 الإيميل ${r.email} مربوط بجنسية ${x.nat} — هيتسحب بداله إيميل ${natFix(r.nat)}`); r.email=''; delete r.ru; }
+  }
+  paxDirty=false; const sv=save(); paxRender(); renderAll();
+}
+/* بعد أي رسم لشاشة الأفراد: لو فيه أفراد جنسيتهم اتحددت (يدوي أو من التأشيرة/الشيت) ومالهمش إيميل → سحب تلقائي.
+   مرة واحدة لكل حالة — عشان لو البنك فاضي مايفضلش يحاول ويطلّع تنبيهات ورا بعض */
+let paxAllocT=null, paxAllocSig='';
+function paxAutoAlloc(b){
+  const P=(b.pax||[]).slice(0,paxN(b)), sig=b.id+'|'+P.map((r,i)=>!r.email && natKey(r.nat) ? i+':'+natKey(r.nat) : '').join(',');
+  if(!paxMissing(b) || sig===paxAllocSig || allocBusy.has(b.id)) return;
+  clearTimeout(paxAllocT);
+  paxAllocT=setTimeout(async ()=>{ const bb=paxB(); if(!bb || bb.id!==b.id) return;
+    paxAllocSig=sig; paxCollect(); bb.pax=fixRows(bb.pax, paxN(bb)); await Promise.resolve(save());
+    await allocEmails(bb); const b2=paxB(); if(b2 && b2.id===b.id){ paxCollect(); b2.pax=fixRows(b2.pax, paxN(b2)); paxRender(); } }, 700);
+}
 $('#paxTable').addEventListener('input', e=>{ if(e.target.classList.contains('px')){ paxDirty=true; e.target.style.background=''; } });
 function paxCollect(){
   const b=paxB(); if(!b) return;
-  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='sx'){ if(r.sx!==v && r.eh && !slotsOf(v).includes(r.eh)) delete r.eh; r.sx=v; return; } if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k==='email'){ if(el.value===el.defaultValue) return; v=v.toLowerCase().replace(/\s+/g,''); } else if(el.dataset.k!=='nat') v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
+  document.querySelectorAll('#paxTable .px').forEach(el=>{ const r=b.pax[+el.dataset.i]; if(r){ let v=el.value.trim(); if(el.dataset.k==='sx'){ if(r.sx!==v && r.eh && !slotsOf(v).includes(r.eh)) delete r.eh; r.sx=v; return; } if(el.dataset.k==='name') v=v.replace(/\s+/g,' '); else if(el.dataset.k==='email'){ if(el.value===el.defaultValue) return; v=v.toLowerCase().replace(/\s+/g,''); } else if(el.dataset.k==='nat') v=natFix(v); else v=v.toUpperCase().replace(/\s+/g,''); r[el.dataset.k]=v; } });
 }
 function paxSave(close=true){
   const b=paxB(); if(!b) return;
@@ -3750,14 +3843,15 @@ function paxSave(close=true){
   /* ✍️ الإيميل اليدوي (للمدير): يتأكد إنه جيميل ومش مع فرد تاني */
   if(isAdmin()){
     const bad=[], dup=[], seen=new Map();
-    S.bookings.forEach(x=>{ if(x.id!==b.id) (x.pax||[]).forEach((r,i)=>{ if(r && r.email) seen.set(gKey(r.email), `${x.name} (فرد ${i+1})`); }); });
+    S.bookings.forEach(x=>{ if(x.id!==b.id && !bkFinished(x)) (x.pax||[]).forEach((r,i)=>{ if(r && r.email) seen.set(gKey(r.email), `${x.name} (فرد ${i+1})`); }); });   // ♻️ الحجوزات اللي خلصت مش تكرار — إيميلاتها بتتسحب تاني بنفس الجنسية
     (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email);
       if(!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(k)) bad.push(`فرد ${i+1}: ${r.email}`);
       else if(seen.has(k)) dup.push(`فرد ${i+1}: ${r.email} ← مع ${seen.get(k)}`);
       else seen.set(k, `نفس الحجز (فرد ${i+1})`); });
     if(bad.length){ toast('⛔ إيميل مكتوب غلط: '+bad.join('، ')); return; }
-    if(dup.length && !confirm(`⚠️ الإيميل ده مستخدم مع فرد تاني:\n${dup.join('\n')}\n\nتحفظ برضه؟`)) return;
-  } b.pax=fixRows(b.pax, paxN(b)); paxDirty=false; save(); renderAll();
+    if(dup.length && !confirm(`⚠️ الإيميل ده مستخدم مع فرد تاني في حجز لسه شغال:\n${dup.join('\n')}\n\nتحفظ برضه؟`)) return;
+  } b.pax=fixRows(b.pax, paxN(b)); paxDirty=false; const sv=save(); renderAll();
+  if(paxMissing(b)) Promise.resolve(sv).then(()=>allocEmails(b)).then(()=>{ if(PAXID===b.id) paxRender(); });
   if(close){ closeOv('paxOv'); PAXID=null; toast(`✓ اتحفظت بيانات الأفراد (${paxDone(b)}/${paxN(b)})`); } else paxRender();
 }
 function paxClose(){ if(paxDirty) paxSave(true); else { closeOv('paxOv'); PAXID=null; } }
@@ -3784,7 +3878,8 @@ async function paxReplaceEmails(){
 async function paxUpload(){
   const b=paxB(); if(!b) return;
   paxCollect(); b.pax=fixRows(b.pax, paxN(b)); await Promise.resolve(save());
-  if(paxMissing(b)){ const r=await allocEmails(b); paxRender(); if(paxMissing(paxB()||b)){ toast('⛔ فيه أفراد من غير إيميل — لازم البنك يتملى الأول'); return; } }
+  if(paxNoNat(b)){ toast(`⛔ حدد جنسية كل الأفراد الأول — ${paxNoNat(b)} فرد من غير جنسية (الإيميل بيتسحب حسب الجنسية)`); return; }
+  if(paxMissing(b)){ const r=await allocEmails(b); paxRender(); if(paxNoMail(paxB()||b)){ toast('⛔ فيه أفراد من غير إيميل — لازم البنك يتملى الأول'); return; } }
   const bb=paxB()||b, n=paxN(bb), d=paxDone(bb);
   if(d<n && !confirm(`بيانات ${n-d} فرد مش مكتملة (تأشيرة / جواز / جنسية). تسجيل «تم الرفع» على أي حال؟`)) return;
   if(bb.uploaded && !confirm('الحجز ده اتسجل «تم الرفع» قبل كده. إعادة الإرسال على تليجرام؟')) return;
@@ -4072,6 +4167,34 @@ $('#paxFiles').addEventListener('change', async e=>{
   if(pick.length) pickOpen(pick);
 });
 
+/* ===== ♻️ صفحة الإيميلات المستخدمة (للمدير) ===== */
+function renderUsed(){
+  if(!isAdmin() || currentTab()!=='used') return;
+  const IDX=usedIndex(), all=[...IDX.values()];
+  const byN=new Map(); all.forEach(x=>{ if(!x.nk) return; const g=byN.get(x.nk)||{nat:x.nat, n:0, free:0}; g.n++; if(!x.busy) g.free++; byN.set(x.nk, g); });
+  const nats=[...byN.entries()].sort((a,b)=>b[1].n-a[1].n);
+  const sel=$('#usedNat'), cur=sel.value;
+  sel.innerHTML='<option value="">كل الجنسيات</option>'+nats.map(([k,g])=>`<option value="${esc(k)}" ${k===cur?'selected':''}>${esc(g.nat)} (${g.free} متاح من ${g.n})</option>`).join('');
+  const free=all.filter(x=>!x.busy && x.nk).length, busy=all.filter(x=>x.busy).length, noNat=all.filter(x=>!x.nk).length;
+  $('#usedHead').textContent=`${all.length} إيميل`;
+  $('#usedStats').innerHTML = [['♻️ إجمالي المستخدمة', all.length, 'var(--blue)'], ['✅ متاح للسحب', free, 'var(--g)'], ['⏳ مع حجز شغال', busy, 'var(--amb)'], ...(noNat?[['🌍 من غير جنسية', noNat, 'var(--red)']]:[])]
+    .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('')
+    + nats.slice(0,8).map(([k,g])=>`<div class="stat" style="--c:var(--mu);cursor:pointer" onclick="$('#usedNat').value='${esc(k)}';$('#usedF').value='free';renderUsed()"><span>🌍 ${esc(g.nat)}</span><b>${g.free}<small style="font-size:.6em;color:var(--mu)"> / ${g.n}</small></b></div>`).join('');
+  const q=normAr($('#usedQ').value.trim().toLowerCase()), nf=$('#usedNat').value, f=$('#usedF').value;
+  const rows=all.filter(x=>{
+    if(nf && x.nk!==nf) return false;
+    if(f==='free' && (x.busy || !x.nk)) return false; if(f==='busy' && !x.busy) return false; if(f==='nonat' && x.nk) return false;
+    return !q || x.key.includes(q) || (x.last && normAr((x.last.b.name+' '+x.last.name).toLowerCase()).includes(q));
+  }).sort((a,b)=> (!!a.busy-!!b.busy) || (a.last?.t||0)-(b.last?.t||0));
+  $('#usedTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>الحالة</th><th>آخر عميل</th><th>آخر موعد</th><th>مرات</th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{ const L=x.last, bb=x.busy?x.busy.b:L&&L.b;
+      return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td>
+      <td>${x.nk?`<span class="badge b-new">${esc(x.nat)}</span>`:'<span class="badge b-amb" title="الفرد اللي معاه الإيميل ده مالوش جنسية — حددها من 👥 بيانات الأفراد">🌍 مش محددة</span>'}</td>
+      <td>${x.busy?`<span class="badge b-amb">⏳ مع ${esc(x.busy.b.name)}</span>`:x.nk?'<span class="badge b-green">✅ متاح</span>':'<span class="badge b-gray">مش هيتسحب</span>'}</td>
+      <td>${L?`${esc(L.b.name)}${L.name?`<div class="hint">${esc(L.name)}</div>`:''}`:'—'} ${bb?`<button class="ibtn" onclick="paxOpen('${bb.id}')" title="بيانات الأفراد">👥</button>`:''}</td>
+      <td>${L&&L.d?fmtDate(L.d):'—'}</td><td>${x.uses}</td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="7">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
+    : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
+}
+
 /* ===== صفحة بنك الإيميلات (للمدير) ===== */
 function renderBankAlert(){
   if(!isAdmin()){ $('#bankAlert').innerHTML=''; $('#bankDot').style.display='none'; return; }
@@ -4156,7 +4279,8 @@ function bankDupCheck(){
   bankList().forEach(x=>add(gKey(x.email), {t:'bank', email:x.email, seq:x.seq, used:x.seq<=next}));
   S.bookings.forEach(b=>(b.pax||[]).forEach((r,i)=>{ if(r && r.email) add(gKey(r.email), {t:'pax', email:r.email, b, i}); }));
   // الإيميل المسحوب بيظهر مرتين طبيعي (مرة في البنك ومرة في الحجز) — التكرار الحقيقي: أكتر من صف في البنك، أو أكتر من فرد بنفس الإيميل
-  const D=[...G.entries()].filter(([k,L])=>L.filter(x=>x.t==='bank').length>1 || L.filter(x=>x.t==='pax').length>1);
+  // ♻️ الإيميل المستخدم بيتكرر طبيعي في حجوزات خلصت — التكرار الحقيقي: فردين بنفس الإيميل في حجوزات لسه شغالة (أو جوه نفس الحجز)
+  const D=[...G.entries()].filter(([k,L])=>{ const P=L.filter(x=>x.t==='pax'), A=P.filter(x=>!bkFinished(x.b)); return L.filter(x=>x.t==='bank').length>1 || A.length>1 || P.some((x,j)=>P.some((y,m)=>m!==j && y.b===x.b)); });
   const box=$('#bankDup');
   if(!D.length){ box.innerHTML='<div class="alert" style="background:#eef8f3;border:1px solid #9fd6bb;border-radius:10px;padding:10px;margin-bottom:10px">✅ مفيش ولا إيميل متكرر — لا في البنك ولا في الحجوزات</div>'; toast('✅ مفيش تكرار'); return; }
   box.innerHTML = `<div style="background:#fdf2f2;border:1px solid #efb9b9;border-radius:10px;padding:10px;margin-bottom:10px">
@@ -4411,7 +4535,7 @@ function renderBookQueue(){
   const L=S.bookings.filter(b=>canEx(b) && ((needBook(b) && paxReady(b) && inBkWin(b)) || (needSlot(b) && inBkWin(b)))).sort((a,b)=>needSlot(a)-needSlot(b) || apptPassed(a)-apptPassed(b) || (nextDt(a)??9e15)-(nextDt(b)??9e15) || (a.createdAt||0)-(b.createdAt||0));
   card.style.display = L.length ? '' : 'none';
   $('#bkCount').textContent = L.length ? `${L.length} حجز` : '';
-  $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxMissing(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
+  $('#bkList').innerHTML = L.map(b=>{ const n=paxN(b), miss=paxNoMail(b), d=paxDone(b), nx=nextDt(b), made=(b.pax||[]).filter(r=>r.made||r.nv).length, gone=apptPassed(b);
     if(gone) return `<div class="appt" style="--gc:var(--amb)">
       <div class="time" style="font-size:20px">👥 ${n}</div>
       <div class="info"><div class="nm">${esc(b.name)}${empTag(b)} <span class="badge b-amb">الموعد فات</span></div>
@@ -4526,7 +4650,7 @@ function nvMsd(id, i){ const b=S.bookings.find(x=>x.id===id); if(!b || !b.pax[i]
 async function bkDone(){
   const b=bkB(); if(!b) return;
   if(acctDone(b)){ if(!confirm('إلغاء «تم إنشاء الحسابات» ورجوع الحجز لقائمة الانتظار؟')) return; delete b.acct; delete b.booked; save(); renderAll(); bkRender(); return; }
-  if(paxMissing(b)){ toast('⛔ فيه أفراد من غير إيميل — ضيف إيميلات للبنك الأول'); return; }
+  if(paxNoMail(b)){ toast(paxNoNat(b) ? '⛔ فيه أفراد من غير جنسية — حدد الجنسية الأول عشان الإيميل يتسحب' : '⛔ فيه أفراد من غير إيميل — ضيف إيميلات للبنك الأول'); return; }
   const n=paxN(b), made=b.pax.filter(r=>r.made||r.nv).length;
   if(made<n && !confirm(`علّمت على ${made} من ${n} بس. الباقيين هيتسجلوا «اتعمل حسابه» — تكمل؟`)) return;
   const nvN=b.pax.filter(r=>r.nv).length, vN=n-nvN;

@@ -58,6 +58,13 @@ service cloud.firestore {
         && request.resource.data.next > resource.data.next
         && request.resource.data.next <= resource.data.total;
     }
+    // ♻️ قفل الإيميل المستخدم وقت سحبه لحجز جديد (بنفس الجنسية) — عشان موظفين اتنين مايسحبوش نفس الإيميل في نفس اللحظة
+    match /emailUse/{k} {
+      allow read: if isActive();
+      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['b', 'at', 'by'])
+                          && request.resource.data.by == myEmail();
+      allow delete: if isAdmin();
+    }
     // 🧾 أرشيف كشوف حساب الموظفين: للمدير بس — الكشف بعد اعتماده مايتعدلش (يتلغي بس)
     match /statements/{id} {
       allow read, create, delete: if isAdmin();
