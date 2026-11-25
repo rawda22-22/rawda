@@ -620,6 +620,10 @@ body:not(.cloud) .cloud-only{display:none!important}
         <input id="usedQ" placeholder="ابحث بإيميل أو اسم عميل" style="max-width:240px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font:inherit" oninput="renderUsed()">
         <select id="usedNat" class="ibtn" onchange="renderUsed()"><option value="">كل الجنسيات</option></select>
         <select id="usedF" class="ibtn" onchange="renderUsed()"><option value="">الكل</option><option value="free">✅ متاح للسحب</option><option value="busy">⏳ مع حجز شغال</option><option value="nonat">🌍 من غير جنسية</option></select>
+        <span class="sp"></span>
+        <span class="hint">🧹 احذف الكل ما عدا اللي بيبدأ بـ</span><input id="usedKeep" value="r" dir="ltr" style="width:60px;padding:8px;border:1px solid var(--bd);border-radius:10px;font:inherit">
+        <button class="ibtn del" onclick="usedPurge()" title="بيشيل الإيميلات من القائمة دي بس — بتفضل مع عملائها القدام، ومابتتسحبش لحد تاني">🧹 حذف</button>
+        <button class="ibtn" id="usedRestoreBtn" onclick="usedRestore()" style="display:none">↩️ رجّع المحذوفة</button>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="curTable" id="usedTable"></table></div>
     </div>
@@ -1277,6 +1281,8 @@ function subscribe(){
   unsubs.push(fb.onSnapshot(fb.doc(db,'emailMeta','main'), d=>{ BANK.meta={total:0, next:0, low:30, ...(d.exists()?d.data():{})}; renderAll(); }, e=>console.warn('emailMeta:', e.code||e)));
   /* 📧 قائمة البنك كاملة بتتقرا بس لما تفتح تبويب «بنك الإيميلات» — عشان كل فتحة للصفحة ماتصرفش آلاف القراءات من حصة Firebase */
   if(currentTab()==='bank') bankWatch();
+  /* ♻️ الإيميلات اللي المدير شالها من «الإيميلات المستخدمة» (بتفضل مع عملائها القدام، بس مابتتسحبش تاني) */
+  unsubs.push(fb.onSnapshot(fb.doc(db,'meta','usedOff'), d=>{ USED_OFF=new Set((d.exists() && d.data().keys) || []); renderAll(); }, e=>console.warn('usedOff:', e.code||e)));
   unsubs.push(fb.onSnapshot(fb.doc(db,'meta','telegram'), d=>{ TG={on:false,token:'',chatId:'', ...(d.exists()?d.data():{})}; }, e=>console.warn('telegram settings:', e)));
   unsubs.push(fb.onSnapshot(fb.collection(db,'bookings'), snap=>{
     const arr=[]; synced.bookings={};
@@ -3643,14 +3649,17 @@ const paxNoMail = b => b.status==='cancelled' ? 0 : fixRows(b.pax, paxN(b)).filt
    السحابة: emailUse/{الإيميل} {b, at, by} = قفل صغير عشان اتنين مايسحبوش نفس الإيميل المستخدم في نفس اللحظة */
 const natKey = v => normAr(natFix(v)).replace(/\s+/g,'').replace(/^ال/,'');
 const useId = k => String(k).replace(/\//g,'_');
+/* المحذوفة من «الإيميلات المستخدمة»: سحابة = meta/usedOff {keys:[...]} • محلي = S.usedOff */
+let USED_OFF = new Set();
+const usedOff = () => mode==='cloud' ? USED_OFF : new Set(S.usedOff||[]);
 const USE_HOLD = 30*60e3;   // إيميل اتسحب من أقل من نص ساعة مايتسحبش تاني حتى لو الحجز لسه ماوصلش للكل
 /* الحجز «خلص» = نفس تعريف «الحجوزات المنتهية» (bkFinished): تم الدخول / ملغي / موعده فات */
 /* فهرس الإيميلات المستخدمة من الحجوزات نفسها (skipId = حجز نستبعده خالص — اللي بنسحبله دلوقتي) */
 function usedIndex(skipId){
-  const M=new Map();
+  const M=new Map(), OFF=usedOff();
   S.bookings.forEach(b=>{ if(b.noData || b.id===skipId) return;
     const fin=bkFinished(b), at=+b.createdAt||0, dd=gDate(b, groupsOf(b)[0]||'m'), t=+new Date(dd) || at;
-    (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email);
+    (b.pax||[]).forEach((r,i)=>{ if(!r || !r.email) return; const k=gKey(r.email); if(OFF.has(k)) return;
       let x=M.get(k); if(!x){ x={key:k, email:k, nat:'', nk:'', uses:0, busy:null, last:null, first:Infinity}; M.set(k,x); }
       x.uses++;
       if(natKey(r.nat) && at<x.first){ x.first=at; x.nat=natFix(r.nat); x.nk=natKey(r.nat); }   // جنسية أول عميل اتعمله الحساب بيها
@@ -4176,7 +4185,8 @@ function renderUsed(){
   const sel=$('#usedNat'), cur=sel.value;
   sel.innerHTML='<option value="">كل الجنسيات</option>'+nats.map(([k,g])=>`<option value="${esc(k)}" ${k===cur?'selected':''}>${esc(g.nat)} (${g.free} متاح من ${g.n})</option>`).join('');
   const free=all.filter(x=>!x.busy && x.nk).length, busy=all.filter(x=>x.busy).length, noNat=all.filter(x=>!x.nk).length;
-  $('#usedHead').textContent=`${all.length} إيميل`;
+  const off=usedOff().size; $('#usedHead').textContent=`${all.length} إيميل${off?` • 🗑 ${off} محذوف`:''}`;
+  $('#usedRestoreBtn').style.display = off ? '' : 'none'; $('#usedRestoreBtn').textContent=`↩️ رجّع المحذوفة (${off})`;
   $('#usedStats').innerHTML = [['♻️ إجمالي المستخدمة', all.length, 'var(--blue)'], ['✅ متاح للسحب', free, 'var(--g)'], ['⏳ مع حجز شغال', busy, 'var(--amb)'], ...(noNat?[['🌍 من غير جنسية', noNat, 'var(--red)']]:[])]
     .map(([l,v,c])=>`<div class="stat" style="--c:${c}"><span>${l}</span><b>${v}</b></div>`).join('')
     + nats.slice(0,8).map(([k,g])=>`<div class="stat" style="--c:var(--mu);cursor:pointer" onclick="$('#usedNat').value='${esc(k)}';$('#usedF').value='free';renderUsed()"><span>🌍 ${esc(g.nat)}</span><b>${g.free}<small style="font-size:.6em;color:var(--mu)"> / ${g.n}</small></b></div>`).join('');
@@ -4186,13 +4196,42 @@ function renderUsed(){
     if(f==='free' && (x.busy || !x.nk)) return false; if(f==='busy' && !x.busy) return false; if(f==='nonat' && x.nk) return false;
     return !q || x.key.includes(q) || (x.last && normAr((x.last.b.name+' '+x.last.name).toLowerCase()).includes(q));
   }).sort((a,b)=> (!!a.busy-!!b.busy) || (a.last?.t||0)-(b.last?.t||0));
-  $('#usedTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>الحالة</th><th>آخر عميل</th><th>آخر موعد</th><th>مرات</th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{ const L=x.last, bb=x.busy?x.busy.b:L&&L.b;
+  $('#usedTable').innerHTML = rows.length ? `<thead><tr><th>#</th><th>الإيميل</th><th>الجنسية</th><th>الحالة</th><th>آخر عميل</th><th>آخر موعد</th><th>مرات</th><th></th></tr></thead><tbody>${rows.slice(0,400).map((x,i)=>{ const L=x.last, bb=x.busy?x.busy.b:L&&L.b;
       return `<tr><td>${i+1}</td><td><button type="button" class="cp sm" onclick="apCopy(this,'${esc(x.email)}')" title="اضغط للنسخ"><span class="v" dir="ltr">${esc(x.email)}</span><span class="c">📋</span></button></td>
       <td>${x.nk?`<span class="badge b-new">${esc(x.nat)}</span>`:'<span class="badge b-amb" title="الفرد اللي معاه الإيميل ده مالوش جنسية — حددها من 👥 بيانات الأفراد">🌍 مش محددة</span>'}</td>
       <td>${x.busy?`<span class="badge b-amb">⏳ مع ${esc(x.busy.b.name)}</span>`:x.nk?'<span class="badge b-green">✅ متاح</span>':'<span class="badge b-gray">مش هيتسحب</span>'}</td>
       <td>${L?`${esc(L.b.name)}${L.name?`<div class="hint">${esc(L.name)}</div>`:''}`:'—'} ${bb?`<button class="ibtn" onclick="paxOpen('${bb.id}')" title="بيانات الأفراد">👥</button>`:''}</td>
-      <td>${L&&L.d?fmtDate(L.d):'—'}</td><td>${x.uses}</td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="7">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
+      <td>${L&&L.d?fmtDate(L.d):'—'}</td><td>${x.uses}</td><td><button class="ibtn del" onclick="usedDel(['${esc(x.key)}'])" title="حذف من القائمة (مش هيتسحب تاني)">🗑</button></td></tr>`; }).join('')}</tbody>${rows.length>400?`<tfoot><tr><td colspan="8">… وكمان ${rows.length-400} — استخدم البحث أو الفلتر</td></tr></tfoot>`:''}`
     : '<tbody><tr><td class="empty" style="text-align:center">مفيش إيميلات هنا</td></tr></tbody>';
+}
+
+/* 🗑 حذف من «الإيميلات المستخدمة»: الإيميل بيفضل مع العميل في حجزه القديم زي ما هو — بس بيتشال من القائمة ومابيتسحبش لأي حد تاني */
+async function usedSave(set){
+  const keys=[...set].sort();
+  if(mode==='cloud') await fb.setDoc(fb.doc(db,'meta','usedOff'), {keys, at:Date.now(), by:myEmail()});
+  else { S.usedOff=keys; save(); }
+  if(mode==='cloud') USED_OFF=new Set(keys);
+  renderAll();
+}
+async function usedDel(keys){
+  if(!isAdmin() || !keys.length) return;
+  if(keys.length===1 && !confirm(`حذف ${keys[0]} من الإيميلات المستخدمة؟\n(هيفضل مع عميله القديم، بس مش هيتسحب لحد تاني)`)) return;
+  try{ const S2=new Set(usedOff()); keys.forEach(k=>S2.add(k)); await usedSave(S2); toast(`🗑 اتشال ${keys.length} إيميل من المستخدمة`); }
+  catch(e){ cloudErr(e); }
+}
+async function usedPurge(){
+  if(!isAdmin()) return;
+  const keep=$('#usedKeep').value.trim().toLowerCase(), all=[...usedIndex().values()];
+  const del=all.filter(x=>!keep || !x.key.startsWith(keep)), stay=all.length-del.length;
+  if(!del.length){ toast('مفيش حاجة تتحذف'); return; }
+  const busy=del.filter(x=>x.busy).length;
+  if(!confirm(`🧹 حذف ${del.length} إيميل من «الإيميلات المستخدمة»\nوهيفضل ${stay} إيميل بس${keep?` (اللي بيبدأوا بـ «${keep}»)`:''}.\n${busy?`\nمنهم ${busy} لسه مع حجوزات شغالة — هيفضلوا مع عملائهم عادي.`:''}\nالإيميلات مش هتتشال من الحجوزات القديمة، بس مش هتتسحب لأي عميل جديد تاني.\n\nمتأكد؟`)) return;
+  await usedDel(del.map(x=>x.key));
+}
+async function usedRestore(){
+  if(!isAdmin()) return; const n=usedOff().size;
+  if(!n || !confirm(`ترجّع ${n} إيميل محذوف لقائمة الإيميلات المستخدمة (ويتسحبوا تاني حسب الجنسية)؟`)) return;
+  try{ await usedSave(new Set()); toast(`↩️ رجع ${n} إيميل`); }catch(e){ cloudErr(e); }
 }
 
 /* ===== صفحة بنك الإيميلات (للمدير) ===== */
